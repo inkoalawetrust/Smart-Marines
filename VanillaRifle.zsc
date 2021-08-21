@@ -1,0 +1,148 @@
+Class VanillaRifle : Weapon
+{
+	Default
+	{
+		//$Title Vanilla Rifle
+		//$Category Weapons
+		Scale 0.75;
+		Weapon.SelectionOrder 1000;
+		Weapon.AmmoUse 1;
+		Weapon.AmmoGive 40;
+		Weapon.AmmoType1 "VanillaRifleMagazine";
+		Weapon.AmmoType2 "Clip";
+		Weapon.BobStyle "Smooth";
+		Weapon.BobSpeed 1.2;
+		Weapon.SlotNumber 4;
+		Weapon.SlotPriority 100.0;
+		AttackSound "Marine/Fire";
+		Inventory.PickupMessage "You picked up the rifle !";
+		Obituary "%o was gunned down by %k's assault rifle";
+		+Weapon.Ammo_Optional;
+	}
+	//Modified version of a generic reloading function by Agent_Ash.
+	Action Void A_RifleReload()
+	{
+		If (Invoker.Ammo1 && Invoker.Ammo2) 
+		{
+			While (Invoker.Ammo2.Amount > 0 && Invoker.Ammo1.Amount < Invoker.Ammo1.MaxAmount)
+			{
+				TakeInventory(Invoker.Ammo2.GetClass(),1);
+				GiveInventory(Invoker.Ammo1.GetClass(),1);
+			}
+		}
+	}
+	States
+	{
+		Spawn:
+			VRIF Z -1;
+			Stop;
+		Ready:
+			VRIF AABB 3 A_WeaponReady(WRF_ALLOWRELOAD);
+			Loop;
+		Select:
+			VRIF AABB 3 A_Raise(12);
+			Loop;
+		Deselect:
+			VRIF AABB 3 A_Lower(12);
+			Loop;
+		Fire:
+			VRIF "#" 2;
+			//First shot
+			TNT1 A 0 A_JumpIfNoAmmo ("Reload");
+			VRIF C 3
+			{
+				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
+				A_FireBullets (3.2,2.2,1,6,"SmartMarinePuff",range:8192+2,spawnheight:21);
+				A_GunFlash();
+			}
+			VRIF D 3 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);
+			//Second shot
+			TNT1 A 0 A_JumpIfNoAmmo ("Reload");
+			VRIF C 3
+			{
+				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
+				A_FireBullets (3.2,2.2,1,6,"SmartMarinePuff",range:8192+2,spawnheight:21);
+				A_GunFlash();
+			}
+			VRIF D 3 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);
+			//Third shot
+			TNT1 A 0 A_JumpIfNoAmmo ("Reload");
+			VRIF C 3
+			{
+				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
+				A_FireBullets (3.2,2.2,1,6,"SmartMarinePuff",range:8192+2,spawnheight:21);
+				A_GunFlash();
+			}
+			VRIF D 3 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);
+			//Fourth shot
+			TNT1 A 0 A_JumpIfNoAmmo ("Reload");
+			VRIF C 3
+			{
+				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
+				A_FireBullets (3.2,2.2,1,6,"SmartMarinePuff",range:8192+2,spawnheight:21);
+				A_GunFlash();
+			}
+			VRIF D 3 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);
+			//Fifth shot
+			TNT1 A 0 A_JumpIfNoAmmo ("Reload");
+			VRIF C 3
+			{
+				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
+				A_FireBullets (3.2,2.2,1,6,"SmartMarinePuff",range:8192+2,spawnheight:21);
+				A_GunFlash();
+			}
+			VRIF D 3 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);
+			VRIF AABB 3;
+			VRIF AABB 3 A_ReFire();
+			Goto Ready;
+		Flash:
+			VRIF C 3 A_Light (Random(1,2));
+			TNT1 A 0 A_Light (0);
+			Goto LightDone;
+		Reload:
+			TNT1 A 0
+			{
+				//If there is no ammo at all in the gun, go to the empty click state.
+				If (Invoker.Ammo1.Amount <= 0 && Invoker.Ammo2.Amount <= 0)
+				{
+					Return ResolveState ("EmptyClick");
+				}
+				Else {Return ResolveState (Null);}
+				//If there are 20 or more rounds in the gun (The amount each magazine has.), then do not reload.
+				If (Invoker.Ammo1.Amount >= 20)
+				{
+					Return ResolveState ("Ready");
+				}
+				Else {Return ResolveState (Null);}
+			}
+			VRIF EFG 12;
+			VRIF H 12
+			{
+				A_StartSound ("Marine/Reload",CHAN_WEAPON);
+				A_RifleReload();
+			}
+			VRIF AABB 3;
+			Goto Ready;
+		EmptyClick:
+			VRIF A 3 A_StartSound ("Marine/EmptyGun",CHAN_WEAPON);
+			VRIF A 3 A_WeaponOffset(wy:38,WOF_KEEPX|WOF_INTERPOLATE);
+			VRIF BB 3 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);
+			VRIF AABBAABB 3;
+			Goto Ready;
+	}
+}
+
+//$GZDB_SKIP
+
+Class VanillaRifleMagazine : Ammo
+{
+	Default
+	{
+		Inventory.Amount 1;
+		Inventory.MaxAmount 20;
+		+Inventory.IgnoreSkill;
+		Ammo.BackpackAmount 0;
+		Ammo.BackpackMaxAmount 20;
+		Inventory.Icon "CLIPA0";
+	}
+}

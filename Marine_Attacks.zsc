@@ -1,0 +1,49 @@
+//Contains the attack states of the marine.
+
+//To do
+
+Extend Class SmartMarine
+{
+	Int MagazineRounds; //Keeps track of how many bullets a marine shoots before reload.
+	Int ShotsFired; ///How many rounds in a burst the marine fired.
+	States
+	{
+		RifleBurst:
+			MAR2 A 1 A_FaceTarget ();
+			MARR A 4 Light ("MarineMuzzleFlash") A_SMarineShoot();
+			MAR2 A 1;
+			Goto RifleBurst; //Fire until the shooting function jumps. Or the target is dead.
+		
+		RifleSmack:
+			MARM A 8;
+			MARM B 6 A_CustomMeleeAttack (Random(8,24),"Marine/Melee","Marine/MeleeMiss",'Melee',False); //Blunt force attack, so no blood.
+			MARM A 4 A_Jump (60,"RunAway"); //A chance that the marine runs away.
+			Goto See;
+		
+		ThrowGrenade: //https://www.youtube.com/watch?v=BJrxKiW5f-4
+			MARG AA 8 A_FaceTarget();
+			MARG B 8
+			{
+				A_Log ("Throwing grenade");
+				A_StartSound ("Marine/Throw"); //Umf
+				Bool b; Actor Grenade;
+				[b, Grenade] = A_ThrowGrenade ("SmartMarineGrenade",38,FRandom(16,24),FRandom(4,8));
+				Grenade.Target = Self; //Make yourself the grenades' target, so a player kill is attributed to you.
+			}
+			MARG B 4;
+			Goto See;
+		
+		Reload: //Self-explanatory
+			TNT1 A 0 LookForGrenades();
+			MARL ABC 8;
+			MARL D 8 A_SpawnItemEx ("SmartMarineEmptyMagazine",0,16,27,0,4,-1);
+			MARL C 8;
+			MARL B 8
+			{
+				A_StartSound ("Marine/Reload",CHAN_WEAPON);
+				MagazineRounds = 20; //Rset the amount of grenades the marine has.
+			}
+			MARL C 6;
+			Goto See;			
+	}
+}

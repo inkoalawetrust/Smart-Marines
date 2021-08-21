@@ -1,0 +1,1 @@
+After development hell, 5 separate refactors, and countless nonsensical bugs. I've finally gotten the basic version of this NPC to work.

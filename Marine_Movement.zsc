@@ -1,0 +1,55 @@
+Extend Class SmartMarine
+{
+	Int EscapeAttempts; //How many times the marine tries to run out of sight to reload.
+	States
+	{
+		Wander:
+			PLAY AABBCCDD 4
+			{
+				A_SMarineLook();
+				A_Wander();
+				LookForGrenades();
+				Return A_Jump (4,"StandStill");
+			}
+			Loop;
+		
+		ChangePosition: //The marine comes to this state for every 5 shots he fires, to not just stay still.
+			PLAY AABBCCDD 3 {A_Wander(); LookForGrenades();}
+			Goto See;
+		
+		StandStill:
+			MARA AAAAAAAAAAAAAAAAAAAAA 10
+			{
+				A_SMarineLook();
+				If (Random(0,256) >= 230) {Angle += RandomPick (40,30,20,10,-10,-20,-30,-40);}
+				Return A_Jump (6,"Wander");
+			}
+			Goto Wander;
+		
+		RunAway:
+			TNT1 A 0 {A_FaceTarget (); Angle += -180; Speed += Default.Speed*1.5;}
+			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 A_Wander (CHF_NORANDOMTURN);
+			TNT1 A 0 A_SetSpeed (Default.Speed);
+			Goto See;
+		
+		Retreat:
+			TNT1 A 0 A_JumpIf (User_NoRetreat,"Reload");
+			TNT1 A 0 {A_FaceTarget (); Angle += -180; Speed += Default.Speed*1.25;}
+			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3
+			{
+				A_Wander (CHF_NORANDOMTURN);
+				If (Target && !Target.IsVisible(Self,True))
+				{
+					Speed = Default.Speed;
+					Return ResolveState ("Reload");
+				}
+				Return ResolveState(Null);
+			}
+			TNT1 A 0
+			{
+				Speed = Default.Speed; EscapeAttempts++;
+				If (EscapeAttempts >= 3) {SetStateLabel ("Reload");}
+			}
+			Loop;	
+	}
+}

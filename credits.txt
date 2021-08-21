@@ -1,0 +1,17 @@
+Code written by inkoalatrust
+
+Marine aiming rifle sprites made by Sargeant_Mark_IV, aiming and firing sprites made by Tabijaky.
+All crouching marine sprites were made by Ghastly_Dragon.
+Standing down and standing idle sprites made by Das M.
+Standing alert sprites made by Superdave938.
+Grenade throwing sprites by Mryayayify
+Rifle reloading and melee sprites made by Tabijaky.
+Vanilla assault rifle sprites by Mik12.
+Grenade air blast sprites by Gorman Freebmane.
+Alternate marine colors by DBJ87, taken from the COLORS lump/file from inside the Allied Marines.wad Realm667 resource.
+
+Reloading sound is from Half-Life.
+Gun clicking sound made by knova https://freesound.org/people/knova/sounds/170272/
+Rifle melee sound made by newagesoup https://freesound.org/people/newagesoup/sounds/348244/
+Rifle melee missing sound made by qubodup https://freesound.org/people/qubodup/sounds/60013/
+Grenade exploding sound is by Stefano Cremona, taken from the GDC Audio Library 2020

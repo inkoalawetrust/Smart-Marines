@@ -1,0 +1,65 @@
+//Miscellaneous things that may not fit into any particular group, and may not warrant their own file.
+
+Extend Class SmartMarine
+{
+	Protected Void HandleMarineColoring() //Handles the coloring of the marines.
+	{
+		If (!User_Color || User_Color ~== "") {Return;} //Don't run the code if User_Color is empty.
+		
+		//Handles the random color choice that is performed if the color name given is "Random".
+		If (User_Color ~== "Random")
+		{
+			Static Const String ColorArray[] = {"Red","Gray","White","Black","Blue","Yellow","Orange","Pink"}; //Contains all the valid color names.
+			
+			User_Color = ColorArray[Random(0,7)]; //Randomly picks a color string.
+		}
+
+		A_SetTranslation (String.Format("Marine_%s", User_Color));
+	}
+	
+	Protected Void SetUserVariableDefaults() //Called on PostBeginPlay().
+	{
+		If (User_AttentionSpan <= 0) {User_AttentionSpan = 200;}
+		If (User_GrenadeThreshold <= 0) {User_GrenadeThreshold = 240;}
+		
+		If (User_RandomPersonality)
+		{
+			User_AttentionSpan += Random (-50,50);
+			User_GrenadeThreshold += Random (-50,50);
+			User_Color = "Random";
+			User_NoGrenade = Random (0,1);
+			User_NoMelee = Random (0,1);
+			User_NoRetreat = Random (0,1);
+			User_Persistent = Random (0,1);
+		}
+	}
+	
+	States
+	{
+		Pain: //What I feel trying to get the marine to work properly.
+			PLAY G 3;
+			PLAY G 3 A_StartSound("Marine/Pain",CHAN_VOICE);
+			Goto See;
+		
+		Death: //Oof
+			PLAY H 5;
+			PLAY I 5 A_StartSound("Marine/Death",CHAN_VOICE);
+			PLAY J 5 A_NoBlocking;
+			PLAY KLM 5;
+			PLAY N -1;
+			Stop;
+		
+		XDeath: //Mega oof
+			PLAY O 5;
+			PLAY P 5 A_StartSound("Marine/XDeath",CHAN_VOICE);
+			PLAY Q 5 A_NoBlocking();
+			PLAY RSTUV 5;
+			PLAY W -1;
+			Stop;
+		
+		Raise: //Resurrected
+			PLAY K 5;
+			PLAY JIH 5;
+			Goto See;
+	}
+}

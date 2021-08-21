@@ -1,0 +1,7 @@
+PointLight MarineMuzzleFlash
+{
+	Color 1.00 0.99 0.45
+	Size 32
+	Offset 24 43 0
+	Attenuate 1
+}

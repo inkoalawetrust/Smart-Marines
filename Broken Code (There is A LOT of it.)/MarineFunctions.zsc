@@ -1,0 +1,43 @@
+Mixin Class SmartMarineFunctions //So the main file isn't filled with custom functions.
+{
+	//This makes the marine jump to a certain state if one of their grenades is nearby, this only really needs to be the RunAwayFear state, but I un-hardcoded that just in case.
+	Private State A_JumpIfGrenade (Double Distance = 128, StateLabel Label = "RunAwayFear")
+	{
+		BlockThingsIterator LookForGrenades = BlockThingsIterator.Create(Self,Distance);
+		Actor CurrentActor;
+		
+		While (LookForGrenades.Next())
+		{
+			Let CurrentActor = LookForGrenades.Thing;
+			If (CurrentActor Is "SmartMarineGrenade" && Distance3DSquared (CurrentActor) <= Distance*Distance)
+			{
+				A_Log ("grenade found");
+				Return ResolveState (Label);
+			}
+		}
+		Return Null;
+	}
+	
+	Bool A_CheckForSwimmableVolume (Double CheckPitch = 20, Double CheckHeight = 54, Double AngleOffset = 0)
+	{
+		//CheckPitch is how far up or down the actor will look, positive values are down, and negative ones are up.
+		//CheckHeight is the height that the ray is fired down from.
+		//AngleOffset is the offset of the angle the ray will be fired at relative to the front of the actor.
+		FLineTraceData ThreeDFloorCheck;
+		
+		LineTrace(
+			Angle+AngleOffset,
+			256,
+			CheckPitch,
+			TRF_THRUACTORS,
+			CheckHeight,
+			data:ThreeDFloorCheck);
+		
+		If (ThreeDFloorCheck.Hit3DFloor && (ThreeDFloorCheck.Hit3DFloor.Flags & F3DFloor.FF_SWIMMABLE))
+		{
+			Return True; //Return true if the 3D floor found is swimmable.
+		}
+		
+		Return False; //Return false if no 3D floor was found, or a non-swimmable one was found.
+	}
+}

@@ -1,0 +1,128 @@
+//$GZDB_SKIP
+
+//Why do you not work properly huh ?
+
+//Actors that are in some way related to the marines' attacks.
+
+Class SmartMarinePuff : BulletPuff
+{
+	Default
+	{
+		Species "SmartMarine";
+		Decal "BulletChip";
+		+MThruSpecies;
+	}
+}
+
+Class SmartMarineGrenade : Actor
+{
+	Default
+	{
+		Radius 4;
+		Height 8;
+		Mass 1;
+		Gravity 0.5;
+		Scale 0.5;
+		BounceType "Hexen";
+		BounceSound "Grenade/Bounce";
+		Obituary "%o ate a marine's explosive pineapple !";
+		Projectile;
+		-NoGravity;
+		-NoBlockmap;
+		+RollSprite;
+		+FloorClip;
+		+CanBounceWater;
+		+DontBounceOnSky;
+		+BounceOnActors;
+	}
+	Int FuseTimer; //The time the grenade has before exploding.
+	Int RollDirection; //The random direction in which the grenade will roll.
+	States
+	{
+		Spawn:
+			TNT1 A 0 NoDelay
+			{
+				A_SpawnItemEx ("SmartMarineGrenadeLever",yvel:FRandom(-2,-4),FRandom(2,4));
+				FuseTimer = 25/2; //This gives the grenade approximately 3 seconds before exploding.
+				RollDirection = Random (1,2);
+			}
+			MGRE B 8
+			{
+				If (RollDirection <= 1) {Roll += 20;}
+				If (RollDirection >= 2 ) {Roll += -20;}
+				//If the fuse timer is 0 and the grenade exploded above 32 MU, enter the air explosion state.
+				If (FuseTimer <= 0 && (Pos.Z - FloorZ) >= 32) {A_SetRenderStyle (1.0,Style_Add);Return ResolveState ("Death.Air");}
+				//If the fuse timer is 0 and the grenade exploded below 32 MU, enter the ground explosion state.
+				If (FuseTimer <= 0 && (Pos.Z - FloorZ) <= 32) {A_SetRenderStyle (1.0,Style_Add);Return ResolveState ("Death.Floor");}
+				FuseTimer--;
+				Return ResolveState(Null);
+			}
+			Goto Spawn+1;
+		Death.Floor:
+			TNT1 A 0
+			{
+				A_Stop();
+				Gravity = 0;
+				bMoveWithSector = True;
+				A_StartSound ("Grenade/Explode",CHAN_WEAPON,attenuation:0.6);
+				A_QuakeEx (1,1,1,35,0,512);
+				A_AttachLight ("GrenadeLight",DynamicLight.PulseLight,"FFE2B3",256,0,DYNAMICLIGHT.LF_ATTENUATE,param:1.714285714285714*3.4);
+				A_SetScale (3.0); //Directly modifying the scale doesn't work for some reason.
+				Roll = 0;
+			}
+			GXPL A 2 Bright;
+			GXPL B 4 Bright A_Explode (96,192,fulldamagedistance:32);
+			GXPL CDEFGHIJKLMNO 4 Bright;
+			Stop;
+		Death.Air:
+			TNT1 A 0
+			{
+				A_Stop();
+				Gravity = 0;
+				A_StartSound ("Grenade/Explode",CHAN_WEAPON,attenuation:0.6);
+				A_QuakeEx (1,1,1,35,0,512);
+				A_AttachLight ("GrenadeLight",DynamicLight.PulseLight,"FFE2B3",256,0,DYNAMICLIGHT.LF_ATTENUATE,param:1.714285714285714*3.4);
+				A_SetScale (3.0);
+				Roll = 0;
+			}
+			GAXP A 4 Bright;
+			GAXP B 4 Bright A_Explode (96,192,fulldamagedistance:32);
+			GAXP CDEFGHIJ 4 Bright;
+			Stop;
+	}
+}
+
+Class SmartMarineGrenadeLever : Actor //The lever the grenade drops once the pin is pulled.
+{
+	Default
+	{
+		Scale 0.5;
+		+NoBlockmap;
+		+RollSprite;
+	}
+	States
+	{
+		Spawn:
+			MGRE C 1 NoDelay
+			{
+				If (Pos.Z - FloorZ >= 1) {A_SetRoll (Roll+5,SPF_INTERPOLATE);}
+				Else {Roll = 0;}
+			}
+			Loop;
+	}
+}
+
+Class SmartMarineEmptyMagazine : Actor
+{
+	Default {Scale 0.75; +NoBlockmap; +RollSprite;}
+	States
+	{
+		Spawn:
+			MARL Z 16 NoDelay
+			{
+				If (Pos.Z - FloorZ >= 1) {Roll += 45;}
+				Else {Roll = 45;} //Fall sideways on the floor.
+			}
+			Loop;
+	}
+}

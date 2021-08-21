@@ -1,0 +1,231 @@
+version "2.4"
+
+#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
+
+//The marines' code is split across multiple files, where stuff such as states, variables, actors etc are clumped together roughly based on what part of the
+//marines' AI behaviour they cover e.g. the grenade projectile, attack states and variables etc. Are in Marine_Attack.zsc
+
+#Include "Marine_Attacks.zsc" //Attack related stuff like described above.
+#Include "Marine_Misc.zsc"  //Stuff that doesn't fit anywhere else, or there isn't enough of to split to another file.
+
+//To do:
+//Make hearing a noise also able to reset the ForgetTimer.
+//Fix the fact that the enemy marine immediately enters his wander state after killing a target for some fucking reason.
+
+Class SmartMarine : Actor
+{
+	Default
+	{
+		//$Title AI Marine
+		//$Category Monsters
+		//$Sprite MARIC1
+		Health 120;
+		GibHealth 20;
+		Height 56;
+		DeathHeight 12;
+		CameraHeight 50;
+		Radius 16;
+		YScale 0.98;
+		Mass 100;
+		Speed 12;
+		FastSpeed 24;
+		PainChance 96;
+		PainThreshold 5;
+		FriendlySeeBlocks 20;
+		MaxDropOffHeight 48;
+		MaxTargetRange 8192;
+		Tag "Marine NPC";
+		Species "SmartMarine";
+		Decal "BulletChip";
+		Obituary "%o was shot to death by a marine";
+		HitObituary "o% got %p head smashed in by a marines' rifle";
+		DropItem "Clip";
+		DropItem "Clip", 128, 2;
+		DropItem "ClipBox", 64;
+		DropItem "VanillaRifle", 24;
+		Monster;
+		+JumpDown;
+		+MissileMore;
+		+MissileEvenMore;
+		+Telestomp;
+		+NoInfightSpecies;
+		+FloorClip;
+	}
+	
+	//User variables
+	
+	//User variables used in other files. Because UDB doesn't parse them otherwise.
+	String User_Color; //Colors the marine out of a list of colors. Typing "Random" makes the marine choose his own color.
+	
+	Bool User_NoMelee; //The marine will not use his malee attack.
+	Bool User_NoReload; //The marine never needs to reload.
+	Bool User_NoGrenade; //The marine will not throw grenades.
+	Int User_GrenadeChance; //The chance the marine will through a grenade. Lower values increase probability.
+	//==============
+	
+	//Movement and sight related user variables, if it weren't for the UDB bug, these would be the only user variables here.
+	Bool User_Persistent; //If true, the marine will not lose track of his target.
+	Bool User_NoRetreat; //If true, the marine will not try to retreat until out of sight from his target to reload.
+	Int User_AttentionSpan; //How long it takes before the marine loses his target.
+	//==============
+	//Standard internal variables.
+	Int ForgetTimer; //This timer decrements, and resets to the above user variable once it is at 0 or the marine finds a target again.
+	Int RetreatAttempts;
+	Bool DontEnterSpawn; //This is here to fix a bug that makes the marine enter the spawn state again after killing a player.
+	//===========================
+	
+	//Virtuals can't be extended, so the initialization code for each aspect of the marine is put into a function in its' corresponding file and run.
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		Marine_AttackVariablesInit(); //Attack related variables
+		HandleMarineColoring(); //Marine color changing code. Needs to be in PostBeginPlay.
+		Marine_MoveAndSightVariablesInit(); //Movement and sight related variables
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		//I don't know why this happens, but when not set to friendly, the marine does not attack any friendly actors attacking it when in its' Wander or
+		//Stand Still states, even though when the marine is attacked, he does put his attacker on his target pointer, he only attacks if the attack makes
+		//him enter his Pain state, I tried several fixes for this and none worked, so I just set his PainChance to max when in those two states.
+		If (InStateSequence (CurState,ResolveState("Spawn")) || InStateSequence (CurState,ResolveState("Wander")) || InStateSequence (CurState,ResolveState("StandStill")))
+		{PainChance = 256;}
+		Else {PainChance = Default.PainChance;}
+		
+		//The marines' species changes so enemy and friendly marines can shoot each other.
+		If (bFriendly) {Species = "SmartMarineFriend";}
+		Else {Species = Default.Species;}
+	}
+		
+	Protected Void Marine_MoveAndSightVariablesInit ()
+	{
+		//Default user variable values.
+		If (User_AttentionSpan <= 0) {User_AttentionSpan = 200;}
+		//Internal variables.
+		ForgetTimer = User_AttentionSpan;
+		RetreatAttempts = 3;
+	}
+	
+	
+	//Only the movement and sight related states are kept here, the rest of the states are split into different files, and linked with class extensions.
+	States
+	{
+		Spawn:
+			TNT1 A 0 NoDelay A_JumpIf (DontEnterSpawn,"Wander");
+			MARI AAABBBCCC 10
+			{
+				A_SMarineLook();
+				A_LOG ("IM A SPAWNED RETARD");
+				If (CheckProximity ("SmartMarineGrenade",192,1)) {Return ResolveState ("RunAway");} //Probably self explanatory, checks for nearby grenades to run from them.
+				Return ResolveState (Null);
+			}
+			Loop;
+		
+		See: //Move around and lose track of the target after some time, if User_Persistent isn't on.
+			MAR2 AABBCCDD 4
+			{
+				If (!DontEnterSpawn){DontEnterSpawn = True;}
+				A_LOG ("IM A LOOKING RETARD");
+				A_Chase("RifleHit","DecideRangedAttack");
+				If (!User_Persistent) //Only run the memory-related code if User_Persistant is false.
+				{
+					A_logint (forgettimer);
+					If (!IsVisible(Target,True)) {ForgetTimer--;}
+					Else {ForgetTimer = User_AttentionSpan;}
+					If (ForgetTimer <= 0)
+					{
+						ForgetTimer = User_AttentionSpan; //Reset the timer to the value given to it through User_AttentionSpan.
+						A_ClearTarget(); //I forgor. (Removes the marines' target pointer.)
+						Return ResolveState ("Wander");
+					}
+				}
+				If (CheckProximity ("SmartMarineGrenade",192,1)) {Return ResolveState ("RunAway");}
+				Return ResolveState(Null);
+			}
+			Loop;
+		
+		//THE BANES OF MY EXISTANCE
+		Wander: //Wander around and stand menacingly sometimes.
+			PLAY AABBCCDD 4
+			{
+				A_SMarineLook();
+				If (Target) {Return ResolveState ("See");} //Prevents the marine from begining to wander while fighting.
+				A_LOG ("IM A WANDERING RETARD");
+				Int WanderType;
+				WanderType = Random (0,1);
+				If (WanderType == 1) {A_Wander();} //Wander aimlessly.
+				Else {A_Wander (CHF_NORANDOMTURN);} //Wander in a specific direction.
+				If (Random (0,255) <= 4) {Return ResolveState ("StandStill");} //Random chance the marine will stand still and look around a bit.
+				If (CheckProximity ("SmartMarineGrenade",192,1)) {Return ResolveState ("RunAway");}
+				Return ResolveState(Null); //Continue otherwise.
+			}
+			Loop;
+		
+		StandStill: 
+			MARA AAAAAAAAAAAAAAAAAAAAA 10 //Stand for 3 seconds.
+			{
+				A_SMarineLook();
+				Int RNGesus;
+				A_LOG ("IM A STANDING RETARD");
+				RNGesus = Random(0,32); //Random chance the marine will turn.
+				If (RNGesus >= 30) {Angle += Random (45,-45);} //Turn a maximum angle of 45 degrees on either side.
+				
+				RNGesus = Random(0,32); //Random chance the marine will wander again.
+				If (RNGesus >= 30) {Return ResolveState ("Wander");}
+				If (CheckProximity ("SmartMarineGrenade",192,1)) {Return ResolveState ("RunAway");}
+				Return ResolveState(Null);
+			}
+			Goto Wander; //If the marine doesn't move again before this, then do it now.
+		//=========================
+		
+		RunAway: //https://youtu.be/MUG9VzHoEoc
+			TNT1 A 0 A_FaceTarget(); //Face the target to then turn away from them.
+			PLAY AAAAAAAA 2 A_SetAngle (Angle+180/8); //Turn around
+			TNT1 A 0 A_SetSpeed (Speed*2); //Increase the marines' speed.
+			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 {A_LOG ("IM A RUNNING RETARD"); A_Wander (CHF_NORANDOMTURN);} //GTFO
+			TNT1 A 0 A_SetSpeed (GetDefaultSpeed("SmartMarine")); //Reset the speed, so he doesn't slowly turn into Sonic the Hedgehog.
+			Goto See;
+			
+		Retreat: //The marine tries to retreat to reload his rifle.
+			TNT1 A 0 A_JumpIf (User_NoRetreat,"Reload"); //If User_NoRetreat is on, immediately reload.
+			TNT1 A 0 A_FaceTarget();
+			PLAY AAAAAAAA 1 A_SetAngle (Angle+180/8);
+			TNT1 A 0 A_SetSpeed (Speed*1.75);
+			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDD 3
+			{
+				A_Wander (CHF_NORANDOMTURN); //GTFO
+				If (Target && !Target.IsVisible(Self,True))
+				{
+					Speed = GetDefaultSpeed("SmartMarine"); //Speed reset
+					Return ResolveState ("Reload"); //If the target cannot see the marine from any angle, then reload.
+				}
+				Return ResolveState(Null);
+			}
+			TNT1 A 0
+			{
+				Speed = GetDefaultSpeed("SmartMarine");
+				
+				RetreatAttempts--; //Decrement the amount of attempts to get out of sight.
+				If (RetreatAttempts <= 0) //Give up and just reload in the open.
+				{
+					RetreatAttempts = 3;
+					Return ResolveState ("Reload");
+				}
+				Return ResolveState(Null);
+			}
+			Goto Retreat+2;
+
+	}
+}
+
+//The marines' bullet puff.
+Class SmartMarinePuff : BulletPuff
+{
+	Default
+	{
+		Species "SmartMarine";
+		Decal "BulletChip";
+		+MThruSpecies;
+	}
+}
