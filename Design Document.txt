@@ -32,6 +32,11 @@ An asterisk (*) before the = means that I finished that goal on the current iter
 *=Add marine palette translations, such as ones that make him blue, red, purple etc, and that can be set to each marine using a User_Color string variable.
 *==Also add a special "random" string, that makes the marine pick a random color.
 
+*=Add a User_RandomPersonality variable, which randomizes other user variables to generate a unique marine, such as one that is very likely to throw grenades,
+ never stops chasing their target, and doesn't swim. I should add this for last, once the rest of the list is done.
+==The randomization code should be called before the variables are initialized, so variables can be prevented from being randomized by the mapper.
+
+
 -------|DO THE ABOVE FIRST, THEN WE CAN SEE ABOUT THE REST|-------
 
 Other ideas (DO THE ABOVE FIRST)
@@ -42,10 +47,6 @@ Other ideas (DO THE ABOVE FIRST)
 
 =Crouching mode, if they are going to walk into a sector is lower than the standard height, then they should change their height and enter into alternate
  crouched versions of their normal firing, walking, pain etc states. This isn't as important, like literally should be the last thing I do.
-
-=Add a User_RandomPersonality variable, which randomizes other user variables to generate a unique marine, such as one that is very likely to throw grenades,
- never stops chasing their target, and doesn't swim. I should add this for last, once the rest of the list is done.
-==The randomization code should be called before the variables are initialized, so variables can be prevented from being randomized by the mapper.
 
 =Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.
 

@@ -8,7 +8,8 @@ Grenade throwing sprites by Mryayayify
 Rifle reloading and melee sprites made by Tabijaky.
 Vanilla assault rifle sprites by Mik12.
 Grenade air blast sprites by Gorman Freebmane.
-Alternate marine colors by DBJ87, taken from the COLORS lump/file from inside the Allied Marines.wad Realm667 resource.
+Alternate marine colors by inkoalawetrust, partially based on the ones made by DBJ87 for the Allied Marines Realm667 resource.
+Grenade sprites made by inkoalawetrust
 
 Reloading sound is from Half-Life.
 Gun clicking sound made by knova https://freesound.org/people/knova/sounds/170272/

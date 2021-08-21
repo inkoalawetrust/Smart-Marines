@@ -8,13 +8,11 @@
 
 #Include "VanillaRifle.zsc" //The rifle the marine may drop when killed by an enemy after doing nothing like a fucking moron for too long.
 
-//To do, the asterisk means the task is done, until the code magically stops working:
+//To do:
 /*HATE. LET ME TELL YOU HOW MUCH I'VE COME TO HATE YOU SINCE I BEGAN TO WORK ON YOU.
 THERE ARE 86,000,000,000 NEURONS THAT MY BRAIN IS COMPOSED OF.
 IF THE WORD HATE WAS ENGRAVED ON EACH NANOANGSTROM OF THOSE TENS OF BILLIONS OF NEURONS IT WOULD NOT EQUAL ONE ONE-BILLIONTH OF THE HATE I FEEL FOR
 MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
-//*Check if the running away from grenades behavior works.
-//*Check if the forget timer works and if the variable that sets said timer works.
 
 Class SmartMarine : Actor //Good joke, me, "smart".
 {

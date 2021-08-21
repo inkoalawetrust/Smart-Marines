@@ -1,0 +1,35 @@
+The credits for this NPC and his rifle can be found inside the credits.txt document.
+
+The marines have 120 health, only a bit higher than the players'. You can just turn on the Friendly flag for them in the editor to use them as smart allies.
+In fact, I've sort of just made them with the intent of being used as allies, like the Allied Marines resource from Realm667.
+
+================|USER VARIABLES|================
+User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring the modify the source code of the actor in any way.
+If you don't know how to use and/or change the user variables of an actor, then click on this Imgur album to see how: https://imgur.com/a/IF9Ezo2
+
+User_Color: A text input field, that allows you to type in one of several premade colors to set the marines' armor to, those include: Red, Gray, White, Black, Blue, Yellow, Orange, and Pink. You can type random to give the marine a random color.
+User_AttentionSpan: How long the marine will chase his target before losing it, the higher the number, the longer he'll chase. Default is 200.
+User_Persistent: If on, makes the marine chase his target indefinitely, and negates User_AttentionSpan.
+User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower the number, the more likely he is to throw one. Default is 240.
+User_NoGrenade: If on, the marine will never throw grenades, negates User_GrenadeThreshold.
+User_NoMelee: If on, the marine will never bash enemies with his rifle in melee range.
+User_NoReload: If on, the marine never needs to reload his gun.
+User_NoRetreat: If on, the marine will not try to first get out of sight from his target before reloading.
+
+User_RandomPersonality: If on, it will randomize any above variable that could be seen as having to do with each marines' personality.
+For example, if you turned it on for a group of marines, they will now:
+- Have varying predispositions to throw grenades at enemies.
+- Each chase a target for a different amount of time.
+- Each of them may or may not, use melee attacks, retreat to reload, and throw grenades at all, or any combination of those.
+Note: NoReload isn't randomized, because having a gun with an endless magazine isn't a personality trait. User_Persistent isn't randomly changed
+because it would mean that some marines just always know where their target is at all times somehow.
+
+================|DETAILS ON HOW THE MARINES ACTUALLY WORK|================
+This information is included here to get a better grasp of how the marine works to use them on your maps and mods more effectively.
+
+Their target chasing and losing behaviour uses an internal timer, if User_Persistent is off and they have a target, that timer will begin to increment if
+they cannot see or hear their target, but if they do see or hear the target again, the timer will reset. If the timer increments above the value of
+User_AttentionSpan, then the marine will lose track of his target and wander around until he finds another one.
+
+The marine is more likely to throw a grenade at a strong enough target, and even more likely to throw one depending on how many other enemies are around
+that target and would be caught in the grenades' blast radius. Lowering the value of User_GrenadeThreshold increases the chance to toss a grenade even more.
