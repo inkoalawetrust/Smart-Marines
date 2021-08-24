@@ -1,9 +1,12 @@
+Version "4.5"
+
 //Other files that are part of the marine.
 
 #Include "Marine_Movement.zsc" //If the Wander and StandStill states begin causing as trouble like in the last iteration, I'll fucking delete them.
 #Include "Marine_Attacks.zsc" //The attack states of the marine.
-#Include "Marine_Misc.zsc" //The miscellaneous states and code of the marine.
 #Include "Marine_OtherActors.zsc" //All the other actors the marine uses.
+#Include "Marine_Swimming.zsc" //Contains the marines' swimming behavior.
+#Include "Marine_Misc.zsc" //The miscellaneous states and code of the marine.
 #Include "MarineFunctions.zsc" //A mixin class with all the custom functions.
 
 #Include "VanillaRifle.zsc" //The rifle the marine may drop when killed by an enemy after doing nothing like a fucking moron for too long.
@@ -64,6 +67,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	Bool User_NoRetreat; //The marine doesn't retreat.
 	Bool User_Persistent; //The marine doesn't lose track of his target.
 	Bool User_NoReload; //The marine doesn't need to reload.
+	Bool User_NoSwim; //The marine doesn't swim.
 	Bool User_RandomPersonality; //Randomizes aspects of the marine.
 	//==============
 	Mixin MarineFunctions;
@@ -72,10 +76,15 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	Override Void Tick ()
 	{
 		Super.Tick();
+		
 		//So enemy and friendly marines can shoot each other.
 		If (bFriendly) {Species = "SmartMarineFriend";} Else {Species = Default.Species;}
+		
 		//Prevents the marine from running far faster than he should.
 		Speed = Clamp (Speed, Default.Speed, Default.Speed*1.5);
+		
+		//Prevents the swimming behaviour from breaking by jumping to the pain state.
+		If (IsInState ("Swimming") || IsInState ("DiveIn")) {bNoPain = True;} Else {bNoPain = False;}
 	}
 	Override Int DamageMobj (Actor Inflictor, Actor Source, Int Damage, Name MOD, Int Flags, Double Angle)
 	{

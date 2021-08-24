@@ -1,5 +1,9 @@
 //Miscellaneous things that may not fit into any particular group, and may not warrant their own file.
 
+//To do:
+/*See if I can get User_RandomPersonality to not affect user variables that already have values set on them.
+To allow mappers to only have whatever aspects of a marine they want randomized.*/
+
 Extend Class SmartMarine
 {
 	Protected Void HandleMarineColoring() //Handles the coloring of the marines.
@@ -31,6 +35,7 @@ Extend Class SmartMarine
 			User_NoMelee = Random (0,1);
 			User_NoRetreat = Random (0,1);
 			User_Persistent = Random (0,1);
+			User_NoSwim = Random (0,1);
 		}
 	}
 	

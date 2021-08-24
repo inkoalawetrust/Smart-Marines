@@ -1,6 +1,8 @@
 Extend Class SmartMarine
 {
 	Int EscapeAttempts; //How many times the marine tries to run out of sight to reload.
+	Actor ActualTarget; //Holds a reference to the marines' actual target while he runs away from a grenade.
+	Bool RunningAway;
 	States
 	{
 		Wander:
@@ -27,15 +29,32 @@ Extend Class SmartMarine
 			Goto Wander;
 		
 		RunAway:
-			TNT1 A 0 {A_FaceTarget (); Angle += -180; Speed += Default.Speed*1.5;}
-			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 A_Wander (CHF_NORANDOMTURN);
-			TNT1 A 0 A_SetSpeed (Default.Speed);
+			TNT1 A 0
+			{
+				A_FaceTarget ();
+				Angle += -180;
+				Speed += Default.Speed*1.5;
+				bFrightened = True;
+				RunningAway = True;
+			}
+			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 {a_log ("GTFOing");A_SMarineChase();}
+			TNT1 A 0
+			{
+				Speed = Default.Speed;
+				bFrightened = False; //Stop running from the grenade.
+				RunningAway = False;
+				If (ActualTarget)
+				{
+					Target = ActualTarget; //Set the target pointer back to the marines' actual target instead of the grenade.
+					ActualTarget = Null; //And remove the ActualTarget pointer.
+				}
+			}
 			Goto See;
 		
 		Retreat:
 			TNT1 A 0 A_JumpIf (User_NoRetreat,"Reload");
 			TNT1 A 0 {A_FaceTarget (); Angle += -180; Speed += Default.Speed*1.25;}
-			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3
+			PLAY AABBCCDDAABBCCDD 3
 			{
 				A_Wander (CHF_NORANDOMTURN);
 				If (Target && !Target.IsVisible(Self,True))

@@ -1,0 +1,58 @@
+//All the swimming related functionality of the marine goes here.
+
+//To do
+//Get access to some marine swimming and jump in and out sprites.
+//Fix that one bug that sometimes causes the marine to get stuck.
+
+Extend Class SmartMarine
+{
+	//==================
+	//The water checking
+	//==================
+	Actor WaterChecker; //A pointer to the actor that checks the water level in front of the marine.
+	
+	Void CreateWaterCheck (Double Offset = 96)
+	{
+		Bool b; //Useless
+		//Spawn another one if the previous one is destroyed.
+		If (WaterChecker) {Return;}
+		Else {[b, WaterChecker] = A_SpawnItemEx ("WaterCheck",Offset,0,MaxStepHeight+4,zvel:-8);}
+	}
+	Bool CheckForWater()
+	{
+		Return (WaterChecker && WaterChecker.WaterLevel > 0 && IsInState ("See"));
+		Return False;
+	}
+		
+	States
+	{
+		DiveIn:
+			PLAY A 8 A_ChangeVelocity (FRandom(6,8),z:FRandom(8,12),CVF_RELATIVE);
+			PLAY A 2 A_JumpIf (WaterLevel > 0,"Swimming");
+			Goto DiveIn+1;
+		Swimming:
+			PLAY AABBCCDD 3
+			{
+				//a_log ("im swimming");
+				If (WaterLevel == 0) {/*a_log ("on land, going to see state");*/Return ResolveState ("See");} //Go to the see state if on land.
+				If (Target) {A_FaceTarget();}
+				Else {Angle += RandomPick (0,0,10,20,-20,-10,0,0);} //Swim aimlessly if you have no target.
+				A_ChangeVelocity (FRandom(1,2),z:0.75,CVF_RELATIVE); //Swim
+				Return ResolveState(Null);
+			}
+			Loop;
+	}
+}
+
+Class WaterCheck : Actor
+{
+	Default {+NoBlockmap;}
+	Override Void BeginPlay() {Super.BeginPlay(); If (!Level.IsPointInLevel(Pos)) {Destroy();}} 
+	Override Void Tick() {Super.Tick(); UpdateWaterLevel();}
+	States
+	{
+		Spawn:
+			plss AAAAAAAA 2;
+			Stop;
+	}
+}

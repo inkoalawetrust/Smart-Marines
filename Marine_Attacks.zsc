@@ -9,13 +9,14 @@ Extend Class SmartMarine
 	States
 	{
 		RifleBurst:
+			TNT1 A 0 A_JumpIf (RunningAway,"RunAway");
 			MAR2 A 1 A_FaceTarget ();
 			MARR A 4 Light ("MarineMuzzleFlash") A_SMarineShoot();
 			MAR2 A 1;
 			Goto RifleBurst; //Fire until the shooting function jumps. Or the target is dead.
 		
 		RifleSmack:
-			MARM A 8;
+			MARM A 8 A_JumpIf (RunningAway,"RunAway");
 			MARM B 6 A_CustomMeleeAttack (Random(8,24),"Marine/Melee","Marine/MeleeMiss",'Melee',False); //Blunt force attack, so no blood.
 			MARM A 4 A_Jump (60,"RunAway"); //A chance that the marine runs away.
 			Goto See;
@@ -28,7 +29,7 @@ Extend Class SmartMarine
 				A_StartSound ("Marine/Throw"); //Umf
 				Bool b; Actor Grenade;
 				[b, Grenade] = A_ThrowGrenade ("SmartMarineGrenade",38,FRandom(16,24),FRandom(4,8));
-				Grenade.Target = Self; //Make yourself the grenades' target, so a player kill is attributed to you.
+				If (Grenade) {Grenade.Target = Self;} //Make yourself the grenades' target, so a player kill is attributed to you.
 			}
 			MARG B 4;
 			Goto See;

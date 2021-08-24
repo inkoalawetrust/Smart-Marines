@@ -15,6 +15,7 @@ User_NoGrenade: If on, the marine will never throw grenades, negates User_Grenad
 User_NoMelee: If on, the marine will never bash enemies with his rifle in melee range.
 User_NoReload: If on, the marine never needs to reload his gun.
 User_NoRetreat: If on, the marine will not try to first get out of sight from his target before reloading.
+User_NoSwim: If on, the marine will not swim when in water or to reach his target.
 
 User_RandomPersonality: If on, it will randomize any above variable that could be seen as having to do with each marines' personality.
 For example, if you turned it on for a group of marines, they will now:

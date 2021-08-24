@@ -13,6 +13,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
 - When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
+- Can swim across swimmable 3D sectors to reach their target.
 - Can be colored with a variety of colors:
   - Red
   - Gray
@@ -29,9 +30,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 
 ## Improvements I want to make on them
 
-- Make them able to jump into and out of, and swim across the surface of swimmable 3D floors, to be able to chase their targets over bodies of water.
-  - Make them able to drown if they are fully submerged for too long.
-  - Their ability to swim, and drown. Should both be toggleable with user variables.
+- Fix that one bug that causes the marines to sometimes get stuck after trying to dive into a water sector.
 - Make them able to crouch across sectors with short ceilings, along with being able to crouch fire. I may not be able to do this though.
   - And of course if I can do it, then this should be toggleable as well.
 - MAYBE I can give them some kind of cover system, that allows them to run to predetermined points in the map while fighting or running to reload.

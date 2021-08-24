@@ -1,6 +1,4 @@
-//Mixin classes that contain all the AI functions that'll break later.
-
-//Bugs I have to fix.
+//Mixin classes that contain all the AI functions.
 
 Mixin Class MarineFunctions
 {
@@ -10,7 +8,19 @@ Mixin Class MarineFunctions
 	
 	Void LookForGrenades() //An alias for the below code basically.
 	{
-		If (CheckProximity ("SmartMarineGrenade",256,1)) {A_Log ("Holy shit a grenade.");SetStateLabel ("RunAway");}
+		BlockThingsIterator FindBomb = BlockThingsIterator.Create (Self,256);
+		
+		While (FindBomb.Next())
+		{
+			If (FindBomb.Thing Is "SmartMarineGrenade")
+			{
+				A_Log ("Holy shit a grenade.");
+				If (Target) {Target = ActualTarget;} //If the marine has at target, store it in another pointer.
+				Target = FindBomb.Thing; //Set the found grenade as the target.
+				SetStateLabel ("RunAway");
+				Return;
+			}
+		}
 	}
 	
 	Protected Void A_SMarineLook()
@@ -74,55 +84,69 @@ Mixin Class MarineFunctions
 	{
 		A_Chase (Null,Null); ///Just move, the rest should be handled by the below code.
 		
-		LookForGrenades();
-				
-		//If User_Persistent is off, there is a valid target, and it isn't visible or dead.
-		If (!User_Persistent && Target && !IsVisible (Target,False) && Target.Health > 0)
+		//Swimming behavior
+		If (!User_NoSwim)
 		{
-			ForgetTimer++; //Increment the timer.
-			
-			If (Target && Target.IsActorPlayingSound(CHAN_AUTO) && Distance3D (Target) <= 512)
-			{ForgetTimer = 0;} //Reset the timer if you hear your target make a sound nearby.
-			
-			console.printf("The forget timer is now %d", ForgetTimer);
-			If (ForgetTimer >= User_AttentionSpan) //Check if it exceeds User_AttentionSpan.
+			If (WaterLevel == 0) //If you are on land.
 			{
-				ForgetTimer = 0;
-				A_ClearTarget();
-				SetStateLabel ("Wander");
-				Return; //Stop the function.
+				CreateWaterCheck(48); //Create a check for water.
+				If (CheckForWater()) {A_Face (WaterChecker); SetStateLabel ("DiveIn"); Return;} //And dive in if it detects water in front of you.
 			}
+			Else {SetStateLabel ("Swimming"); Return;}
 		}
-		Else {ForgetTimer = 0;} //Reset the timer otherwise.
 		
-		//Attack decision code.
-		If (Target && IsVisible (Target,False))
+		If (!RunningAway) //Run none of this if the marine is running away.
 		{
-			A_Log ("I have a target.");
-			
-			//If the target is in melee range, do a melee attack.
-			If (CheckMeleeRange() && !User_NoMelee)
+			LookForGrenades();
+						
+			//If User_Persistent is off, there is a valid target, and it isn't visible or dead.
+			If (!User_Persistent && Target && !IsVisible (Target,False) && Target.Health > 0)
 			{
-				A_Log ("I'll smack them.");
-				SetStateLabel ("RifleSmack");
-				Return;
-			}
-			
-			//Otherwise check if they are in range in general.
-			If (CheckMissileRange())
-			{
-				If (DecideGrenadeAttack()) //Run the code to decide a melee attack.
+				ForgetTimer++; //Increment the timer.
+				
+				If (Target && Target.IsActorPlayingSound(CHAN_AUTO) && Distance3D (Target) <= 512)
+				{ForgetTimer = 0;} //Reset the timer if you hear your target make a sound nearby.
+				
+				//console.printf("The forget timer is now %d", ForgetTimer);
+				If (ForgetTimer >= User_AttentionSpan) //Check if it exceeds User_AttentionSpan.
 				{
-					SetStateLabel ("ThrowGrenade");
+					ForgetTimer = 0;
+					A_ClearTarget();
+					SetStateLabel ("Wander");
+					Return; //Stop the function.
+				}
+			}
+			Else {ForgetTimer = 0;} //Reset the timer otherwise.
+			
+			//Attack decision code.
+			If (Target && IsVisible (Target,False))
+			{
+				//A_Log ("I have a target.");
+				
+				//If the target is in melee range, do a melee attack.
+				If (CheckMeleeRange() && !User_NoMelee)
+				{
+					//A_Log ("I'll smack them.");
+					SetStateLabel ("RifleSmack");
 					Return;
 				}
-				A_Log ("I'll shoot them.");
-				SetStateLabel ("RifleBurst");
-				Return;
+				
+				//Otherwise check if they are in range in general.
+				If (CheckMissileRange())
+				{
+					If (DecideGrenadeAttack()) //Run the code to decide a melee attack.
+					{
+						SetStateLabel ("ThrowGrenade");
+						Return;
+					}
+					//A_Log ("I'll shoot them.");
+					SetStateLabel ("RifleBurst");
+					Return;
+				}
 			}
 		}
 	}
-	
+		
 	//============================
 	//The attack related functions.
 	//============================
@@ -153,7 +177,7 @@ Mixin Class MarineFunctions
 			Int ThrowChance;
 			ThrowChance = Random (0,256);
 			If (Target && Target.Health >= 100) {ThrowChance += 20;}
-			console.printf("The throwing chance is now %d", ThrowChance);
+			//console.printf("The throwing chance is now %d", ThrowChance);
 			If (Target)
 			{
 				BlockThingsIterator CheckAroundTarget = BlockThingsIterator.Create (Target,192);
@@ -161,7 +185,7 @@ Mixin Class MarineFunctions
 				While (CheckAroundTarget.Next())
 				{
 					FoundActor = CheckAroundTarget.Thing;
-					console.printf("The throwing chance is now %d", ThrowChance);
+					//console.printf("The throwing chance is now %d", ThrowChance);
 					If (FoundActor && FoundActor.bIsMonster && IsHostile(FoundActor) && FoundActor.Health >= 20 && FoundActor != Self && FoundActor != Target)
 					{ThrowChance += Random(10,20);}
 				}
@@ -171,6 +195,12 @@ Mixin Class MarineFunctions
 				Return True; //If the checks pass, return true.
 			}
 		}
+		Return False;
+	}
+	
+	Bool IsInState (StateLabel State = "Spawn")
+	{
+		If (InStateSequence(CurState,ResolveState (State))) {Return True;}
 		Return False;
 	}
 }
