@@ -46,9 +46,8 @@ Extend Class SmartMarine
 
 Class WaterCheck : Actor
 {
-	Default {+NoBlockmap;}
+	Default {+NoBlockmap; Radius 16; Height 56;}
 	Override Void BeginPlay() {Super.BeginPlay(); If (!Level.IsPointInLevel(Pos)) {Destroy();}} 
-	Override Void Tick() {Super.Tick(); UpdateWaterLevel();}
 	States
 	{
 		Spawn:

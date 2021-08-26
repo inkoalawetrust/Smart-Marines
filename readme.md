@@ -14,6 +14,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
 - When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
 - Can swim across swimmable 3D sectors to reach their target.
+- Can be frightened if their target is big and/or strong enough.
 - Can be colored with a variety of colors:
   - Red
   - Gray
@@ -30,7 +31,9 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 
 ## Improvements I want to make on them
 
-- Fix that one bug that causes the marines to sometimes get stuck after trying to dive into a water sector.
+- I noticed that there's a lot of marine taunt sprites, maybe I could make them taunt after killing something or seeing something die, such as making enemy marines have a chance to taunt after killing the player, or taunting after a large hostile monster like a Cyberdemon dies in their sight.
+- Make them get frightened of large and poweful enemies like Cyberdemons.
+- Add the StayOnLift and AvoidHazards flags to the marines once the next GZDoom update that adds MBF21 support releases.
 - Make them able to crouch across sectors with short ceilings, along with being able to crouch fire. I may not be able to do this though.
   - And of course if I can do it, then this should be toggleable as well.
 - MAYBE I can give them some kind of cover system, that allows them to run to predetermined points in the map while fighting or running to reload.

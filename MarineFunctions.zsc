@@ -98,7 +98,20 @@ Mixin Class MarineFunctions
 		If (!RunningAway) //Run none of this if the marine is running away.
 		{
 			LookForGrenades();
-						
+			
+			If (!User_Fearless)
+			{
+				A_Log ("Running fear check.");
+				//If the target is nearby, and hostile, has over 2500 health, or is big enough, or has any of the below flags, then get scared of them.
+				//Or just get scared if your target is nocliping, because something is VERY wrong.
+				If (Target && IsHostile (Target) && Distance3D (Target) <= 1024)
+				{
+					If (Target.Health >= 2500 || Target.Height >= 80 && Target.Radius >= 72 || Target.bReflective && Target.bAimReflect ||
+					Target.bNoDamage || Target.bInvulnerable) {A_Log ("Spooky scary Cyberdemons."); bFrightened = True;}
+				}
+				Else {bFrightened = False;} //If they don't, e.g. you changed target, then stop being scared.
+			}
+			
 			//If User_Persistent is off, there is a valid target, and it isn't visible or dead.
 			If (!User_Persistent && Target && !IsVisible (Target,False) && Target.Health > 0)
 			{

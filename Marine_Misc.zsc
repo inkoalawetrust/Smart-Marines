@@ -1,9 +1,5 @@
 //Miscellaneous things that may not fit into any particular group, and may not warrant their own file.
 
-//To do:
-/*See if I can get User_RandomPersonality to not affect user variables that already have values set on them.
-To allow mappers to only have whatever aspects of a marine they want randomized.*/
-
 Extend Class SmartMarine
 {
 	Protected Void HandleMarineColoring() //Handles the coloring of the marines.
@@ -28,14 +24,15 @@ Extend Class SmartMarine
 		
 		If (User_RandomPersonality)
 		{
-			User_AttentionSpan += Random (-50,50);
-			User_GrenadeThreshold += Random (-50,50);
-			User_Color = "Random";
-			User_NoGrenade = Random (0,1);
-			User_NoMelee = Random (0,1);
-			User_NoRetreat = Random (0,1);
-			User_Persistent = Random (0,1);
-			User_NoSwim = Random (0,1);
+			If (User_AttentionSpan <= 0) {User_AttentionSpan += Random (-50,50);}
+			If (User_GrenadeThreshold <= 0) {User_GrenadeThreshold += Random (-50,50);}
+			If (!User_Color || User_Color ~== " ") {User_Color = "Random";}
+			If (!User_NoGrenade){User_NoGrenade = Random (0,1);}
+			If (!User_NoMelee){User_NoMelee = Random (0,1);}
+			If (!User_NoRetreat){User_NoRetreat = Random (0,1);}
+			If (!User_Persistent){User_Persistent = Random (0,1);}
+			If (!User_NoSwim){User_NoSwim = Random (0,1);}
+			If (!User_Fearless){User_Fearless = Random (0,1);}
 		}
 	}
 	

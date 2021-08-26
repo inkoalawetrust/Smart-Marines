@@ -9,6 +9,7 @@ NOTE: Try using class extensions, and hope those allow me to split the behaviour
 NOTE: Each of these goals or whatever, test them THOROUGHLY TO MAKE SURE THERE ARE NO BUGS.
 
 An asterisk (*) before the = means that I finished that goal on the current iteration of the marine NPCs.
+An x means it was canceled for whatever reason.
 
 =THIS SHOULD BE THE FINAL TIME I HAVE TO REFACTOR THEM.
 
@@ -34,19 +35,29 @@ An asterisk (*) before the = means that I finished that goal on the current iter
 
 *=Add a User_RandomPersonality variable, which randomizes other user variables to generate a unique marine, such as one that is very likely to throw grenades,
  never stops chasing their target, and doesn't swim. I should add this for last, once the rest of the list is done.
-==The randomization code should be called before the variables are initialized, so variables can be prevented from being randomized by the mapper.
+*==The randomization code should be called before the variables are initialized, so variables can be prevented from being randomized by the mapper.
 
+*=They should be able to swim across swimmable 3D floors if their target is on the other side. This should be toggleable.
+*==They will do that by jumping into the water and swimming on the surface, then jumping out the other side. | Done, not the latter part though, no need for it apparently.
+X==Add the ability for them to drown if they are full submerged for too long, then reset the drown timer once on the surface again, Make the timers' max value into a user variable. | Nope, no need for that.
+
+=See about adding taunts to the marines, obviously it should be toggleable too, along with the chance of them doing it.
+
+*=Make them able to get scared of any large monsters like Cyberdemons they may be targeting. Should be easy enough to do.
 
 -------|DO THE ABOVE FIRST, THEN WE CAN SEE ABOUT THE REST|-------
 
 Other ideas (DO THE ABOVE FIRST)
 
-=They should be able to swim across swimmable 3D floors if their target is on the other side. This should be toggleable.
-==They will do that by jumping into the water and swimming on the surface, then jumping out the other side.
-==Add the ability for them to drown if they are full submerged for too long, then reset the drown timer once on the surface again, Make the timers' max value into a user variable.
-
 =Crouching mode, if they are going to walk into a sector is lower than the standard height, then they should change their height and enter into alternate
  crouched versions of their normal firing, walking, pain etc states. This isn't as important, like literally should be the last thing I do.
+==Make sure to replace the old ZDoom sprites with the new ones TG5 made, and to credit him obviously.
+
+=MAKE A MARINE WITH A ROCKET LAUNCHER.
+==Make firing states for the rocket launcher with fire coming out.
+==Make a custom rocket model, yes me, that's right, I'll try to learn Blender to make a rocket with different pitches.
+==Figure out how to make the back facing sprites of the marine actually show the rocket launcher.
+==Make the rocket launcher into a standalone sprite that can be picked up, and which rolls up in the air after the marine is killed.
 
 =Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.
 
