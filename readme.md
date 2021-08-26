@@ -32,7 +32,6 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 ## Improvements I want to make on them
 
 - I noticed that there's a lot of marine taunt sprites, maybe I could make them taunt after killing something or seeing something die, such as making enemy marines have a chance to taunt after killing the player, or taunting after a large hostile monster like a Cyberdemon dies in their sight.
-- Make them get frightened of large and poweful enemies like Cyberdemons.
 - Add the StayOnLift and AvoidHazards flags to the marines once the next GZDoom update that adds MBF21 support releases.
 - Make them able to crouch across sectors with short ceilings, along with being able to crouch fire. I may not be able to do this though.
   - And of course if I can do it, then this should be toggleable as well.
