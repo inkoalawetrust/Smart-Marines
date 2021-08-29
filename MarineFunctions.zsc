@@ -1,4 +1,4 @@
-//Mixin classes that contain all the AI functions.
+//Mixin classes that contain all the AI functions. And the event handler that allows marines to hear NPCs too.
 
 Mixin Class MarineFunctions
 {
@@ -25,7 +25,8 @@ Mixin Class MarineFunctions
 	
 	Protected Void A_SMarineLook()
 	{
-		If (ListenForTargets()) {SetStateLabel ("See");}
+		If (ListenForPlayers()) {SetStateLabel ("See");}
+		If (ListenForEnemies()) {SetStateLabel ("See");}
 		If (LookForEnemies (False) || LookForPlayers (False) || LookForPlayerAllies())
 		{
 			If (Target && IsVisible (Target,False) && IsHostile (Target))
@@ -35,8 +36,8 @@ Mixin Class MarineFunctions
 		}
 		LookForGrenades();
 	}
-	
-	Bool ListenForTargets (Double Distance = 2048)
+	//Players are the only thing in vanilla Doom emitting noise as monsters understand it.
+	Bool ListenForPlayers (Double Distance = 1024)
 	{
 		If (!Target)
 		{
@@ -44,6 +45,26 @@ Mixin Class MarineFunctions
 			{
 				Target = LastHeard;
 				Return True;
+			}
+		}
+		Return False;
+	}
+	
+	Bool ListenForEnemies (Double Distance = 1024)
+	{
+		Actor NPC;
+		If (!Target)
+		{
+			BlockThingsIterator Listen = BlockThingsIterator.Create(Self,Distance);
+			
+			While (Listen.Next())
+			{
+				NPC = Listen.Thing;
+				If (NPC && IsHostile(NPC) && NPC.Health > 0 && NPC.IsActorPlayingSound (CHAN_AUTO) && NPC.bIsMonster)
+				{
+					Target = NPC;
+					Return True;
+				}
 			}
 		}
 		Return False;
@@ -101,7 +122,7 @@ Mixin Class MarineFunctions
 			
 			If (!User_Fearless)
 			{
-				A_Log ("Running fear check.");
+				//A_Log ("Running fear check.");
 				//If the target is nearby, and hostile, has over 2500 health, or is big enough, or has any of the below flags, then get scared of them.
 				//Or just get scared if your target is nocliping, because something is VERY wrong.
 				If (Target && IsHostile (Target) && Distance3D (Target) <= 1024)
@@ -217,3 +238,16 @@ Mixin Class MarineFunctions
 		Return False;
 	}
 }
+
+/*This has the effect of having every monster be able to hear every other monsters' attack, instead of just the marines,
+hearing the attacks of other hostile monsters, there just doesn't seem to be a way to do this without modifying all monsters.*/
+/*Class SmartMarineHearingHandler : EventHandler
+{
+	Override Void WorldThingSpawned (WorldEvent E)
+	{
+		If (E.Thing.bMissile && E.Thing.Target || E.Thing Is "BulletPuff" && E.Thing.Target)
+		{
+			E.Thing.Target.A_AlertMonsters (1024,AMF_TARGETEMITTER);
+		}
+	}
+}*?

@@ -1,0 +1,69 @@
+Class SmartMarineTauntHandler : EventHandler
+{
+	Actor Marine;
+	Override Void WorldThingDied (WorldEvent E)
+	{
+		console.printf("Kilroy was here.");
+		//Check if the victim was killed by a marines' hitscan or grenade attack.
+		If (E.Inflictor.Target && E.Inflictor.Target Is "SmartMarine" && E.Inflictor Is "SmartMarinePuff" ||
+		E.Inflictor.Target && E.Inflictor.Target Is "SmartMarine" && E.Inflictor Is "SmartMarineGrenade")
+		{
+			Marine = E.Inflictor.Target; //Used as an alias to make the code shorter.
+			If (!(SmartMarine(Marine).User_NoTaunt) && Marine.IsHostile(E.Thing))
+			{
+				console.printf("Test");
+				//Decide to taunt if the target had any of the properties or flags that boss NPCs usually have, or if it was a player.
+				If (E.Thing.SpawnHealth() >= 2500 || E.Thing.Height >= 80 && E.Thing.Radius >= 32 || E.Thing.bReflective && E.Thing.bAimReflect
+				|| E.Thing Is "PlayerPawn")
+				{
+					console.printf("I killed a boss.");
+					If (Random (0,256) >= 1)
+					{
+						console.printf("I will now do the dance of my people.");
+						Marine.SetStateLabel("Wave");
+					}
+				}
+				//If the dead target was none of the above, but was also not pathetically weak, then add it to the count of dead basic enemies.
+				Else If (E.Thing.SpawnHealth() > 5)
+				{SmartMarine(Marine).MooksKilled++; console.printf("MooksKilled is now %d",SmartMarine(Marine).MooksKilled);}
+				
+				//Alternatively, taunt after killing enough basic enemies such as Imps and Pinkies.
+				If (SmartMarine(Marine).MooksKilled >= RandomPick (20,30) && !(SmartMarine(Marine).User_NoMookTaunt))
+				{
+					console.printf("I killed alot of mooks.");
+					If (Random (0,256) >= 170)
+					{
+						console.printf("I will now do the dance of my people because I killed all those mooks.");
+						SmartMarine(Marine).MooksKilled = 0; //Reset the dead mook counter.
+						Marine.SetStateLabel("Wave");
+					}
+				}
+			}
+		}
+	}
+}
+
+Extend Class SmartMarine
+{
+	Int MooksKilled; //How many basic enemies were killed.
+	States
+	{
+		Wave:
+			TNT1 A 0 A_Jump (128,"AltWave"); //May use the other waving animation.
+			MWAV ABCDEF 6;
+			MWAV GHGH 10;
+			MWAV GHGHGHGH 10 A_Jump (48,"See"); //Go back to looking around eventually.
+			Goto See;
+		AltWave:
+			MWAV IJKL 6;
+			MWAV MNMN 10;
+			MWAV MNMNMNMN 10 A_Jump (48,"See");
+			Goto See;
+	}
+}
+
+class punycyberdemon : cyberdemon replaces cyberdemon
+{default{health 10;}}
+
+class pathetic : zombieman replaces zombieman
+{default{health 1; scale 0.2;}}

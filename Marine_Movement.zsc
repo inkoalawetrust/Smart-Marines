@@ -37,7 +37,7 @@ Extend Class SmartMarine
 				bFrightened = True;
 				RunningAway = True;
 			}
-			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 {a_log ("GTFOing");A_SMarineChase();}
+			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 {A_SMarineChase();}
 			TNT1 A 0
 			{
 				Speed = Default.Speed;

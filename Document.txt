@@ -11,7 +11,7 @@ If you don't know how to use and/or change the user variables of an actor, then 
 
 User_Color: A text input field, that allows you to type in one of several premade colors to set the marines' armor to, those include: Red, Gray, White, Black, Blue, Yellow, Orange, and Pink. You can type random to give the marine a random color.
 User_AttentionSpan: How long the marine will chase his target before losing it, the higher the number, the longer he'll chase. Default is 200.
-User_Persistent: If on, makes the marine chase his target indefinitely, and negates User_AttentionSpan.
+User_Persistent: Makes the marine chase his target indefinitely, and negates User_AttentionSpan.
 User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower the number, the more likely he is to throw one. Default is 240.
 User_NoGrenade: If on, the marine will never throw grenades, negates User_GrenadeThreshold.
 User_NoMelee: If on, the marine will never bash enemies with his rifle in melee range.
@@ -19,6 +19,8 @@ User_NoReload: If on, the marine never needs to reload his gun.
 User_NoRetreat: If on, the marine will not try to first get out of sight from his target before reloading.
 User_NoSwim: If on, the marine will not swim when in water or to reach his target.
 User_Fearless: If on, the marine will not be scared of big and/or strong enough enemies that they are targeting.
+User_NoTaunt: If on, the marine will not have a chance to taunt after killing a powerful enemy or a player.
+User_NoMookTaunt: The marine will not have a chance to taunt after killing enough mook enemies, if you don't know what that is, check out this TV Tropes article: https://tvtropes.org/pmwiki/pmwiki.php/Main/Mooks
 
 User_RandomPersonality: If on, it will randomize any above variable that could be seen as having to do with each marines' personality.
 For example, if you turned it on for a group of marines, they will now:
@@ -37,3 +39,13 @@ User_AttentionSpan, then the marine will lose track of his target and wander aro
 
 The marine is more likely to throw a grenade at a strong enough target, and even more likely to throw one depending on how many other enemies are around
 that target and would be caught in the grenades' blast radius. Lowering the value of User_GrenadeThreshold increases the chance to toss a grenade even more.
+
+
+================|THE ASSAULT RIFLE|================
+When a marine dies, you may have noticed that they drop a rifle, or you just noticed it in the editor.
+
+The buttons you need to use this rifle are the standard fire button, the reload button, and zoom button, if you don't have the latter two specified,
+you have to go to Options>Customize Controls>Weapon, and bind those actions to keys, usually they are mapped to R and Z respectively.
+
+The rifle is based on the rifle that Doomguy and the former humans carry, it fires 5 shots at a time, and has a
+20 round magazine, it also has digital sights that you can look through with the zoom key, which increase your accuracy.

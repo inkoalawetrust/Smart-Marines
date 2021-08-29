@@ -5,13 +5,13 @@ this document of what they should be able to do around. The list is roughly orde
 19/8/2021: And the fourth iteration met the same fate, wunderbar. This project is genuinely curse, and it is physically impossible to convince me otherwise.
 
 
-NOTE: Try using class extensions, and hope those allow me to split the behaviour into (Hopefully) easier to fix chunks, that I won't forget how they work.
-NOTE: Each of these goals or whatever, test them THOROUGHLY TO MAKE SURE THERE ARE NO BUGS.
+NOTE: Try using class extensions, and hope those allow me to split the behaviour into (Hopefully) easier to fix chunks, that I won't forget how they work.| Done, thank god.
+NOTE: Each of these goals or whatever, test them THOROUGHLY TO MAKE SURE THERE ARE NO BUGS.| Done, no major bugs are on them now AFAIK
 
 An asterisk (*) before the = means that I finished that goal on the current iteration of the marine NPCs.
 An x means it was canceled for whatever reason.
 
-=THIS SHOULD BE THE FINAL TIME I HAVE TO REFACTOR THEM.
+*=THIS SHOULD BE THE FINAL TIME I HAVE TO REFACTOR THEM.| DONE, FINALLY
 
 *=Be able to forget their target after a set amount of time, the time it takes should be exposed to a user variable, and include one to turn this off totally too.
 *==If their target is forgotten, they should begin wandering around until they find a new one, while doing so, they should have a chance to enter a state
@@ -39,11 +39,41 @@ An x means it was canceled for whatever reason.
 
 *=They should be able to swim across swimmable 3D floors if their target is on the other side. This should be toggleable.
 *==They will do that by jumping into the water and swimming on the surface, then jumping out the other side. | Done, not the latter part though, no need for it apparently.
-X==Add the ability for them to drown if they are full submerged for too long, then reset the drown timer once on the surface again, Make the timers' max value into a user variable. | Nope, no need for that.
+X==Add the ability for them to drown if they are fully submerged for too long, then reset the drown timer once on the surface again, Make the timers' max value into a user variable. | Nope, no need for that.
 
-=See about adding taunts to the marines, obviously it should be toggleable too, along with the chance of them doing it.
+*=See about adding taunts to the marines, obviously it should be toggleable too, along with the chance of them doing it.
+
+*=Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.| Done, the zooming effects are a mess.
 
 *=Make them able to get scared of any large monsters like Cyberdemons they may be targeting. Should be easy enough to do.
+
+=Make placeable machine gun turrets.
+==These turrets will be able to be used by marines and players alike, have infinite ammo, and thrice the fire rate and damage of the marines' rifles.
+==When a marine is near one and has a target that is still visible to him, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
+===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.
+==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
+==It should have a user variable that allows you to spawn it with a marine already on.
+==I uh, aren't sure how I'll code it to be usable by the player :badpokerface:
+
+=MAKE A MARINE WITH A ROCKET LAUNCHER.
+==Make firing states for the rocket launcher with fire coming out.
+==Don't forget to crop out and add his pain frames in the file, once I make the firing sprites though, and know what frame name to give to his pain sprites.
+==Make a custom rocket model, yes me, that's right, I'll try to learn Blender to make a rocket with different pitches.
+*==Figure out how to make the back facing sprites of the marine actually show the rocket launcher.| Done, TG5 redid all the sprites.
+==Make the rocket launcher into a standalone sprite that can be picked up, and which rolls up in the air after the marine is killed.| First half done.
+
+=Make marine snipers, with spotters.
+==The spotters spawn near the marine after he is spawned or placed in the map. You can disable the spawning of the spotter.
+==When the sniper has a spotter, he will not look for enemies on his own, instead the spotter looks for enemies, and transfers his target pointer to the sniper once he finds one, for the sniper to shoot him.
+==The sniper rifle emits a red laser line to where the bullet will go, probably using a custom railgun attack. The laser can be turned off.
+==If his spotter is killed, he'll begin to find and attack targets on his own, but becomes considerably more inaccurate.
+==The spotter carries an SMG that he can attack with if an enemy is too close.
+==Both the marine and spotter look for the strongest target they can see, but you can set them to look for the nearest one instead, or to shoot random enemies if you want to for some reason.
+==They are both crouched normally, only getting up to move, or attack really close enemies.
+==Perhaps I can make them able to move to occasionaly move to predefined, map placeable sniper spots.
+==The sniper shot is incredibly damaging, obviously.
+==The snipers' editor sprite should be of both him and the spotter crouched next to each other.
+==And optional flanker who can be turned on to also spawn near a map placed sniper, who is basically a standard AI marine.
 
 -------|DO THE ABOVE FIRST, THEN WE CAN SEE ABOUT THE REST|-------
 
@@ -52,14 +82,6 @@ Other ideas (DO THE ABOVE FIRST)
 =Crouching mode, if they are going to walk into a sector is lower than the standard height, then they should change their height and enter into alternate
  crouched versions of their normal firing, walking, pain etc states. This isn't as important, like literally should be the last thing I do.
 ==Make sure to replace the old ZDoom sprites with the new ones TG5 made, and to credit him obviously.
-
-=MAKE A MARINE WITH A ROCKET LAUNCHER.
-==Make firing states for the rocket launcher with fire coming out.
-==Make a custom rocket model, yes me, that's right, I'll try to learn Blender to make a rocket with different pitches.
-==Figure out how to make the back facing sprites of the marine actually show the rocket launcher.
-==Make the rocket launcher into a standalone sprite that can be picked up, and which rolls up in the air after the marine is killed.
-
-=Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.
 
 Marine translations:
 

@@ -33,14 +33,16 @@ Extend Class SmartMarine
 			If (!User_Persistent){User_Persistent = Random (0,1);}
 			If (!User_NoSwim){User_NoSwim = Random (0,1);}
 			If (!User_Fearless){User_Fearless = Random (0,1);}
+			If (!User_NoTaunt){User_NoTaunt = Random (0,1);}
+			If (!User_NoMookTaunt){User_NoMookTaunt = Random (0,1);}
 		}
 	}
 	
 	States
 	{
-		Pain: //What I feel trying to get the marine to work properly.
-			PLAY G 3;
-			PLAY G 3 A_StartSound("Marine/Pain",CHAN_VOICE);
+		Pain: //Life
+			PLAY G 6;
+			PLAY G 6 A_StartSound("Marine/Pain",CHAN_VOICE);
 			Goto See;
 		
 		Death: //Oof

@@ -1,21 +1,28 @@
 Code written by inkoalatrust
+Playtesting done by RavaYard and inkoalawetrust
 
+======|Actor sprites|======
 Marine aiming rifle sprites made by Sergeant_Mark_IV, aiming and firing sprites made by Tabijaky.
 All crouching marine sprites were made by Ghastly_Dragon.
 Standing down and standing idle sprites made by Das M.
 Standing alert sprites made by Superdave938.
 Grenade throwing sprites by Mryayayify
 Rifle reloading and melee sprites made by Tabijaky.
-Vanilla assault rifle sprites by Mik12.
 Grenade air blast sprites by Gorman Freebmane.
 Grenade sprites made by inkoalawetrust
 Marine taunt sprites MWAV A-F have no known maker, MWAV I-N made by Das M and edited by Sergeant_Mark_IV.
-Rocket launcher marine sprites made by Vader, edited by Sergeant_Mark_IV, firing sprites made by inkoalawetrust, whenever I get around to making said sprites.
+Rocket launcher marine sprites made by Vader, edited by Sergeant_Mark_IV, then edited again by TG5, TG5's version is the one I'm using with firing sprites of my own.
 
+======|Other graphics|======
 Alternate marine colors by inkoalawetrust, partially based on the ones made by DBJ87 for the Allied Marines Realm667 resource.
+Vanilla assault rifle sprites by Mik12. Slightly edited by inkoalawetrust https://forum.zdoom.org/viewtopic.php?f=37&t=29708&p=564526
+Digital sights scanlines and crosshairs made by inkoalawetrust
+
+
 
 Reloading sound is from Half-Life.
 Gun clicking sound made by knova https://freesound.org/people/knova/sounds/170272/
 Rifle melee sound made by newagesoup https://freesound.org/people/newagesoup/sounds/348244/
 Rifle melee missing sound made by qubodup https://freesound.org/people/qubodup/sounds/60013/
 Grenade exploding sound is by Stefano Cremona, taken from the GDC Audio Library 2020
+Zoomed in rifle sound is a modified version of littlemachine.wav from Half-Life 1, edited by inkoalawetrust

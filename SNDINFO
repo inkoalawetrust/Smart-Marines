@@ -4,9 +4,10 @@ Marine/Pain  DSPLPAIN
 Marine/Throw  DSNOWAY //https://www.youtube.com/watch?v=UhVHp1cFTTc
 Marine/Fire "Sounds/RifleFire.ogg"
 Marine/Reload "Sounds/RifleReload.ogg"
-Marine/EmptyGun "Sounds/GunClick.ogg" //The NPCs themselves won't be using this, it's meant for the player weapon.
+VRifle/EmptyGun "Sounds/GunClick.ogg" //The NPCs themselves won't be using this, it's meant for the player weapon.
 Marine/Melee "Sounds/RifleHit.ogg"
 Marine/MeleeMiss "Sounds/RifleSwoosh.ogg"
+VRifle/Zoomed "Sounds/RifleZoomed.ogg"
 
 Grenade/Bounce "Sounds/GrenadeBounce.ogg"
 Grenade/Explode "Sounds/GrenadeBoom.ogg"
@@ -17,9 +18,11 @@ $Limit Marine/Pain 0
 $Limit Marine/Throw 0
 $Limit Marine/Fire 0
 $Limit Marine/Reload 0
-$Limit Marine/EmptyGun 0
 $Limit Marine/Melee 0
 $Limit Marine/MeleeMiss 0
+
+$Limit VRifle/EmptyGun 0
+$Limit VRifle/Zoomed 0
 
 $Limit Grenade/Bounce 0
 $Limit Grenade/Explode 0
