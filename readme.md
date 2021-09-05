@@ -16,6 +16,9 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 - Can swim across swimmable 3D sectors to reach their target.
 - Can be frightened if their target is big and/or strong enough.
 - Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*.
+- Has placeable machine guns that both players and the marines can use, you can press the use key on a marine to get him off of one.
+- Includes a seperate marine that permenantly stays on the turret until killed, who can also be colored like below.
+- You can press the use key on friendly marines when they are in their initial spawn state, to get them to move.
 - Can be colored with a variety of colors:
   - Red
   - Gray

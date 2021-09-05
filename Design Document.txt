@@ -47,20 +47,20 @@ X==Add the ability for them to drown if they are fully submerged for too long, t
 
 *=Make them able to get scared of any large monsters like Cyberdemons they may be targeting. Should be easy enough to do.
 
-=Make placeable machine gun turrets.
-==These turrets will be able to be used by marines and players alike, have infinite ammo, and thrice the fire rate and damage of the marines' rifles.
-==When a marine is near one and has a target that is still visible to him, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
-===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.
-==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
+*=Make placeable machine gun turrets.
+*==These turrets will have infinite ammo, and thrice the fire rate and damage of the marines' rifles.| Sort of done, I nerfed them because they were too OP by being more realistic lol.
+*==When a marine is near one and sees multiple targets, or really powerful ones, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
+*===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.| Yep lol
+*==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
 ==It should have a user variable that allows you to spawn it with a marine already on.
-==I uh, aren't sure how I'll code it to be usable by the player :badpokerface:
+*==I uh, aren't sure how I'll code it to be usable by the player :badpokerface:| Also yep, Lewisk3 coded it to be usable by players.
 
 =MAKE A MARINE WITH A ROCKET LAUNCHER.
 ==Make firing states for the rocket launcher with fire coming out.
 ==Don't forget to crop out and add his pain frames in the file, once I make the firing sprites though, and know what frame name to give to his pain sprites.
 ==Make a custom rocket model, yes me, that's right, I'll try to learn Blender to make a rocket with different pitches.
 *==Figure out how to make the back facing sprites of the marine actually show the rocket launcher.| Done, TG5 redid all the sprites.
-==Make the rocket launcher into a standalone sprite that can be picked up, and which rolls up in the air after the marine is killed.| First half done.
+==Make the rocket launcher into a standalone sprite that can be picked up, and which rolls up in the air after the marine is killed.| Sprite made by me.
 
 =Make marine snipers, with spotters.
 ==The spotters spawn near the marine after he is spawned or placed in the map. You can disable the spawning of the spotter.

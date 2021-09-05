@@ -2,7 +2,8 @@
 
 Extend Class SmartMarine
 {
-	Protected Void HandleMarineColoring() //Handles the coloring of the marines.
+	//Handles the coloring of the marines.
+	Protected Void HandleMarineColoring()
 	{
 		If (!User_Color || User_Color ~== "") {Return;} //Don't run the code if User_Color is empty.
 		
@@ -16,8 +17,9 @@ Extend Class SmartMarine
 
 		A_SetTranslation (String.Format("Marine_%s", User_Color));
 	}
-	
-	Protected Void SetUserVariableDefaults() //Called on PostBeginPlay().
+		
+	//Called on PostBeginPlay(), sets the default values for the two integer user variables, and handles User_RandomPersonality's behaviour.
+	Protected Void SetUserVariableDefaults()
 	{
 		If (User_AttentionSpan <= 0) {User_AttentionSpan = 200;}
 		If (User_GrenadeThreshold <= 0) {User_GrenadeThreshold = 240;}
@@ -35,26 +37,44 @@ Extend Class SmartMarine
 			If (!User_Fearless){User_Fearless = Random (0,1);}
 			If (!User_NoTaunt){User_NoTaunt = Random (0,1);}
 			If (!User_NoMookTaunt){User_NoMookTaunt = Random (0,1);}
+			If (!User_DontUseTurrets) {User_DontUseTurrets = Random (0,1);}
 		}
+	}
+	
+	//Unmount the marine when erased from existance.
+	Override Void OnDestroy()
+	{
+		A_RemoveMarineFromTurret();
+		A_RemoveLight ('MGLight');
+		Super.OnDestroy();
+	}
+	
+	//Or when killed.
+	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
+	{
+		A_RemoveMarineFromTurret();
+		A_RemoveLight ('MGLight');
+		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
 	}
 	
 	States
 	{
 		Pain: //Life
+			TNT1 A 0 A_JumpIf (IsOnTurret,"MarineTurret"); //The NoPain flag doesn't work somehow.
 			PLAY G 6;
 			PLAY G 6 A_StartSound("Marine/Pain",CHAN_VOICE);
 			Goto See;
 		
 		Death: //Oof
-			PLAY H 5;
+			PLAY H 5 A_ClearTarget();
 			PLAY I 5 A_StartSound("Marine/Death",CHAN_VOICE);
-			PLAY J 5 A_NoBlocking;
+			PLAY J 5 A_NoBlocking();
 			PLAY KLM 5;
 			PLAY N -1;
 			Stop;
 		
 		XDeath: //Mega oof
-			PLAY O 5;
+			PLAY O 5 A_ClearLastHeard(); //This makes no sense, why can't ZScript code nullify the LastHeard pointer when the marine is gibbed, but native C++ code that does the exact same works ?
 			PLAY P 5 A_StartSound("Marine/XDeath",CHAN_VOICE);
 			PLAY Q 5 A_NoBlocking();
 			PLAY RSTUV 5;
@@ -65,5 +85,9 @@ Extend Class SmartMarine
 			PLAY K 5;
 			PLAY JIH 5;
 			Goto See;
+		
+		GenericFreezeDeath:
+			PLAY A 0;
+			Goto Super::GenericFreezeDeath;
 	}
 }

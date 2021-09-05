@@ -1,0 +1,63 @@
+Decal SmartMarineMGChip1
+{
+	Pic CHIP1
+	Translucent 0.85
+	Shade "00 00 00"
+	X-Scale 1.00
+	Y-Scale 1.00
+	RandomFlipX
+	RandomFlipY
+}
+
+Decal SmartMarineMGChip2
+{
+	Pic CHIP2
+	Translucent 0.85
+	Shade "00 00 00"
+	X-Scale 1.00
+	Y-Scale 1.00
+	RandomFlipX
+	RandomFlipY
+}
+
+Decal SmartMarineMGChip3
+{
+	Pic CHIP3
+	Translucent 0.85
+	Shade "00 00 00"
+	X-Scale 1.00
+	Y-Scale 1.00
+	RandomFlipX
+	RandomFlipY
+}
+
+Decal SmartMarineMGChip4
+{
+	Pic CHIP4
+	Translucent 0.85
+	Shade "00 00 00"
+	X-Scale 1.00
+	Y-Scale 1.00
+	RandomFlipX
+	RandomFlipY
+}
+
+Decal SmartMarineMGChip5
+{
+	Pic CHIP5
+	Translucent 0.85
+	Shade "00 00 00"
+	X-Scale 1.00
+	Y-Scale 1.00
+	RandomFlipX
+	RandomFlipY
+}
+
+DecalGroup SmartMarineMGChip
+{
+	SmartMarineMGChip1	1
+	SmartMarineMGChip2	1
+	SmartMarineMGChip3	1
+	SmartMarineMGChip4	1
+	SmartMarineMGChip5	1
+}

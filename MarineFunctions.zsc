@@ -1,4 +1,4 @@
-//Mixin classes that contain all the AI functions. And the event handler that allows marines to hear NPCs too.
+//The mixin class that contain all the AI functions.
 
 Mixin Class MarineFunctions
 {
@@ -23,19 +23,27 @@ Mixin Class MarineFunctions
 		}
 	}
 	
-	Protected Void A_SMarineLook()
+	Protected Void A_SMarineLook(Bool Deaf = False, StateLabel JumpTo = "See", Bool NoGrenadeFear = False, Bool Turret = False)
 	{
-		If (ListenForPlayers()) {SetStateLabel ("See");}
-		If (ListenForEnemies()) {SetStateLabel ("See");}
-		If (LookForEnemies (False) || LookForPlayers (False) || LookForPlayerAllies())
+		If (!Deaf) {If (ListenForPlayers() || ListenForEnemies()) {SetStateLabel (JumpTo); Return;}}
+		
+		A_LookEx (LOF_NOJUMP|LOF_DONTCHASEGOAL);
+		
+		If (Target || LookForPlayerAllies())
+		{
+			If (Turret && !IsVisible (Target,True) || Turret && Target.Health <= 0) {Return;} //Used for the stationary turret marine.
+			SetStateLabel (JumpTo); Return;
+		}
+		/*If (LookForEnemies (False) || LookForPlayers (False) || LookForPlayerAllies())
 		{
 			If (Target && IsVisible (Target,False) && IsHostile (Target))
 			{
-				SetStateLabel ("See");
+				SetStateLabel (JumpTo); Return;
 			}
-		}
-		LookForGrenades();
+		}*/
+		If (!NoGrenadeFear) {LookForGrenades();}
 	}
+	
 	//Players are the only thing in vanilla Doom emitting noise as monsters understand it.
 	Bool ListenForPlayers (Double Distance = 1024)
 	{
@@ -79,11 +87,11 @@ Mixin Class MarineFunctions
 			While (FindFriendlyNPC.Next())
 			{
 				//The pointer is valid and you aren't the actor iterated.
-				If (FindFriendlyNPC.Thing && FindFriendlyNPC.Thing != Self) {Continue;}
+				If (!FindFriendlyNPC.Thing && FindFriendlyNPC.Thing == Self) {Continue;}
 				//You aren't friendly to the player yourself, but the other actor is.
-				If (!Self.bFriendly && FindFriendlyNPC.Thing.bFriendly) {Continue;}
+				If (Self.bFriendly && !FindFriendlyNPC.Thing.bFriendly) {Continue;}
 				//The actor is a monster/NPC, and isn't dead.
-				If (FindFriendlyNPC.Thing.bIsMonster && FindFriendlyNPC.Thing.Health >= 0) {Continue;}
+				If (!FindFriendlyNPC.Thing.bIsMonster && FindFriendlyNPC.Thing.Health <= 0) {Continue;}
 				//You can actually see the other actor, and it is hostile to you.
 				If (IsVisible (FindFriendlyNPC.Thing,False) && IsHostile (FindFriendlyNPC.Thing))
 				{
@@ -104,7 +112,7 @@ Mixin Class MarineFunctions
 	Protected Void A_SMarineChase()
 	{
 		A_Chase (Null,Null); ///Just move, the rest should be handled by the below code.
-		
+				
 		//Swimming behavior
 		If (!User_NoSwim)
 		{
@@ -119,6 +127,7 @@ Mixin Class MarineFunctions
 		If (!RunningAway) //Run none of this if the marine is running away.
 		{
 			LookForGrenades();
+			FindNearbyMGTurrets();
 			
 			If (!User_Fearless)
 			{
@@ -155,12 +164,12 @@ Mixin Class MarineFunctions
 			//Attack decision code.
 			If (Target && IsVisible (Target,False))
 			{
-				//A_Log ("I have a target.");
+				A_Log ("I have a target.");
 				
 				//If the target is in melee range, do a melee attack.
 				If (CheckMeleeRange() && !User_NoMelee)
 				{
-					//A_Log ("I'll smack them.");
+					A_Log ("I'll smack them.");
 					SetStateLabel ("RifleSmack");
 					Return;
 				}
@@ -173,7 +182,7 @@ Mixin Class MarineFunctions
 						SetStateLabel ("ThrowGrenade");
 						Return;
 					}
-					//A_Log ("I'll shoot them.");
+					A_Log ("I'll shoot them.");
 					SetStateLabel ("RifleBurst");
 					Return;
 				}
@@ -232,9 +241,51 @@ Mixin Class MarineFunctions
 		Return False;
 	}
 	
-	Bool IsInState (StateLabel State = "Spawn")
+	Void FindNearbyMGTurrets()
 	{
-		If (InStateSequence(CurState,ResolveState (State))) {Return True;}
+		If (!User_DontUseTurrets && WaitForTurret <= 0)
+		{
+			//Find nearby enemies.
+			Int FoundEnemies;
+			Actor Mobj;
+			BlockThingsIterator FindEnemies = BlockThingsIterator.Create(Self,2048);
+			
+			While (FindEnemies.Next())
+			{
+				If (FindEnemies.Thing) {Mobj = FindEnemies.Thing;}
+				//Add them to the counter if they are hostile, living, and visible.
+				If (Mobj && Mobj.bIsMonster && Mobj.Health > 0 && IsHostile (Mobj))
+				{FoundEnemies++;}
+			}
+			
+			//Find a turret.
+			BlockThingsIterator FindTurret = BlockThingsIterator.Create(Self,512);
+			
+			While (FindTurret.Next())
+			{
+				If (FindTurret.Thing && FindTurret.Thing Is "SmartMarineMGTurret" && !(SmartMarineMGTurret(FindTurret.Thing).IsInUse))
+				{A_Log ("i found a turret");NearbyTurret = FindTurret.Thing;}
+			}
+			
+			//Run to the nearest turret if you found 20 normal enemies.
+			If (FoundEnemies >= 20 && NearbyTurret ||
+			
+			/*Or if your target has a lot of health.*/
+			Target && Target.Health >= 1000 && IsHostile (Target) ||
+			
+			/*Or if it is really big.*/
+			Target && Target.Height >= 80 && Target.Radius >= 72 && IsHostile (Target))
+			{a_log ("im going to the turret");SetStateLabel ("RunToTurret"); Return;}
+		}
+	}
+	
+	//=======================
+	//Miscellaneous functions
+	//=======================
+	
+	Bool IsInState (StateLabel CheckFor = "Spawn")
+	{
+		If (InStateSequence(CurState,ResolveState (CheckFor))) {Return True;}
 		Return False;
 	}
 }

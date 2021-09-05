@@ -1,7 +1,9 @@
 DoomEdNums
 {
 	8573 = SmartMarine
-	8574 = VanillaRifle
+	8574 = SmartMarineTurret
+	8575 = VanillaRifle
+	8576 = SmartMarineMGTurret
 }
 
 GameInfo

@@ -5,3 +5,19 @@ PointLight MarineMuzzleFlash
 	Offset 24 43 0
 	Attenuate 1
 }
+
+PointLight MarineMGTracerLight
+{
+	Color 1.00 0.30 0.00
+	Size 48
+	Offset -256 0 0
+	Attenuate 1
+}
+
+PointLight MarineMGFiringLight
+{
+	Color 1.00 0.30 0.00
+	Size 96
+	Offset 0 32 0
+	Attenuate 1
+}

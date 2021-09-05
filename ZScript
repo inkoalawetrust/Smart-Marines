@@ -7,6 +7,8 @@ Version "4.5"
 #Include "Marine_OtherActors.zsc" //All the other actors the marine uses.
 #Include "Marine_Swimming.zsc" //Contains the marines' swimming behavior.
 #Include "Marine_Taunts.zsc" //The taunting behaviour is stored here.
+#Include "Marine_Turret.zsc" //Has all the code related to the machine gun emplacement.
+#Include "TurretMarine.zsc" //The above file got too long, so the stationary turret marine is here instead.
 #Include "Marine_Misc.zsc" //The miscellaneous states and code of the marine.
 #Include "MarineFunctions.zsc" //A mixin class with all the custom functions.
 
@@ -49,7 +51,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		DropItem "Clip";
 		DropItem "Clip", 128, 2;
 		DropItem "ClipBox", 64;
-		DropItem "VanillaRifle", 32;
+		DropItem "VanillaRifle", 48;
 		Monster;
 		+JumpDown;
 		+MissileMore;
@@ -72,6 +74,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	Bool User_Fearless; //The marine doesn't get scared of certain enemies.
 	Bool User_NoTaunt; //The marine doesn't have a chance to taunt after killing powerful enemies or players.
 	Bool User_NoMookTaunt; //The marine doesn't have a chance to taunt after killing a lot of basic enemies.
+	Bool User_DontUseTurrets; //The marine will never use a turret.
 	Bool User_RandomPersonality; //Randomizes aspects of the marine.
 	//==============
 	Mixin MarineFunctions;
@@ -80,7 +83,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	Override Void Tick ()
 	{
 		Super.Tick();
-		if (lastheard) console.printf("i last heard a %s",lastheard.getclassname());
+		
 		//So enemy and friendly marines can shoot each other.
 		If (bFriendly) {Species = "SmartMarineFriend";} Else {Species = Default.Species;}
 		
@@ -92,6 +95,8 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		
 		//Makes the marine unkillable while taunting. Because causing them to stop taunting and react to enemies breaks them.
 		If (IsInState ("Wave") || IsInState ("AltWave")) {bShootable = False; bSolid = False;} Else {bShootable = True; bSolid = True;}
+		
+		If (WaitForTurret > 0) {WaitForTurret--; a_logint (waitforturret);}
 	}
 	Override Int DamageMobj (Actor Inflictor, Actor Source, Int Damage, Name MOD, Int Flags, Double Angle)
 	{
@@ -100,6 +105,20 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 			Source = Target;
 		}
 		Return Super.DamageMobj (Inflictor,Source,Damage,MOD,Flags,Angle);
+	}
+	Override Bool Used (Actor User)
+	{
+		If (Health <= 0) {Return False;}
+		//Press use on the marine to stop him from standing still when first spawned.
+		If (!NoSpawnJump)
+		{
+			If (User && IsFriend (User)) {User.A_Print ("The marine will now move.");}
+			SetStateLabel ("See");
+		}
+		
+		//Press use on him while on a turret to get him to leave it.
+		If (IsOnTurret && IsFriend (User)) {WaitForTurret = 35; SetStateLabel ("LeaveTurret");}
+		Return True;
 	}
 	Override Void PostBeginPlay()
 	{

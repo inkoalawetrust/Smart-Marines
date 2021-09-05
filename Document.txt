@@ -1,4 +1,4 @@
-The credits for this NPC and his rifle can be found inside the credits.txt document.
+The credits for this NPC, his rifle and machine gun turret, can be found inside the credits.txt document.
 
 If you have any issues with the marines or some other NPC made by me, you can ask me for help on Discord at inkoalawetrust#9783, or Twitter at @inkoalawetrust.
 
@@ -21,6 +21,7 @@ User_NoSwim: If on, the marine will not swim when in water or to reach his targe
 User_Fearless: If on, the marine will not be scared of big and/or strong enough enemies that they are targeting.
 User_NoTaunt: If on, the marine will not have a chance to taunt after killing a powerful enemy or a player.
 User_NoMookTaunt: The marine will not have a chance to taunt after killing enough mook enemies, if you don't know what that is, check out this TV Tropes article: https://tvtropes.org/pmwiki/pmwiki.php/Main/Mooks
+User_DontUseTurrets: The marine won't go to and use any turrets near him for any reason.
 
 User_RandomPersonality: If on, it will randomize any above variable that could be seen as having to do with each marines' personality.
 For example, if you turned it on for a group of marines, they will now:
@@ -49,3 +50,9 @@ you have to go to Options>Customize Controls>Weapon, and bind those actions to k
 
 The rifle is based on the rifle that Doomguy and the former humans carry, it fires 5 shots at a time, and has a
 20 round magazine, it also has digital sights that you can look through with the zoom key, which increase your accuracy.
+
+================|THE MACHINE GUN TURRET|================
+A machine gun turret that can be placed down by mappers (Or just spawned through the console obviously.) is also included, if one is near a marine and
+there are enough enemies around or at least on really powerful enemy. The marine will run up to it and use it, once every enemy is dead the marine will
+then eventually leave the turret, the player is also able to use the turret, and can get a friendly marine in one to leave it by pressing the use key.
+There is also a variant of the marine that is on the turret and always stays on it until killed. And has a User_TurretMarineColor variable, that behaves exactly like User_Color.

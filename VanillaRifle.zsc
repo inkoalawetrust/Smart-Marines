@@ -134,7 +134,7 @@ Class VanillaRifle : Weapon
 				A_ZoomFactor (3,ZOOM_INSTANT);
 				Invoker.AlreadyZoomed = True;
 			}
-			TNT1 A 10+2; //Wait for the fade overlay to fade out.
+			TNT1 A 12; //Wait for the fade overlay to fade out.
 			TNT1 A 0 A_Overlay (PSP_FADE,Null); //Then remove it.
 			TNT1 A 0 A_StartSound ("VRifle/Zoomed",1234,CHANF_LOOPING); //Begin to play the digital humming sound.
 			Goto Ready;

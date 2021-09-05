@@ -1,7 +1,5 @@
 //Contains the attack states of the marine.
 
-//To do
-
 Extend Class SmartMarine
 {
 	Int MagazineRounds; //Keeps track of how many bullets a marine shoots before reload.
