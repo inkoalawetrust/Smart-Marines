@@ -39,7 +39,7 @@ Extend Class SmartMarine
 				
 				If (NearbyTurret && Distance2D (NearbyTurret) <= 64 && WaitForTurret <= 0) //Once in range of the turret and if it isn't being "used", "use" it yourself.
 				{
-					A_Log ("Gotcha");
+					//A_Log ("Gotcha");
 					
 					A_StartSound ("Turret/Ready",CHAN_WEAPON); //The sound of getting on the gun.
 					//Turret status changes.
@@ -138,7 +138,7 @@ Class SmartMarineMGTurret : Actor
 	
 	Void RemoveOperator(Actor User)
 	{
-		a_log ("GET OFF OF ME");
+		//a_log ("GET OFF OF ME");
 		// Restore operator status.
 		Operator.A_SetSpeed(User.Default.Speed);
 		Operator.A_SetScale(User.Default.Scale.X);
@@ -359,7 +359,7 @@ Class SmartMarineMGBullet : FastProjectile
 		Radius 4;
 		Height 8;
 		Speed 200;
-		Scale 0.25;
+		Scale 0.15;
 		DamageFunction (Random (20,40)/10); //A ripper damages an actor with a total radius of 64 MU, 10 times, hence dividing the random damage output by 10.. 
 		ProjectileKickback 96;
 		Projectile;
@@ -372,7 +372,7 @@ Class SmartMarineMGBullet : FastProjectile
 	Override Int SpecialMissileHit (Actor Victim)
 	{
 		//Make the bullets not harm allies.
-		If (Victim && Target && (!Target.IsHostile (Victim) || Target.IsFriend(Victim))) {a_log ("no friendly fire");Return 1;} //Don't harm the shooter or allies.
+		If (Victim && Target && (!Target.IsHostile (Victim) || Target.IsFriend(Victim))) {/*a_log ("no friendly fire");*/Return 1;} //Don't harm the shooter or allies.
 		
 		If (Victim.SpawnHealth() <= 200) {bExtremeDeath = True;} //Obliterate any weak enemy.
 		
@@ -403,7 +403,7 @@ Class SmartMarineMGBullet : FastProjectile
 	States
 	{
 		Spawn:
-			BAL1 A -1 Light ("MarineMGTracerLight");
+			MTUR Z -1 Light ("MarineMGTracerLight");
 			Stop;
 		Death:
 			TNT1 A 0;

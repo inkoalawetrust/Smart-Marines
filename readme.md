@@ -2,7 +2,7 @@
 
 A marine NPC actor that is quite a bit smarter than the vanilla brain dead monsters.
 
-## What they can do (So far)
+## What they can do
 
 - Attack stuff by:
   - Bashing it with their rifle. (Melee)
@@ -16,8 +16,8 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 - Can swim across swimmable 3D sectors to reach their target.
 - Can be frightened if their target is big and/or strong enough.
 - Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*.
-- Has placeable machine guns that both players and the marines can use, you can press the use key on a marine to get him off of one.
-- Includes a seperate marine that permenantly stays on the turret until killed, who can also be colored like below.
+- Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one.
+- Includes a seperate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on him doesn't get him off.
 - You can press the use key on friendly marines when they are in their initial spawn state, to get them to move.
 - Can be colored with a variety of colors:
   - Red
@@ -29,7 +29,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
   - Orange
   - Pink
   - Random (Randomly pick a color.)
-- Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc.
+- Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc. Adding a custom value to a user variable prevents it from being randomied.
 - Most of the marines' behaviour can be configured on a per actor basis using user variables.
 - They also have a rifle that they sometimes drop, which you can pick up and use yourself.
   - The rifle fires bursts of 5 rounds, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
@@ -38,8 +38,10 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 *Such as Imps and Pinkies, anything that is really weak (5 or less HP), won't even count as a kill for the marine, so they won't be dancing afer killing 40 flies.
 
 ## Improvements I want to make on them
+Note: Considering how much of a pain coding these marines to completion has been, I'll probably only do the first two of these.
 
 - Add the StayOnLift and AvoidHazards flags to the marines once the next GZDoom update that adds MBF21 support releases.
+- Find or have someone make some swimming and diving sprites for the marines, they still use the placeholder walk cycle for swimming.
 - Make them able to crouch across sectors with short ceilings, along with being able to crouch fire. I may not be able to do this though.
   - And of course if I can do it, then this should be toggleable as well.
 - MAYBE I can give them some kind of cover system, that allows them to run to predetermined points in the map while fighting or running to reload.

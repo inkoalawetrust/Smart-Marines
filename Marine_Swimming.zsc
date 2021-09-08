@@ -31,7 +31,7 @@ Extend Class SmartMarine
 			PLAY A 2 A_JumpIf (WaterLevel > 0,"Swimming");
 			Goto DiveIn+1;
 		Swimming:
-			PLAY AABBCCDD 3
+			PLAY AABBCCDD 3 //Placeholder sprites until I can get some proper diving and swimming sprites.
 			{
 				//a_log ("im swimming");
 				If (WaterLevel == 0) {/*a_log ("on land, going to see state");*/Return ResolveState ("See");} //Go to the see state if on land.
@@ -51,7 +51,7 @@ Class WaterCheck : Actor
 	States
 	{
 		Spawn:
-			plss AAAAAAAA 2;
+			TNT1 AAAAAAAA 2;
 			Stop;
 	}
 }

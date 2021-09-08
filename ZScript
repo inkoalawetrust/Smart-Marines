@@ -96,7 +96,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		//Makes the marine unkillable while taunting. Because causing them to stop taunting and react to enemies breaks them.
 		If (IsInState ("Wave") || IsInState ("AltWave")) {bShootable = False; bSolid = False;} Else {bShootable = True; bSolid = True;}
 		
-		If (WaitForTurret > 0) {WaitForTurret--; a_logint (waitforturret);}
+		If (WaitForTurret > 0) {WaitForTurret--; /*a_logint (waitforturret);*/}
 	}
 	Override Int DamageMobj (Actor Inflictor, Actor Source, Int Damage, Name MOD, Int Flags, Double Angle)
 	{
@@ -112,12 +112,12 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		//Press use on the marine to stop him from standing still when first spawned.
 		If (!NoSpawnJump)
 		{
-			If (User && IsFriend (User)) {User.A_Print ("The marine will now move.");}
+			If (User && IsFriend (User)) {User.A_Print ("The marine will now move.",0,'CONFONT');}
 			SetStateLabel ("See");
 		}
 		
 		//Press use on him while on a turret to get him to leave it.
-		If (IsOnTurret && IsFriend (User)) {WaitForTurret = 35; SetStateLabel ("LeaveTurret");}
+		If (IsOnTurret && IsFriend (User)) {User.A_Print ("The marine will now get off.",0,'CONFONT'); WaitForTurret = 35; SetStateLabel ("LeaveTurret");}
 		Return True;
 	}
 	Override Void PostBeginPlay()

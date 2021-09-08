@@ -52,7 +52,7 @@ X==Add the ability for them to drown if they are fully submerged for too long, t
 *==When a marine is near one and sees multiple targets, or really powerful ones, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
 *===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.| Yep lol
 *==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
-==It should have a user variable that allows you to spawn it with a marine already on.
+*==It should have a user variable that allows you to spawn it with a marine already on.| Done, but it is a separate actor.
 *==I uh, aren't sure how I'll code it to be usable by the player :badpokerface:| Also yep, Lewisk3 coded it to be usable by players.
 
 =MAKE A MARINE WITH A ROCKET LAUNCHER.

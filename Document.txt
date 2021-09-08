@@ -1,9 +1,56 @@
+NOTE: THE MARINES ARE STILL USING PLACEHOLDER SPRITES FOR DIVING AND SWIMMING, I WILL TRY TO ADD PROPER SPRITES WHENEVER I CAN GET MY HANDS ON THEM.
+
 The credits for this NPC, his rifle and machine gun turret, can be found inside the credits.txt document.
 
 If you have any issues with the marines or some other NPC made by me, you can ask me for help on Discord at inkoalawetrust#9783, or Twitter at @inkoalawetrust.
 
 The marines have 120 health, only a bit higher than the players'. You can just turn on the Friendly flag for them in the editor to use them as smart allies.
 In fact, I've sort of just made them with the intent of being used as allies, like the Allied Marines resource from Realm667.
+
+================|WHAT THEY CAN DO|================
+
+Attack stuff by:
+- Bashing it with their rifle. (Melee)
+- Shoot at it in bursts of 5 rounds. (Ranged)
+- Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect) 
+Run away from their own grenades.
+
+Reload their rifles for every 20 rounds they fire in total.
+- They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
+Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
+
+When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
+Can swim across swimmable 3D sectors to reach their target.
+
+Can be frightened if their target is big and/or strong enough.
+
+Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*.
+
+Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one.
+
+Includes a seperate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on him doesn't get him off.
+
+You can press the use key on friendly marines when they are in their initial spawn state, to get them to move.
+
+Can be colored with a variety of colors:
+- Red
+- Gray
+- White
+- Black
+- Blue
+- Yellow
+- Orange
+- Pink
+- Random (Randomly pick a color.)
+Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc.
+
+Most of the marines' behaviour can be configured on a per actor basis using user variables. More on that on the below section.
+
+They also have a rifle that they sometimes drop, which you can pick up and use yourself.
+- The rifle fires bursts of 5 rounds, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
+- It also features animated digital sights complete with an animation for looking in and out of them, using the sights increased you accuracy as well.
+
+*Such as Imps and Pinkies, anything that is really weak (5 or less HP), won't even count as a kill for the marine, so they won't be dancing afer killing 40 flies.
 
 ================|USER VARIABLES|================
 User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring the modify the source code of the actor in any way.
@@ -23,7 +70,7 @@ User_NoTaunt: If on, the marine will not have a chance to taunt after killing a 
 User_NoMookTaunt: The marine will not have a chance to taunt after killing enough mook enemies, if you don't know what that is, check out this TV Tropes article: https://tvtropes.org/pmwiki/pmwiki.php/Main/Mooks
 User_DontUseTurrets: The marine won't go to and use any turrets near him for any reason.
 
-User_RandomPersonality: If on, it will randomize any above variable that could be seen as having to do with each marines' personality.
+User_RandomPersonality: If on, it will randomize any above variable that could be seen as having to do with each marines' personality. Setting a value for a variable stops it from being randomized.
 For example, if you turned it on for a group of marines, they will now:
 - Have varying predispositions to throw grenades at enemies.
 - Each chase a target for a different amount of time.

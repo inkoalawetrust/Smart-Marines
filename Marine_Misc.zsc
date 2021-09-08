@@ -10,9 +10,9 @@ Extend Class SmartMarine
 		//Handles the random color choice that is performed if the color name given is "Random".
 		If (User_Color ~== "Random")
 		{
-			Static Const String ColorArray[] = {"Red","Gray","White","Black","Blue","Yellow","Orange","Pink"}; //Contains all the valid color names.
+			Static Const String ColorArray[] = {"Red","Gray","White","Black","Blue","Yellow","Orange","Pink","DarkGreen"}; //Contains all the valid color names.
 			
-			User_Color = ColorArray[Random(0,7)]; //Randomly picks a color string.
+			User_Color = ColorArray[Random(0,8)]; //Randomly picks a color string.
 		}
 
 		A_SetTranslation (String.Format("Marine_%s", User_Color));

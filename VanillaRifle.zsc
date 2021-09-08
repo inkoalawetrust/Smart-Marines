@@ -60,6 +60,7 @@ Class VanillaRifle : Weapon
 			VRIF AAAAAABBBBBB 1 A_Raise();
 			Loop;
 		Deselect:
+			TNT1 A 0 A_StopSound (1234);
 			VRIF AAAAAABBBBBB 1 A_Lower();
 			Loop;
 		Fire:
