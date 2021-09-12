@@ -12,7 +12,7 @@ Version "4.5"
 #Include "Marine_Misc.zsc" //The miscellaneous states and code of the marine.
 #Include "MarineFunctions.zsc" //A mixin class with all the custom functions.
 
-#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed by an enemy after doing nothing like a fucking moron for too long.
+#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed by an enemy.
 
 //To do:
 /*HATE. LET ME TELL YOU HOW MUCH I'VE COME TO HATE YOU SINCE I BEGAN TO WORK ON YOU.
@@ -25,7 +25,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	Default
 	{
 		//$Title AI Marine
-		//$Category Monsters
+		//$Category Marines
 		//$Sprite MARIC1
 		Health 120;
 		GibHealth 20;
@@ -52,6 +52,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		DropItem "Clip", 128, 2;
 		DropItem "ClipBox", 64;
 		DropItem "VanillaRifle", 48;
+		DamageFactor "MarineHMG", 2.0;
 		Monster;
 		+JumpDown;
 		+MissileMore;
@@ -94,8 +95,11 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		If (IsInState ("Swimming") || IsInState ("DiveIn")) {bNoPain = True;} Else {bNoPain = False;}
 		
 		//Makes the marine unkillable while taunting. Because causing them to stop taunting and react to enemies breaks them.
-		If (IsInState ("Wave") || IsInState ("AltWave")) {bShootable = False; bSolid = False;} Else {bShootable = True; bSolid = True;}
+		If ((IsInState ("Wave") || IsInState ("AltWave")) || bKilled && !bIceCorpse) {bShootable = False; bSolid = False;} Else {bShootable = True; bSolid = True;}
 		
+		//Don't attack non-enemies.
+		If (Target && !IsHostile (Target)) {Target = Null;}
+				
 		If (WaitForTurret > 0) {WaitForTurret--; /*a_logint (waitforturret);*/}
 	}
 	Override Int DamageMobj (Actor Inflictor, Actor Source, Int Damage, Name MOD, Int Flags, Double Angle)
@@ -108,7 +112,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	}
 	Override Bool Used (Actor User)
 	{
-		If (Health <= 0) {Return False;}
+		If (bKilled) {Return False;}
 		//Press use on the marine to stop him from standing still when first spawned.
 		If (!NoSpawnJump)
 		{
@@ -131,22 +135,26 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	{
 		Spawn:
 			TNT1 A 0 A_JumpIf (NoSpawnJump,"See"); //Keep this line in mind, it may be the source of issues down the line.
-			MARI A 0
-			{
-				A_SetTics(Random(0,30));
-				A_SMarineLook();
-			}
+			MARI A 0 A_SetTics(Random(0,30));
 			MARI AAABBBCC 10 A_SMarineLook();
 			Loop;
 		See:
 			TNT1 A 0
 			{
 				NoSpawnJump = True;
-				If (!Target && !User_Persistent && Random (0,256) >= 230) {Return ResolveState ("Wander");} 
-				//A_Log ("I'm in the see state.");
+				If (!Target && !User_Persistent && Random (0,256) >= 230) {Return ResolveState ("Idle");} 
 				Return ResolveState(Null);
 			}
 			MAR2 AABBCCDD 4 A_SMarineChase();
+			Loop;
+		Idle:
+			PLAY AABBCCDD 4
+			{
+				A_SMarineLook();
+				A_Wander();
+				LookForGrenades();
+				Return A_Jump (4,"StandStill");
+			}
 			Loop;
 	}
 }

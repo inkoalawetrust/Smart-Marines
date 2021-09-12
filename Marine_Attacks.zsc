@@ -4,6 +4,13 @@ Extend Class SmartMarine
 {
 	Int MagazineRounds; //Keeps track of how many bullets a marine shoots before reload.
 	Int ShotsFired; ///How many rounds in a burst the marine fired.
+	Override String GetObituary (Actor Victim, Actor Inflictor, Name MOD, Bool PlayerAttack)
+	{
+		String Message;
+		If (Inflictor){Message = Inflictor.GetObituary (Victim, Inflictor, MOD, PlayerAttack);}
+		If (!Message){Message = Super.GetObituary (Victim, Inflictor, MOD, PlayerAttack);}
+		Return Message;
+	}
 	States
 	{
 		RifleBurst:
@@ -23,11 +30,8 @@ Extend Class SmartMarine
 			MARG AA 8 A_FaceTarget();
 			MARG B 8
 			{
-				A_Log ("Throwing grenade");
 				A_StartSound ("Marine/Throw"); //Umf
-				Bool b; Actor Grenade;
-				[b, Grenade] = A_ThrowGrenade ("SmartMarineGrenade",38,FRandom(16,24),FRandom(4,8));
-				If (Grenade) {Grenade.Target = Self;} //Make yourself the grenades' target, so a player kill is attributed to you.
+				A_ThrowGrenade ("SmartMarineGrenade",38,FRandom(16,24),FRandom(4,8));
 			}
 			MARG B 4;
 			Goto See;

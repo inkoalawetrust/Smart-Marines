@@ -1,3 +1,5 @@
+![](https://i.imgur.com/phgBzq8.png)
+
 # Smart Marines
 
 A marine NPC actor that is quite a bit smarter than the vanilla brain dead monsters.

@@ -2,7 +2,6 @@
 
 //To do
 //Get access to some marine swimming and jump in and out sprites.
-//Fix that one bug that sometimes causes the marine to get stuck.
 
 Extend Class SmartMarine
 {
@@ -33,8 +32,7 @@ Extend Class SmartMarine
 		Swimming:
 			PLAY AABBCCDD 3 //Placeholder sprites until I can get some proper diving and swimming sprites.
 			{
-				//a_log ("im swimming");
-				If (WaterLevel == 0) {/*a_log ("on land, going to see state");*/Return ResolveState ("See");} //Go to the see state if on land.
+				If (WaterLevel == 0) {Return ResolveState ("See");} //Go to the see state if on land.
 				If (Target) {A_FaceTarget();}
 				Else {Angle += RandomPick (0,0,10,20,-20,-10,0,0);} //Swim aimlessly if you have no target.
 				A_ChangeVelocity (FRandom(1,2),z:0.75,CVF_RELATIVE); //Swim

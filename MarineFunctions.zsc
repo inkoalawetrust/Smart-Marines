@@ -6,7 +6,7 @@ Mixin Class MarineFunctions
 	//The sight and hearing related functions.
 	//=======================================
 	
-	Void LookForGrenades() //An alias for the below code basically.
+	Void LookForGrenades()
 	{
 		BlockThingsIterator FindBomb = BlockThingsIterator.Create (Self,256);
 		
@@ -14,7 +14,6 @@ Mixin Class MarineFunctions
 		{
 			If (FindBomb.Thing Is "SmartMarineGrenade")
 			{
-				//A_Log ("Holy shit a grenade.");
 				If (Target) {Target = ActualTarget;} //If the marine has at target, store it in another pointer.
 				Target = FindBomb.Thing; //Set the found grenade as the target.
 				SetStateLabel ("RunAway");
@@ -90,7 +89,7 @@ Mixin Class MarineFunctions
 				If (!FindFriendlyNPC.Thing && FindFriendlyNPC.Thing == Self) {Continue;}
 				
 				//Make sure the actor IS NOT an actual player.
-				If (FindFriendlyNPC.Thing Is "PlayerPawn") {Continue;}
+				If (FindFriendlyNPC.Thing.Player || FindFriendlyNPC.Thing.Player && FindFriendlyNPC.Thing.Player.Cheats & CF_NOTARGET) {Continue;}
 				
 				//You aren't friendly to the player yourself, but the other actor is.
 				If (Self.bFriendly && !FindFriendlyNPC.Thing.bFriendly) {Continue;}
@@ -130,6 +129,20 @@ Mixin Class MarineFunctions
 			Else {SetStateLabel ("Swimming"); Return;}
 		}
 		
+		//If the marine is running away and his target is dead or no longer exists, then stop running.
+		If (RunningAway && (!Target || Target.Health <= 0))
+		{
+			RunningAway = False;
+			bFrightened = False;
+			bNoPain = False;
+			Speed = Default.Speed;
+			If (ActualTarget)
+			{
+				Target = ActualTarget;
+				ActualTarget = Null;
+			}
+		}
+		
 		If (!RunningAway) //Run none of this if the marine is running away.
 		{
 			LookForGrenades();
@@ -137,13 +150,12 @@ Mixin Class MarineFunctions
 			
 			If (!User_Fearless)
 			{
-				//A_Log ("Running fear check.");
 				//If the target is nearby, and hostile, has over 2500 health, or is big enough, or has any of the below flags, then get scared of them.
 				//Or just get scared if your target is nocliping, because something is VERY wrong.
 				If (Target && IsHostile (Target) && Distance3D (Target) <= 1024)
 				{
 					If (Target.Health >= 2500 || Target.Height >= 80 && Target.Radius >= 72 || Target.bReflective && Target.bAimReflect ||
-					Target.bNoDamage || Target.bInvulnerable) {/*A_Log ("Spooky scary Cyberdemons.");*/ bFrightened = True;}
+					Target.bNoDamage || Target.bInvulnerable) { bFrightened = True;}
 				}
 				Else {bFrightened = False;} //If they don't, e.g. you changed target, then stop being scared.
 			}
@@ -156,26 +168,22 @@ Mixin Class MarineFunctions
 				If (Target && Target.IsActorPlayingSound(CHAN_AUTO) && Distance3D (Target) <= 512)
 				{ForgetTimer = 0;} //Reset the timer if you hear your target make a sound nearby.
 				
-				//console.printf("The forget timer is now %d", ForgetTimer);
 				If (ForgetTimer >= User_AttentionSpan) //Check if it exceeds User_AttentionSpan.
 				{
 					ForgetTimer = 0;
 					A_ClearTarget();
-					SetStateLabel ("Wander");
+					SetStateLabel ("Idle");
 					Return; //Stop the function.
 				}
 			}
 			Else {ForgetTimer = 0;} //Reset the timer otherwise.
 			
 			//Attack decision code.
-			If (Target && IsVisible (Target,False) && Target.Health > 0)
-			{
-				//A_Log ("I have a target.");
-				
+			If (Target && IsVisible (Target,False) && !Target.bKilled)
+			{				
 				//If the target is in melee range, do a melee attack.
 				If (CheckMeleeRange() && !User_NoMelee)
 				{
-					//A_Log ("I'll smack them.");
 					SetStateLabel ("RifleSmack");
 					Return;
 				}
@@ -183,12 +191,11 @@ Mixin Class MarineFunctions
 				//Otherwise check if they are in range in general.
 				If (CheckMissileRange())
 				{
-					If (DecideGrenadeAttack()) //Run the code to decide a melee attack.
+					If (DecideGrenadeAttack() && Distance3D (Target) <= 512) //Run the code to decide a melee attack.
 					{
 						SetStateLabel ("ThrowGrenade");
 						Return;
 					}
-					//A_Log ("I'll shoot them.");
 					SetStateLabel ("RifleBurst");
 					Return;
 				}
@@ -226,7 +233,6 @@ Mixin Class MarineFunctions
 			Int ThrowChance;
 			ThrowChance = Random (0,256);
 			If (Target && Target.Health >= 100) {ThrowChance += 20;}
-			//console.printf("The throwing chance is now %d", ThrowChance);
 			If (Target)
 			{
 				BlockThingsIterator CheckAroundTarget = BlockThingsIterator.Create (Target,192);
@@ -234,7 +240,6 @@ Mixin Class MarineFunctions
 				While (CheckAroundTarget.Next())
 				{
 					FoundActor = CheckAroundTarget.Thing;
-					//console.printf("The throwing chance is now %d", ThrowChance);
 					If (FoundActor && FoundActor.bIsMonster && IsHostile(FoundActor) && FoundActor.Health >= 20 && FoundActor != Self && FoundActor != Target)
 					{ThrowChance += Random(10,20);}
 				}
@@ -265,23 +270,23 @@ Mixin Class MarineFunctions
 			}
 			
 			//Find a turret.
-			BlockThingsIterator FindTurret = BlockThingsIterator.Create(Self,512);
+			BlockThingsIterator FindTurret = BlockThingsIterator.Create(Self,768);
 			
 			While (FindTurret.Next())
 			{
 				If (FindTurret.Thing && FindTurret.Thing Is "SmartMarineMGTurret" && !(SmartMarineMGTurret(FindTurret.Thing).IsInUse))
-				{/*A_Log ("i found a turret");*/NearbyTurret = FindTurret.Thing;}
+				{NearbyTurret = FindTurret.Thing;}
 			}
 			
 			//Run to the nearest turret if you found 20 normal enemies.
 			If (FoundEnemies >= 20 && NearbyTurret ||
 			
 			/*Or if your target has a lot of health.*/
-			Target && Target.Health >= 1000 && IsHostile (Target) ||
+			NearbyTurret && Target && Target.Health >= 1000 && IsHostile (Target) ||
 			
 			/*Or if it is really big.*/
-			Target && Target.Height >= 80 && Target.Radius >= 72 && IsHostile (Target))
-			{/*a_log ("im going to the turret");*/SetStateLabel ("RunToTurret"); Return;}
+			NearbyTurret && Target && Target.Height >= 80 && Target.Radius >= 72 && IsHostile (Target))
+			{SetStateLabel ("RunToTurret"); Return;}
 		}
 	}
 	

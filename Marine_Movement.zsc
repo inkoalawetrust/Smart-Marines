@@ -5,18 +5,8 @@ Extend Class SmartMarine
 	Bool RunningAway;
 	States
 	{
-		Wander:
-			PLAY AABBCCDD 4
-			{
-				A_SMarineLook();
-				A_Wander();
-				LookForGrenades();
-				Return A_Jump (4,"StandStill");
-			}
-			Loop;
-		
 		ChangePosition: //The marine comes to this state for every 5 shots he fires, to not just stay still.
-			PLAY AABBCCDD 3 {A_Wander(); LookForGrenades();}
+			PLAY AABBCCDD 3 {A_Wander(); LookForGrenades(); FindNearbyMGTurrets();}
 			Goto See;
 		
 		StandStill:
@@ -24,9 +14,9 @@ Extend Class SmartMarine
 			{
 				A_SMarineLook();
 				If (Random(0,256) >= 230) {Angle += RandomPick (40,30,20,10,-10,-20,-30,-40);}
-				Return A_Jump (6,"Wander");
+				Return A_Jump (6,"Idle");
 			}
-			Goto Wander;
+			Goto Idle;
 		
 		RunAway:
 			TNT1 A 0
@@ -35,6 +25,7 @@ Extend Class SmartMarine
 				Angle += -180;
 				Speed += Default.Speed*1.5;
 				bFrightened = True;
+				bNoPain = True;
 				RunningAway = True;
 			}
 			PLAY AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 {A_SMarineChase();}
@@ -42,7 +33,7 @@ Extend Class SmartMarine
 			{
 				Speed = Default.Speed;
 				bFrightened = False; //Stop running from the grenade.
-				RunningAway = False;
+				bNoPain = False;
 				If (ActualTarget)
 				{
 					Target = ActualTarget; //Set the target pointer back to the marines' actual target instead of the grenade.

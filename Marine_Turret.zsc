@@ -1,10 +1,5 @@
 //The code that handles the machine gun turret that both players and marines can use goes here.
 
-//To do
-//Create a variant of the marine that is always on the turret until killed, at which point he dies and spawns in a turret.
-//Make the player unable to crouch while on the gun.
-//Fix the dynamic light weirdness caused by making muzzle flash lights spawn when players or marines fire the turret.
-
 Extend Class SmartMarine
 {
 	Actor NearbyTurret;
@@ -33,13 +28,14 @@ Extend Class SmartMarine
 			PLAY AAABBBCCCDDD 1
 			{
 				A_Face (NearbyTurret);
+				
 				VelFromAngle(); //Move towards the turret.
 				
-				If (SmartMarineMGTurret(NearbyTurret).IsInUse) {NearbyTurret = Null; Return ResolveState ("See");} //Stop going to the turret if another marine or player gets on it.
+				//Stop going to the turret if another marine or player gets on it. Or if it doesn't exist.
+				If (NearbyTurret && SmartMarineMGTurret(NearbyTurret).IsInUse || !NearbyTurret) {NearbyTurret = Null; Return ResolveState ("See");}
 				
 				If (NearbyTurret && Distance2D (NearbyTurret) <= 64 && WaitForTurret <= 0) //Once in range of the turret and if it isn't being "used", "use" it yourself.
 				{
-					//A_Log ("Gotcha");
 					
 					A_StartSound ("Turret/Ready",CHAN_WEAPON); //The sound of getting on the gun.
 					//Turret status changes.
@@ -96,7 +92,7 @@ Extend Class SmartMarine
 		
 		LeaveTurret:
 			#### # 0 A_RemoveMarineFromTurret();
-			Goto Wander;
+			Goto Idle;
 	}
 }
 
@@ -138,7 +134,6 @@ Class SmartMarineMGTurret : Actor
 	
 	Void RemoveOperator(Actor User)
 	{
-		//a_log ("GET OFF OF ME");
 		// Restore operator status.
 		Operator.A_SetSpeed(User.Default.Speed);
 		Operator.A_SetScale(User.Default.Scale.X);
@@ -163,7 +158,7 @@ Class SmartMarineMGTurret : Actor
 			Else If (User == Operator) // Only allow the operator to exit themselves.
 				RemoveOperator(User);
 		//}
-			
+		
 		Return False;
 	}
 	
@@ -358,13 +353,14 @@ Class SmartMarineMGBullet : FastProjectile
 	{
 		Radius 4;
 		Height 8;
-		Speed 200;
+		Speed 180;
 		Scale 0.15;
-		DamageFunction (Random (20,40)/10); //A ripper damages an actor with a total radius of 64 MU, 10 times, hence dividing the random damage output by 10.. 
-		ProjectileKickback 96;
+		DamageFunction (Random (20,40)/10); //A ripper damages an actor with a total radius of 64 MU, 10 times, hence dividing the random damage output by 10.
+		ProjectileKickback 8;
 		Projectile;
 		MissileHeight 8;
 		Decal "SmartMarineMGChip";
+		DamageType "MarineHMG";
 		+Ripper;
 	}
 	Int RipAmount;
@@ -372,11 +368,15 @@ Class SmartMarineMGBullet : FastProjectile
 	Override Int SpecialMissileHit (Actor Victim)
 	{
 		//Make the bullets not harm allies.
-		If (Victim && Target && (!Target.IsHostile (Victim) || Target.IsFriend(Victim))) {/*a_log ("no friendly fire");*/Return 1;} //Don't harm the shooter or allies.
+		If (Victim && Target && (!Target.IsHostile (Victim) || Target.IsFriend(Victim))) {Return 1;} //Don't harm the shooter or allies.
 		
 		If (Victim.SpawnHealth() <= 200) {bExtremeDeath = True;} //Obliterate any weak enemy.
 		
+		//Stop penetrating if the target has a lot of health, you ripped for long enough.
 		If (Victim.SpawnHealth() >= 500 || RipAmount > Rips*10) {bRipper = False;}
+		
+		//Stop ripping if you went through a large enough ally.
+		If (Target && Target.IsFriend(Victim) && Victim.Radius >= 40 && Victim.Height >= 64) {A_Die();}
 		
 		RipAmount++;
 		

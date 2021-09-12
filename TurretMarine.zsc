@@ -7,7 +7,7 @@ Class SmartMarineTurret : SmartMarine
 	Default
 	{
 		//$Title AI Marine (Stationary)
-		//$Category Monsters
+		//$Category Marines
 		//$Sprite MTURB1
 		Health 120;
 		GibHealth 20;
@@ -30,6 +30,7 @@ Class SmartMarineTurret : SmartMarine
 		DropItem "Clip";
 		DropItem "Clip", 128, 2;
 		DropItem "ClipBox", 64;
+		DamageFactor "MarineHMG", 1.5; //Fares slightly better due to the turret being between him and the bullets.
 		Monster;
 		+MissileMore;
 		+MissileEvenMore;
@@ -48,6 +49,12 @@ Class SmartMarineTurret : SmartMarine
 		
 		If (bFriendly) {Species = "SmartMarineFriend";} Else {Species = Default.Species;}
 		If (Target && Target.Health <= 0) {Target = Null;}
+	}
+	
+	Override Bool Used (Actor User)
+	{
+		If (bKilled) {Return False;}
+		Return True;
 	}
 	
 	Protected Void A_TurretMarineDie()

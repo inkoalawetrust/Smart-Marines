@@ -7,6 +7,7 @@ Class SmartMarinePuff : BulletPuff
 	Default
 	{
 		Species "SmartMarine";
+		DamageType "MarineRifle";
 		Decal "BulletChip";
 		+MThruSpecies;
 		+PuffGetsOwner;
@@ -26,9 +27,10 @@ Class SmartMarineGrenade : Actor
 		BounceType "Hexen";
 		BounceSound "Grenade/Bounce";
 		Obituary "%o ate a marine's explosive pineapple !";
+		DamageType "MarineGrenade";
 		Projectile;
 		-NoGravity;
-		-NoBlockmap;
+		-NoBlockmap; //So marines can find and run from them.
 		+RollSprite;
 		+FloorClip;
 		+CanBounceWater;
