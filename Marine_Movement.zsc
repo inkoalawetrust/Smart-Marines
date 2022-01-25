@@ -1,5 +1,10 @@
 Extend Class SmartMarine
 {
+	Int User_AttentionSpan; //How long the marines chases a target before giving up, the higher the value the longer the chase.
+	Bool User_NoRetreat; //The marine doesn't retreat.
+	Bool User_Persistent; //The marine doesn't lose track of his target.
+	Bool User_Fearless; //The marine doesn't get scared of certain enemies.
+	
 	Int EscapeAttempts; //How many times the marine tries to run out of sight to reload.
 	Actor ActualTarget; //Holds a reference to the marines' actual target while he runs away from a grenade.
 	Bool RunningAway;

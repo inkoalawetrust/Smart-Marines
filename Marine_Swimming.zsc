@@ -5,6 +5,8 @@
 
 Extend Class SmartMarine
 {
+	Bool User_NoSwim; //The marine doesn't swim.
+	
 	//==================
 	//The water checking
 	//==================

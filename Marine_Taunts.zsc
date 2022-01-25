@@ -43,6 +43,9 @@ Class SmartMarineTauntHandler : EventHandler
 Extend Class SmartMarine
 {
 	Int MooksKilled; //How many basic enemies were killed.
+	Bool User_NoTaunt; //The marine doesn't have a chance to taunt after killing powerful enemies or players.
+	Bool User_NoMookTaunt; //The marine doesn't have a chance to taunt after killing a lot of basic enemies.
+	
 	States
 	{
 		Wave:

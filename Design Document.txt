@@ -2,57 +2,58 @@ Ok, I was able to finally begin working on these god forsaken NPCs for the first
 they are somehow broken again, so I have to rewrite them for the FOURTH time, so I'm just going to keep
 this document of what they should be able to do around. The list is roughly ordered from most to least important.
 
-19/8/2021: And the fourth iteration met the same fate, wunderbar. This project is genuinely curse, and it is physically impossible to convince me otherwise.
+19/8/2021: And the fourth iteration met the same fate, wunderbar. This project is genuinely cursed, and it is physically impossible to convince me otherwise.
+16/1/2022: While working on my gz_bigcity map, which was originally made just to showcase them after I thought the fifth iteration finally worked. I noticed that they wouldn't attack every time I spanwed one in. So I have to uselessly rewrite them again.
 
 
-NOTE: Try using class extensions, and hope those allow me to split the behaviour into (Hopefully) easier to fix chunks, that I won't forget how they work.| Done, thank god.
-NOTE: Each of these goals or whatever, test them THOROUGHLY TO MAKE SURE THERE ARE NO BUGS.| Done, no major bugs are on them now AFAIK
+NOTE: Try using class extensions, and hope those allow me to split the behaviour into (Hopefully) easier to fix chunks, that I won't forget how they work.| Done, thank god.| Every time I get optimistic I am beaten down back to constant pessimism.
+NOTE: Each of these goals or whatever, test them THOROUGHLY TO MAKE SURE THERE ARE NO BUGS.| Done, no major bugs are on them now AFAIK| No bugs my ass
 
 An asterisk (*) before the = means that I finished that goal on the current iteration of the marine NPCs.
 An x means it was canceled for whatever reason.
 
-*=THIS SHOULD BE THE FINAL TIME I HAVE TO REFACTOR THEM.| DONE, FINALLY
+=THIS SHOULD BE THE FINAL TIME I HAVE TO REFACTOR THEM.| DONE, FINALLY | NOT DONE, THEY BROKE AGAIN, IT WILL NEVER BE DONE
 
-*=Be able to forget their target after a set amount of time, the time it takes should be exposed to a user variable, and include one to turn this off totally too.
-*==If their target is forgotten, they should begin wandering around until they find a new one, while doing so, they should have a chance to enter a state
+=Be able to forget their target after a set amount of time, the time it takes should be exposed to a user variable, and include one to turn this off totally too.
+==If their target is forgotten, they should begin wandering around until they find a new one, while doing so, they should have a chance to enter a state
    in which they stand around for a random amount of time before beginning to move again.
 
-*=They should fire in 5 round bursts, and need to reload after firing 20 rounds, the latter should be able to be turned off too.
-*==A bit less important, but they should try 2 or 3 times to run away from their target, to somewhere where their target can't see them, before reloading,
+=They should fire in 5 round bursts, and need to reload after firing 20 rounds, the latter should be able to be turned off too.
+==A bit less important, but they should try 2 or 3 times to run away from their target, to somewhere where their target can't see them, before reloading,
    if they fail to hide all 3 times, then just reload in the open. Maybe make this particular behaviour toggleable with a user variable.
 
-*=Add the basic states like Pain, Death, XDeath etc.
+=Add the basic states like Pain, Death, XDeath etc.
 
-*=They should be able to throw grenades.
-*==They should have a random chance to throw a grenade, they will throw it if the random throwing chance exceeds a threshold that can be user configurable.
-*==Besides the random chance, the number that needs to exceed the threshold should also be increased by 1-2 for every killable enemy around the target
+=They should be able to throw grenades.
+==They should have a random chance to throw a grenade, they will throw it if the random throwing chance exceeds a threshold that can be user configurable.
+==Besides the random chance, the number that needs to exceed the threshold should also be increased by 1-2 for every killable enemy around the target
    the marine will toss the grenade to.
-*==There should be a user variable to totally turn the grenade throwing off.
-*==They should run away if they are within the blast radius of any of their grenades.
+==There should be a user variable to totally turn the grenade throwing off.
+==They should run away if they are within the blast radius of any of their grenades.
 
-*=Add marine palette translations, such as ones that make him blue, red, purple etc, and that can be set to each marine using a User_Color string variable.
-*==Also add a special "random" string, that makes the marine pick a random color.
+=Add marine palette translations, such as ones that make him blue, red, purple etc, and that can be set to each marine using a User_Color string variable.
+==Also add a special "random" string, that makes the marine pick a random color.
 
-*=Add a User_RandomPersonality variable, which randomizes other user variables to generate a unique marine, such as one that is very likely to throw grenades,
+=Add a User_RandomPersonality variable, which randomizes other user variables to generate a unique marine, such as one that is very likely to throw grenades,
  never stops chasing their target, and doesn't swim. I should add this for last, once the rest of the list is done.
-*==The randomization code should be called before the variables are initialized, so variables can be prevented from being randomized by the mapper.
+==The randomization code should be called before the variables are initialized, so variables can be prevented from being randomized by the mapper.
 
-*=They should be able to swim across swimmable 3D floors if their target is on the other side. This should be toggleable.
-*==They will do that by jumping into the water and swimming on the surface, then jumping out the other side. | Done, not the latter part though, no need for it apparently.
-X==Add the ability for them to drown if they are fully submerged for too long, then reset the drown timer once on the surface again, Make the timers' max value into a user variable. | Nope, no need for that.
+x=They should be able to swim across swimmable 3D floors if their target is on the other side. This should be toggleable.| Cancelled, the code is too janky even compared to the rest of the marine code, and I still have no swimming sprites for them even.
+x==They will do that by jumping into the water and swimming on the surface, then jumping out the other side.
+X==Add the ability for them to drown if they are fully submerged for too long, then reset the drown timer once on the surface again, Make the timers' max value into a user variable.
 
-*=See about adding taunts to the marines, obviously it should be toggleable too, along with the chance of them doing it.
+=See about adding taunts to the marines, obviously it should be toggleable too, along with the chance of them doing it.
 
-*=Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.| Done, the zooming effects are a mess.
+*=Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.| Done, the zooming effects are a mess internally.
 
-*=Make them able to get scared of any large monsters like Cyberdemons they may be targeting. Should be easy enough to do.
+=Make them able to get scared of any large monsters like Cyberdemons they may be targeting. Should be easy enough to do.
 
 *=Make placeable machine gun turrets.
 *==These turrets will have infinite ammo, and thrice the fire rate and damage of the marines' rifles.| Sort of done, I nerfed them because they were too OP by being more realistic lol.
-*==When a marine is near one and sees multiple targets, or really powerful ones, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
-*===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.| Yep lol
-*==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
-*==It should have a user variable that allows you to spawn it with a marine already on.| Done, but it is a separate actor.
+==When a marine is near one and sees multiple targets, or really powerful ones, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
+===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.
+==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
+==Make a seperate actor that has the marine already on the turret, and leave the turret unmanned once killed.
 *==I uh, aren't sure how I'll code it to be usable by the player :badpokerface:| Also yep, Lewisk3 coded it to be usable by players.
 
 =MAKE A MARINE WITH A ROCKET LAUNCHER.

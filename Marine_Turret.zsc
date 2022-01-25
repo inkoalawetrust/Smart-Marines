@@ -2,6 +2,8 @@
 
 Extend Class SmartMarine
 {
+	Bool User_DontUseTurrets; //The marine will never use a turret.
+	
 	Actor NearbyTurret;
 	Bool IsOnTurret; //Used to unmount the marine from the gun when he dies.
 	Int WaitForTurret;

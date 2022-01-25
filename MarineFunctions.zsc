@@ -14,7 +14,7 @@ Mixin Class MarineFunctions
 		{
 			If (FindBomb.Thing Is "SmartMarineGrenade")
 			{
-				If (Target) {Target = ActualTarget;} //If the marine has at target, store it in another pointer.
+				If (Target) {Target = ActualTarget;} //If the marine has a target, store it in another pointer.
 				Target = FindBomb.Thing; //Set the found grenade as the target.
 				SetStateLabel ("RunAway");
 				Return;
@@ -26,7 +26,16 @@ Mixin Class MarineFunctions
 	{
 		If (!Deaf) {If (ListenForEnemies()) {SetStateLabel (JumpTo); Return;}}
 		
-		If (!TurretChase)A_LookEx (LOF_NOJUMP|LOF_DONTCHASEGOAL); Else {A_Chase ("Missile","Missile",CHF_DONTMOVE);}
+		If (!TurretChase) //A_LookEx causes friendly turrets to freeze and abruptly end the game if the turret hears the player while on the Idle state.
+		{
+			A_LookEx (LOF_NOJUMP|LOF_DONTCHASEGOAL);
+		}
+		Else
+		{
+			Double OldAngle = Angle; //This hack exists just so the turret doesn't invariably go to an angle of 0 every time it doesn't have a target.
+			A_Chase ("Missile","Missile",CHF_DONTMOVE);
+			Angle = OldAngle;
+		}
 		
 		If (Target || LookForPlayerAllies())
 		{

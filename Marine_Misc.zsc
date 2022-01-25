@@ -2,6 +2,9 @@
 
 Extend Class SmartMarine
 {
+	String User_Color; //The color of the marine.
+	Bool User_RandomPersonality; //Randomizes aspects of the marine.
+	
 	//Handles the coloring of the marines.
 	Protected Void HandleMarineColoring()
 	{

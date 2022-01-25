@@ -14,6 +14,8 @@ Turret/Ready "Sounds/TurretReady.ogg"
 Grenade/Bounce "Sounds/GrenadeBounce.ogg"
 Grenade/Explode "Sounds/GrenadeBoom.ogg"
 
+$Attenuation Turret/Fire 0.25
+
 $Limit Marine/Death 0
 $Limit Marine/XDeath 0
 $Limit Marine/Pain 0

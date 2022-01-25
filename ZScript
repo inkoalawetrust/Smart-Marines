@@ -1,6 +1,7 @@
 Version "4.5"
 
 //The marine is split across multiple files, to make managing it easier.
+//User variable declarations can be found in their appropriate files too.
 
 #Include "Marine_Movement.zsc" //If the Wander and StandStill states begin causing as trouble like in the last iteration, I'll fucking delete them.
 #Include "Marine_Attacks.zsc" //The attack states of the marine.
@@ -61,23 +62,8 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		+NoInfightSpecies;
 		+FloorClip;
 		+AvoidMelee;
+		+AvoidHazards; //This ONLY works for crushing ceilings and NOTHING ELSE. So it's largely useless but I'm still adding it.
 	}
-	//User variables
-	String User_Color; //The color of the marine.
-	Int User_AttentionSpan; //How long the marines chases a target before giving up, the higher the value the longer the chase.
-	Int User_GrenadeThreshold; //How likely the marine is to throw a grenade, the lower the more likely.
-	Bool User_NoMelee; //The marine doesn't fight in melee.
-	Bool User_NoGrenade; // The marine doesn't use grenades.
-	Bool User_NoRetreat; //The marine doesn't retreat.
-	Bool User_Persistent; //The marine doesn't lose track of his target.
-	Bool User_NoReload; //The marine doesn't need to reload.
-	Bool User_NoSwim; //The marine doesn't swim.
-	Bool User_Fearless; //The marine doesn't get scared of certain enemies.
-	Bool User_NoTaunt; //The marine doesn't have a chance to taunt after killing powerful enemies or players.
-	Bool User_NoMookTaunt; //The marine doesn't have a chance to taunt after killing a lot of basic enemies.
-	Bool User_DontUseTurrets; //The marine will never use a turret.
-	Bool User_RandomPersonality; //Randomizes aspects of the marine.
-	//==============
 	Mixin MarineFunctions;
 	
 	Bool NoSpawnJump; //Turned on once the marine exits Spawn, to not enter it again.

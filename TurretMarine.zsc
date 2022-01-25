@@ -94,20 +94,32 @@ Class SmartMarineTurret : SmartMarine
 	{
 		Spawn:
 			MTUR BBBB 4 A_SMarineLook(False,"Missile",True);
-			#### # 0 A_Jump (230,2); //Only sometimes turn around the turret.
-			#### # 0 A_SetAngle (Angle+RandomPick(20,-20));
+			#### # 0 //Only sometimes turn around the turret.
+			{
+				If (Random (0,256) > 230)
+				{
+					A_SetAngle (Angle+RandomPick(30,20,-20,-30));
+					A_Log ("I turned");
+				}
+			}
 			Loop;
 		See:
 		Idle: //This state could've probably saved me tons of grief making the marine AI.
 			MTUR BBBB 4
 			{
-				If (!bFriendly) {A_SMarineLook(jumpto:"Missile",True,True,True);}
-				Else {A_Chase ("Missile","Missile",CHF_DONTMOVE);}
+				/*If (!bFriendly) {*/A_SMarineLook(jumpto:"Missile",True,True,True);//}
+				//Else {A_Chase ("Missile","Missile",CHF_DONTMOVE);}
+				a_log ("bing chilling");
 			}
-			#### # 0 A_FaceTarget(10,10);
-			#### # 0 A_Jump (190,2); //Is more wary and likely to turn around after already encountering an enemy.
-			#### # 0 A_SetAngle (Angle+RandomPick(20,-20));
-			#### # 0;
+			#### # 0 {If (Target) {A_FaceTarget(10,10);}}
+			#### # 0 //Only sometimes turn around the turret.
+			{
+				If (Random (0,256) > 210)
+				{
+					A_SetAngle (Angle+RandomPick(30,20,-20,-30));
+					A_Log ("I turned");
+				}
+			}
 			Loop;
 		
 		Missile: //More or less pasted over from the normal marines, so these ones are similar in behavior.

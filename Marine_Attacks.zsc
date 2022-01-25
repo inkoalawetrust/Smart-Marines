@@ -2,6 +2,11 @@
 
 Extend Class SmartMarine
 {
+	Int User_GrenadeThreshold; //How likely the marine is to throw a grenade, the lower the more likely.
+	Bool User_NoMelee; //The marine doesn't fight in melee.
+	Bool User_NoGrenade; // The marine doesn't use grenades.
+	Bool User_NoReload; //The marine doesn't need to reload.
+	
 	Int MagazineRounds; //Keeps track of how many bullets a marine shoots before reload.
 	Int ShotsFired; ///How many rounds in a burst the marine fired.
 	Override String GetObituary (Actor Victim, Actor Inflictor, Name MOD, Bool PlayerAttack)
