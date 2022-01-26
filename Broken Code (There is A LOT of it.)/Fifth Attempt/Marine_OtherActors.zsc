@@ -14,14 +14,6 @@ Class SmartMarinePuff : BulletPuff
 	}
 }
 
-Class SmartMarinePuffEvil : SmartMarinePuff
-{
-	Default
-	{
-		Species "SmartMarineHostile";
-	}
-}
-
 Class SmartMarineGrenade : Actor
 {
 	Default
