@@ -12,13 +12,14 @@ Class SmartMarinePuff : BulletPuff
 		+MThruSpecies;
 		+PuffGetsOwner;
 	}
-}
-
-Class SmartMarinePuffEvil : SmartMarinePuff
-{
-	Default
+	Override Void PostBeginPlay ()
 	{
-		Species "SmartMarineHostile";
+		Super.PostBeginPlay();
+		
+		If (Target && !Target.bFriendly)
+		{
+			Self.Species = "HostileSmartMarine";
+		}
 	}
 }
 
@@ -131,7 +132,7 @@ Class SmartMarineEmptyMagazine : Actor
 			MARL Z 16 NoDelay
 			{
 				If (Pos.Z - FloorZ >= 1) {Roll += 45;}
-				Else {Roll = 45;} //Fall sideways on the floor.
+				Else {SpriteOffset.X = 4; Roll = 90;} //Fall sideways on the floor.
 			}
 			Loop;
 	}

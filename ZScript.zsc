@@ -1,6 +1,8 @@
-Version "4.5"
+Version "4.7"
 
 #Include "VanillaRifle.zsc" //The rifle the marine may drop when killed by an enemy.
+
+#Include "Marine_Deaths.zsc" //Holds all the death and raise states of the marine.
 #Include "Marine_OtherActors.zsc" //Other actors related to the marine. Like the grenades and empty magazines.
 
 //To do:
@@ -8,8 +10,7 @@ Version "4.5"
 THERE ARE 86,000,000,000 NEURONS THAT MY BRAIN IS COMPOSED OF.
 IF THE WORD HATE WAS ENGRAVED ON EACH NANOANGSTROM OF THOSE TENS OF BILLIONS OF NEURONS IT WOULD NOT EQUAL ONE ONE-BILLIONTH OF THE HATE I FEEL FOR
 MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
-//Fix the bug that causes hitscans fired by friendly marines to go through enemy marines.
-//Maybe try simplifying the code for the grenade projectile.
+//Simplify the code for the grenade projectile.
 
 Class SmartMarine : Actor //Good joke, me, "smart".
 {
@@ -57,7 +58,22 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		+AvoidHazards; //This ONLY works for crushing ceilings and NOTHING ELSE. So it's largely useless but I'm still adding it.
 	}
 	
-	Int DeathAnimPlayed; //Keeps track of what death animation the marine played, so it can be played in reverse when resurrected.
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (!bFriendly)
+		{
+			Species = "HostileSmartMarine";
+		}
+		Else
+		{
+			Species = "SmartMarine";
+		}
+	}
+	
+	Int AmmoUsed; //Keeps track amount of bullets that have been fired by the marine, before needing to reload.
+	Int EscapeAttempts; //How many times the marine has attempted to run out of sight to reload.
 	
 	States
 	{
@@ -67,82 +83,56 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		See:
 			MAR2 AABBCCDD 4 A_Chase ("RifleSmack","RifleBurst");
 			Loop;
+		ChangePosition:
+			MAR2 A 0 A_SetAngle (Angle+Random (-60,60));
+			MAR2 AABBCCDD 3 A_Wander (CHF_NORANDOMTURN);
+			MAR2 A 0 A_Jump (245,"See"); //High chance to only run once.
+			Goto ChangePosition+1;
+		RunForReload:
+			MAR2 A 0 A_SetAngle (Angle+Random (-60,60));
+			MAR2 AAABBBCCCDDD 2 A_Wander (CHF_NORANDOMTURN);
+			MAR2 A 0
+			{
+				EscapeAttempts++;
+				If (EscapeAttempts >= 7 || Target && (!IsVisible (Target,True) || Target.Health <= 0))
+				{
+					EscapeAttempts = 0;
+					Return ResolveState ("Reload");
+				}
+				Return State (Null);
+			}
+			Loop;
 		RifleSmack:
 			MARM A 10;
 			MARM B 8 A_CustomMeleeAttack (Random(4,8),"Marine/Melee","Marine/MeleeMiss",'Melee',False); //Blunt force attack, so no blood.
+			MARM A 0 A_Jump (64,"ChangePosition"); //If you are in melee range of your enemy, you are probably fucked.
 			Goto See;
 		RifleBurst:
-			MAR2 A 1;
+			MAR2 A 0 A_JumpIf (AmmoUsed > 20,"RunForReload"); //Run out of sight of the target to reload.
+			MAR2 A 1 A_FaceTarget();
 			MARR A 4 Light ("MarineMuzzleFlash")
 			{
 				A_CustomBulletAttack (2.5,2.6,1,Random(6,12),"SmartMarinePuff",8196+2,CBAF_NORANDOM|CBAF_AIMFACING,spawnheight:42,-6);
 				A_StartSound ("Marine/Fire",CHAN_WEAPON);
+				AmmoUsed++;
 			}
-			MAR2 A 1 A_MonsterRefire (64,"See");
+			MAR2 A 1 A_MonsterRefire (96,"See");
+			MAR2 A 0 A_Jump (12,"ChangePosition"); //Small chance to change position instead of just shooting in place.
 			Loop;
+		Reload:
+			MARL A 0 {bNoPain = True;}
+			MARL ABC 8;
+			MARL D 8 A_SpawnItemEx ("SmartMarineEmptyMagazine",0,16,27,0,4,-1);
+			MARL C 8;
+			MARL B 8
+			{
+				A_StartSound ("Marine/Reload",CHAN_WEAPON);
+				AmmoUsed = 0;
+			}
+			MARL C 6 {bNoPain = False;}
+			Goto See;	
 		Pain:
 			PLAY G 12 A_Pain();
-			Goto See;
-		Death: //Plays one of 4 different animations.
-			TNT1 A 0 A_Jump (256,"DeathAnim1","DeathAnim2","DeathAnim3","DeathAnim4");
-		DeathAnim1: //The vanilla player death.
-			PLAY H 5 {DeathAnimPlayed = 1;}
-			PLAY I 5 A_ScreamAndUnblock();
-			PLAY JKLM 5;
-			PLAY N -1;
-			Stop;
-		DeathAnim2: //Alternate falling forward death.
-			MARD A 5 {DeathAnimPlayed = 2;}
-			MARD B 5 A_ScreamAndUnblock();
-			MARD CDEF 5;
-			MARD G 35 A_SetTics (35*Random (1,4)); //Wait a bit.
-			MARD MN 8; //Head falls pointing down.
-			MARD O -1;
-			Stop;
-		DeathAnim3: //Falling back death. 
-			MARD H 5  {DeathAnimPlayed = 3;}
-			MARD I 5 A_ScreamAndUnblock();
-			MARD JK 5;
-			MARD L -1;
-			Stop;
-		DeathAnim4: //Falling sideways death.
-			MARD P 5  {DeathAnimPlayed = 4;}
-			MARD Q 5 A_ScreamAndUnblock();
-			MARD RSTUVW 5;
-			MARD X -1;
-		XDeath: //Mega oof
-			PLAY O 5;
-			PLAY P 5 A_StartSound("Marine/XDeath",CHAN_VOICE);
-			PLAY Q 5 A_NoBlocking();
-			PLAY RSTUV 5;
-			PLAY W -1;
-			Stop;
-		Raise:
-			TNT1 A 0
-			{
-				//I could shorter this using String.Format(), if strings/names could even be converted to state labels that is.
-				If (DeathAnimPlayed == 0 || DeathAnimPlayed == 1)
-				{Return ResolveState ("RaiseAnim1");}
-				Else If (DeathAnimPlayed == 2)
-				{Return ResolveState ("RaiseAnim2");}
-				Else If (DeathAnimPlayed == 3)
-				{Return ResolveState ("RaiseAnim3");}
-				Else If (DeathAnimPlayed == 4)
-				{Return ResolveState ("RaiseAnim4");}
-				Return ResolveState (Null);
-			}
-			Goto See;
-		RaiseAnim1:
-			PLAY NMLKJIH 5;
-			Goto See;
-		RaiseAnim2:
-			MARD ONMGFEDCBA 5;
-			Goto See;
-		RaiseAnim3:
-			MARD LKJIH 5;
-			Goto See;
-		RaiseAnim4:
-			MARD XWVUTSRQP 5;
 			Goto See;
 	}
 }
