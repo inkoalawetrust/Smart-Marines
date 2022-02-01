@@ -23,6 +23,43 @@ Class SmartMarinePuff : BulletPuff
 	}
 }
 
+Class SmartMarineStandingMessage : Actor
+{
+	Default
+	{
+		Scale 0.25;
+		+NoInteraction;
+		+NoGravity;
+		+Bright;
+	}
+	States
+	{
+		Spawn:
+			MARC A 16;
+			MARC A 1 A_FadeOut (0.05);/*
+			{
+				If (Vel.Z > 0) {Vel.Z -= 1.25;}
+				Else {Vel.Z = 0; A_FadeOut (0.05);}
+			}*/
+			Wait;
+	}
+}
+
+Class SmartMarineWanderingMessage : SmartMarineStandingMessage
+{
+	States
+	{
+		Spawn:
+			MARC B 16;
+			MARC B 1 A_FadeOut (0.05);/*
+			{
+				If (Vel.Z > 0) {Vel.Z -= 1.25;}
+				Else {Vel.Z = 0; A_FadeOut (0.05);}
+			}*/
+			Wait;
+	}
+}
+
 Class SmartMarineGrenade : Actor
 {
 	Default

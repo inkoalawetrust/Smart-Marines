@@ -14,15 +14,15 @@ An x means it was canceled for whatever reason.
 
 =THIS SHOULD BE THE FINAL TIME I HAVE TO REFACTOR THEM.| DONE, FINALLY | NOT DONE, THEY BROKE AGAIN, IT WILL NEVER BE DONE
 
-=Be able to forget their target after a set amount of time, the time it takes should be exposed to a user variable, and include one to turn this off totally too.
-==If their target is forgotten, they should begin wandering around until they find a new one, while doing so, they should have a chance to enter a state
+*=Be able to forget their target after a set amount of time, the time it takes should be exposed to a user variable, and include one to turn this off totally too.
+*==If their target is forgotten, they should begin wandering around until they find a new one, while doing so, they should have a chance to enter a state
    in which they stand around for a random amount of time before beginning to move again.
 
-=They should fire in 5 round bursts, and need to reload after firing 20 rounds, the latter should be able to be turned off too.
-==A bit less important, but they should try 2 or 3 times to run away from their target, to somewhere where their target can't see them, before reloading,
+*=They should fire in 5 round bursts, and need to reload after firing 20 rounds, the latter should be able to be turned off too. | Done, but the burst fire was removed, since them randomly changing position does the same thing, without needing to overcomplicate the code.
+*==A bit less important, but they should try 2 or 3 times to run away from their target, to somewhere where their target can't see them, before reloading,
    if they fail to hide all 3 times, then just reload in the open. Maybe make this particular behaviour toggleable with a user variable.
 
-=Add the basic states like Pain, Death, XDeath etc.
+*=Add the basic states like Pain, Death, XDeath etc. | Done, and multiple death AND raise states where added too.
 
 =They should be able to throw grenades.
 ==They should have a random chance to throw a grenade, they will throw it if the random throwing chance exceeds a threshold that can be user configurable.
@@ -43,6 +43,8 @@ x==They will do that by jumping into the water and swimming on the surface, then
 X==Add the ability for them to drown if they are fully submerged for too long, then reset the drown timer once on the surface again, Make the timers' max value into a user variable.
 
 =See about adding taunts to the marines, obviously it should be toggleable too, along with the chance of them doing it.
+
+*=Make pressing use on a marine put it on its' wander state, and pressing use again put it back to its' Spawn state. But only when the marine has no target.
 
 *=Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.| Done, the zooming effects are a mess internally.
 

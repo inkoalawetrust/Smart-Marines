@@ -1,5 +1,5 @@
 Code written by inkoalatrust, the code to make the machine gun turret usable by players was written by Lewisk3.
-Playtesting done by RaveYard, Tabijaky, and inkoalawetrust
+Playtesting done by RaveYard, TDRR, and inkoalawetrust
 
 ======|Actor sprites|======
 Marine aiming rifle sprites made by Sergeant_Mark_IV, aiming and firing sprites made by Tabijaky.
