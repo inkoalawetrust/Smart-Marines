@@ -60,7 +60,9 @@ Class SmartMarineWanderingMessage : SmartMarineStandingMessage
 	}
 }
 
-Class SmartMarineGrenade : Actor
+//Try rewriting and simplifying the grenade code. And make liquid explosion states based on what fluid the grenade exploded on.
+
+Class SM_Grenade : Actor
 {
 	Default
 	{
@@ -69,7 +71,9 @@ Class SmartMarineGrenade : Actor
 		Mass 1;
 		Gravity 0.5;
 		Scale 0.5;
-		BounceFactor 0.6;
+		Speed 20;
+		BounceFactor 0.5;
+		WallBounceFactor 0.6;
 		BounceType "Hexen";
 		BounceSound "Grenade/Bounce";
 		Obituary "%o ate a marine's explosive pineapple !";
@@ -84,20 +88,17 @@ Class SmartMarineGrenade : Actor
 		+BounceOnActors;
 	}
 	Int FuseTimer; //The time the grenade has before exploding.
-	Int RollDirection; //The random direction in which the grenade will roll.
 	States
 	{
 		Spawn:
 			TNT1 A 0 NoDelay
 			{
-				A_SpawnItemEx ("SmartMarineGrenadeLever",yvel:FRandom(-2,-4),FRandom(2,4));
+				A_SpawnItemEx ("SM_GrenadeLever",yvel:FRandom(-2,-4),FRandom(2,4));
 				FuseTimer = 25/2; //This gives the grenade approximately 3 seconds before exploding.
-				RollDirection = Random (1,2);
 			}
 			MGRE B 8
 			{
-				If (RollDirection <= 1) {Roll += 20;}
-				If (RollDirection >= 2 ) {Roll += -20;}
+				Roll += 20;
 				//If the fuse timer is 0 and the grenade exploded above 32 MU, enter the air explosion state.
 				If (FuseTimer <= 0 && (Pos.Z - FloorZ) >= 32) {A_SetRenderStyle (1.0,Style_Add);Return ResolveState ("Death.Air");}
 				//If the fuse timer is 0 and the grenade exploded below 32 MU, enter the ground explosion state.
@@ -140,7 +141,7 @@ Class SmartMarineGrenade : Actor
 	}
 }
 
-Class SmartMarineGrenadeLever : Actor //The lever the grenade drops once the pin is pulled.
+Class SM_GrenadeLever : Actor //The lever the grenade drops once the pin is pulled.
 {
 	Default
 	{

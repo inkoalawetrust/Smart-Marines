@@ -1,4 +1,4 @@
-Code written by inkoalatrust, the code to make the machine gun turret usable by players was written by Lewisk3.
+Code written by inkoalawetrust. The code for the player usable turret and the marines' grenade throwing function written by Lewisk3.
 Playtesting done by RaveYard, TDRR, and inkoalawetrust
 
 ======|Actor sprites|======

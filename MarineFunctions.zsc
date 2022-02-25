@@ -1,0 +1,124 @@
+Mixin Class MarineFunctions
+{
+	//Shorthand for checking what state the marine is in.
+	Bool SM_IsInState (StateLabel CheckFor = "Spawn")
+	{
+		If (InStateSequence(CurState,ResolveState (CheckFor))) {Return True;}
+		Return False;
+	}
+	
+	Bool GrenadeAttackDecision (Double BlastRadius = 192, Double ThrowDistance = 640, Double DangerDistance = 224)
+	{
+		Int ThrowChance;
+		Actor Mobj;
+		
+		If (Target)
+		{	
+			If (Distance3D (Target) <= DangerDistance || Distance3D(Target) > ThrowDistance) {a_log ("too far, or close");Return False;} //If the target is close enough for you to get caught in the blast, or if the target is too far, don't throw.
+			
+			ThrowChance = Random (0,256);
+			console.printf ("the initial throwing chance is %d",ThrowChance);
+			BlockThingsIterator FindTargets = BlockThingsIterator.Create (Target,BlastRadius);
+			
+			If (Target.Health >= 10000) {ThrowChance += 200; a_log ("my target has A LOT of health, so ill definitely throw");}
+			Else If (Target.Health >= 4000 || Target Is "PlayerPawn" && !IsFriend(Target)) {ThrowChance += 50; a_log ("my target has plenty of health or is a player, so ill probably throw");}
+			
+			While (FindTargets.Next())
+			{
+				Mobj = FindTargets.Thing;
+				
+				//If the found actor is a monster or player, is not your current target, is at or closer than the specified blast radius, has health over 10, and is hostile and visible to you.
+				If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj != Target && Mobj.Distance3D (Target) <= BlastRadius && Mobj.Health >= 10 && IsHostile (Mobj) && IsVisible (Mobj,False))
+				{
+					ThrowChance += 3; //Increment the chance variable.
+					//Additionally increment it by a different amounts based on how much health the found actor has.
+					If (Mobj.Health >= 10000) {ThrowChance += 200;} //If an actor with this much health is near the target, then DEFINITELY throw a grenade.
+					Else If (Mobj.Health >= 4000) {ThrowChance += 60;}
+					Else If (Mobj.Health >= 2500) {ThrowChance += 40;}
+					Else If (Mobj.Health >= 1000) {ThrowChance += 25;}
+					Else If (Mobj.Health >= 500) {ThrowChance += 10;}
+					Else If (Mobj.Health >= 150) {ThrowChance += 5;}
+					Else If (Mobj.Health >= 50) {ThrowChance += 2;}
+				}
+				Else If (Mobj Is "PlayerPawn" && !IsFriend (Mobj) && Mobj != Target) //If the actor found is a player hostile to you.
+				{
+					a_log ("found a player, ill probably throw a grenade");
+					ThrowChance += 50; //Then be A LOT more like to throw a grenade.
+				}
+				Else If (Mobj.bIsMonster && IsFriend(Mobj) && IsVisible (Mobj,False) && Mobj != Self) //If the actor that was found is friendly to you, and ISN'T you.
+				{
+					a_log ("a friendly npc is near the blast radius");
+					ThrowChance -= 5; //Then decrease the chance of throwing a grenade.
+				}
+				Else If (Mobj Is "PlayerPawn" && IsFriend (Mobj)) //If the actor found is a player friendly to you.
+				{
+					a_log ("a friendly player is near the blast radius, so i think i wont throw the grenade");
+					ThrowChance -= 50; //Then be A LOT less likely to throw a grenade.
+				}
+				
+				console.printf ("the throwing chance is now %d",ThrowChance);
+			}
+						
+			If (ThrowChance >= 240) //The number 240 should be replaced by a user variable that can modify their likelyhood of throwing a grenade.
+			{
+				a_log ("im gonna throw a grenade");
+				Return True;
+			}
+		}
+		
+		a_log ("i decided to not throw a grenade");
+		Return False;
+	}
+	
+	//This function was written by Lewisk3.
+	void FireGrenade(class<Actor> type, double speed = 0, double pitchOffs = 0, double aimDist = 128, double aimSens = 0.15)
+	{    
+		// Get pitch-to
+		vector3 firePos   = (pos.xy, pos.z + (height*0.5));
+		vector3 targetPos = (target.pos.xy, target.pos.z+target.height);
+		vector3 diff = level.Vec3Diff(firePos, targetPos);
+
+		double distTo = Distance3D(target);
+		double pitchTo = VectorAngle( sqrt(diff.y*diff.y + diff.x*diff.x), diff.z );
+
+		let proj = Spawn(type, firePos);
+		proj.target = self;
+		double timeTo = diff.xy.length() / proj.default.Speed;
+		double fallRate = (proj.default.Speed * proj.GetGravity()) * timeTo;
+
+		if(distTo >= aimDist)
+		{
+			double pitchAdd = aimSens * fallRate;
+			pitchTo += pitchAdd;
+		}
+
+		pitchTo += pitchOffs;
+		proj.vel = (
+			cos(angle) * cos(pitchTo),
+			sin(angle) * cos(pitchTo),
+			sin(pitchTo)
+		) * (speed ? speed : proj.default.Speed);
+	}
+	
+	Void SM_ShouldBeScared()
+	{
+		If (!Target) {Return;} //Null check.
+		//If the target is nearby, visible, and hostile, and has over 2500 health.
+		If ((!IsFriend (Target) && Distance3D (Target) <= 2048 && Target.Health >= 2500 && IsVisible (Target,True))
+		
+		//Or if it is big enough and visible and close enough.
+		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3D (Target) <= 2048 && IsVisible (Target,True)
+		
+		//Or it has any of these flags, along with being nearby and visible to you.
+		|| (Target.bReflective && Target.bAimReflect || Target.bInvulnerable) && Distance3D (Target) <= 2048 && IsVisible (Target,True)
+		
+		//Or if is completely indestructible or noclipping at all, regardless of sight or distance.
+		|| (Target.bNoDamage || Target.bNoclip)
+		)
+		{
+			a_log ("my target is spooky");
+			bFrightened = True; //Then be scared.
+		}
+		Else {a_log ("my target is not spooky");bFrightened = False;} //If they don't meet any of those criteria, then stop being scared.
+	}
+}

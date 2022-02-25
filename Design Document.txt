@@ -24,9 +24,9 @@ An x means it was canceled for whatever reason.
 
 *=Add the basic states like Pain, Death, XDeath etc. | Done, and multiple death AND raise states where added too.
 
-=They should be able to throw grenades.
-==They should have a random chance to throw a grenade, they will throw it if the random throwing chance exceeds a threshold that can be user configurable.
-==Besides the random chance, the number that needs to exceed the threshold should also be increased by 1-2 for every killable enemy around the target
+*=They should be able to throw grenades.
+*==They should have a random chance to throw a grenade, they will throw it if the random throwing chance exceeds a threshold that can be user configurable.
+*==Besides the random chance, the number that needs to exceed the threshold should also be increased by 1-2 for every killable enemy around the target
    the marine will toss the grenade to.
 ==There should be a user variable to totally turn the grenade throwing off.
 ==They should run away if they are within the blast radius of any of their grenades.
@@ -48,7 +48,9 @@ X==Add the ability for them to drown if they are fully submerged for too long, t
 
 *=Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.| Done, the zooming effects are a mess internally.
 
-=Make them able to get scared of any large monsters like Cyberdemons they may be targeting. Should be easy enough to do.
+=Marines that are alerted, will also alert other nearby marines on their side of the target.
+
+*=Make them able to get scared of any large monsters like Cyberdemons they may be targeting. Should be easy enough to do.
 
 *=Make placeable machine gun turrets.
 *==These turrets will have infinite ammo, and thrice the fire rate and damage of the marines' rifles.| Sort of done, I nerfed them because they were too OP by being more realistic lol.

@@ -10,14 +10,14 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 
 - Attack stuff by:
   - Bashing it with their rifle. (Melee)
-  - Shoot at it in bursts of 5 rounds. (Ranged)
-  - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect) (Unfinished)
+  - Shoot at it, with a random chance of changing position while doing so. (Ranged)
+  - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - Run away from their own grenades. (Unfinished)
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
 - When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first. (Unfinished)
-- Can be frightened if their target is big and/or strong enough. (Unfinished)
+- Can be frightened if their target is big and/or strong enough.
 - Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*. (Unfinished)
 - Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one. (Unfinished)
 - Includes a separate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on him doesn't get him off. (Unfinished)
@@ -35,7 +35,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 - Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc. Adding a custom value to a user variable prevents it from being randomied. (Unfinished)
 - Most of the marines' behaviour can be configured on a per actor basis using user variables. (Unfinished)
 - They also have a rifle that they sometimes drop, which you can pick up and use yourself.
-  - The rifle fires bursts of 5 rounds, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
+  - The rifle fires at full auto, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
   - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increased you accuracy as well.
 
 *Such as Imps and Pinkies, anything that is really weak (5 or less HP), won't even count as a kill for the marine, so they won't be dancing after killing 40 flies.
