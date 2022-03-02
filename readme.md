@@ -9,7 +9,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 ## What they will be able to (hopefully) do
 
 - Attack stuff by:
-  - Bashing it with their rifle. (Melee)
+  - Bashing it with their rifle. They normally avoid it if they can help it though. (Melee)
   - Shoot at it, with a random chance of changing position while doing so. (Ranged)
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - Run away from their own grenades. (Unfinished)
@@ -18,6 +18,9 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
 - When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first. (Unfinished)
 - Can be frightened if their target is big and/or strong enough.
+- Alert other marines that are on their side of their current target, if the other marines have no target they are dealing with already.
+- Retreat and keep a distance away from very powerful or large enemies like Cyberdemons.
+- Marines friendly to the player can be ordered to stand still or wander around by pressing use on them. This only works if they aren't currently fighting.
 - Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*. (Unfinished)
 - Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one. (Unfinished)
 - Includes a separate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on him doesn't get him off. (Unfinished)
