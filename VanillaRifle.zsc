@@ -77,7 +77,7 @@ Class VanillaRifle : Weapon
 			{
 				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
 				If (!Invoker.AlreadyZoomed) {A_FireBullets (2.5,2.6,-1,Random(6,12),"SmartMarinePuff",FBF_NORANDOM|FBF_USEAMMO,8192+2,spawnheight:21);}
-				Else {A_FireBullets (1.5,1.6,-1,Random(6,12),"SmartMarinePuff",FBF_NORANDOM|FBF_USEAMMO,8192+2,spawnheight:21);}
+				Else {A_FireBullets (1.4,1.5,-1,Random(6,10),"SmartMarinePuff",FBF_NORANDOM|FBF_USEAMMO,8192+2,spawnheight:21);}
 				A_GunFlash();
 			}
 			VRIF D 2 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);

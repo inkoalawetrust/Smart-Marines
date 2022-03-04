@@ -7,7 +7,7 @@ Mixin Class MarineFunctions
 		Return False;
 	}
 	
-	Bool GrenadeAttackDecision (Double BlastRadius = 192, Double ThrowDistance = 640, Double DangerDistance = 224)
+	Bool GrenadeAttackDecision (Double BlastRadius = 192, Double ThrowDistance = 1024, Double DangerDistance = 224)
 	{
 		Int ThrowChance;
 		Actor Mobj;
@@ -20,8 +20,8 @@ Mixin Class MarineFunctions
 			console.printf ("the initial throwing chance is %d",ThrowChance);
 			BlockThingsIterator FindTargets = BlockThingsIterator.Create (Target,BlastRadius);
 			
-			If (Target.Health >= 10000) {ThrowChance += 200; a_log ("my target has A LOT of health, so ill definitely throw");}
-			Else If (Target.Health >= 4000 || Target Is "PlayerPawn" && !IsFriend(Target)) {ThrowChance += 50; a_log ("my target has plenty of health or is a player, so ill probably throw");}
+			If (Target.Health >= 10000) {ThrowChance += 230; a_log ("my target has A LOT of health, so ill definitely throw");}
+			Else If (Target.Health >= 4000 || Target Is "PlayerPawn" && !IsFriend(Target)) {ThrowChance += 80; a_log ("my target has plenty of health or is a player, so ill probably throw");}
 			
 			While (FindTargets.Next())
 			{
@@ -30,36 +30,36 @@ Mixin Class MarineFunctions
 				//If the found actor is a monster or player, is not your current target, is at or closer than the specified blast radius, has health over 10, and is hostile and visible to you.
 				If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj != Target && Mobj.Distance3D (Target) <= BlastRadius && Mobj.Health >= 10 && IsHostile (Mobj) && IsVisible (Mobj,False))
 				{
-					ThrowChance += 3; //Increment the chance variable.
+					ThrowChance += 5; //Increment the chance variable.
 					//Additionally increment it by a different amounts based on how much health the found actor has.
-					If (Mobj.Health >= 10000) {ThrowChance += 200;} //If an actor with this much health is near the target, then DEFINITELY throw a grenade.
-					Else If (Mobj.Health >= 4000) {ThrowChance += 60;}
-					Else If (Mobj.Health >= 2500) {ThrowChance += 40;}
-					Else If (Mobj.Health >= 1000) {ThrowChance += 25;}
-					Else If (Mobj.Health >= 500) {ThrowChance += 10;}
-					Else If (Mobj.Health >= 150) {ThrowChance += 5;}
-					Else If (Mobj.Health >= 50) {ThrowChance += 2;}
+					If (Mobj.Health >= 10000) {ThrowChance += 300;} //If an actor with this much health is near the target, then DEFINITELY throw a grenade.
+					Else If (Mobj.Health >= 4000) {ThrowChance += 80;}
+					Else If (Mobj.Health >= 2500) {ThrowChance += 50;}
+					Else If (Mobj.Health >= 1000) {ThrowChance += 35;}
+					Else If (Mobj.Health >= 500) {ThrowChance += 25;}
+					Else If (Mobj.Health >= 150) {ThrowChance += 10;}
+					Else If (Mobj.Health >= 50) {ThrowChance += 5;}
 				}
 				Else If (Mobj Is "PlayerPawn" && !IsFriend (Mobj) && Mobj != Target) //If the actor found is a player hostile to you.
 				{
 					a_log ("found a player, ill probably throw a grenade");
-					ThrowChance += 50; //Then be A LOT more like to throw a grenade.
+					ThrowChance += 100; //Then be A LOT more likely to throw a grenade.
 				}
 				Else If (Mobj.bIsMonster && IsFriend(Mobj) && IsVisible (Mobj,False) && Mobj != Self) //If the actor that was found is friendly to you, and ISN'T you.
 				{
 					a_log ("a friendly npc is near the blast radius");
-					ThrowChance -= 5; //Then decrease the chance of throwing a grenade.
+					ThrowChance -= 15; //Then decrease the chance of throwing a grenade.
 				}
 				Else If (Mobj Is "PlayerPawn" && IsFriend (Mobj)) //If the actor found is a player friendly to you.
 				{
 					a_log ("a friendly player is near the blast radius, so i think i wont throw the grenade");
-					ThrowChance -= 50; //Then be A LOT less likely to throw a grenade.
+					ThrowChance -= 70; //Then be A LOT less likely to throw a grenade.
 				}
 				
 				console.printf ("the throwing chance is now %d",ThrowChance);
 			}
 						
-			If (ThrowChance >= 240) //The number 240 should be replaced by a user variable that can modify their likelyhood of throwing a grenade.
+			If (ThrowChance >= 200) //The number 240 should be replaced by a user variable that can modify their likelyhood of throwing a grenade.
 			{
 				a_log ("im gonna throw a grenade");
 				Return True;
@@ -71,35 +71,54 @@ Mixin Class MarineFunctions
 	}
 	
 	//This function was written by Lewisk3.
-	void FireGrenade(class<Actor> type, double speed = 0, double pitchOffs = 0, double aimDist = 128, double aimSens = 0.15)
-	{    
-		// Get pitch-to
-		vector3 firePos   = (pos.xy, pos.z + (height*0.5));
-		vector3 targetPos = (target.pos.xy, target.pos.z+target.height);
-		vector3 diff = level.Vec3Diff(firePos, targetPos);
-
-		double distTo = Distance3D(target);
-		double pitchTo = VectorAngle( sqrt(diff.y*diff.y + diff.x*diff.x), diff.z );
-
-		let proj = Spawn(type, firePos);
-		proj.target = self;
-		double timeTo = diff.xy.length() / proj.default.Speed;
-		double fallRate = (proj.default.Speed * proj.GetGravity()) * timeTo;
-
-		if(distTo >= aimDist)
+	void FireGrenade(Actor toAct, class<Actor> nade, double maxPitch = 90, double aimSens = 1.0, double aimDist = 128)
+	{
+		if(!toAct) return;
+		
+		// Source and Destination
+		vector3 fromPos = (
+			pos.xy,
+			pos.z + (height)
+		);
+		vector3 toPos = (
+			toAct.pos.xy, 
+			toAct.pos.z + (toAct.height * 0.5) 
+		);
+		
+		vector3 diff = level.vec3diff(fromPos, toPos);
+		
+		// Spawn grenade, calculate values from instance.
+		let nade = Spawn(nade, fromPos);
+		if(!nade) return;    
+		nade.target = self;
+		
+		// Modify toPos Z component based on how many units the thrown grenade
+		// fall by the time it reaches the destination.
+		double dist = diff.xy.Length();
+		if(dist >= aimDist)
 		{
-			double pitchAdd = aimSens * fallRate;
-			pitchTo += pitchAdd;
+			double grav = 1.0 + ceil(nade.GetGravity() * (level.gravity * 0.010769));
+			double ticsDist = diff.Length() / double(max(nade.Speed,1.0));        
+			double fallDist = ticsDist * grav;
+			toPos.z += fallDist * aimSens;
 		}
-
-		pitchTo += pitchOffs;
-		proj.vel = (
-			cos(angle) * cos(pitchTo),
-			sin(angle) * cos(pitchTo),
-			sin(pitchTo)
-		) * (speed ? speed : proj.default.Speed);
+		
+		// Recalculate differences.
+		diff = level.vec3diff(fromPos, toPos);
+		double aimPitch = VectorAngle( sqrt(diff.y*diff.y + diff.x*diff.x), diff.z );
+		aimPitch = min(aimPitch, maxPitch);
+		
+		// Modify grenade velocity
+		double a = AngleTo(toAct);
+		double p = -aimPitch;
+		nade.vel = (
+			cos(a) * cos(p),
+			sin(a) * cos(p),
+			-sin(p)
+		) * nade.Speed;
 	}
 	
+	//Determines if the marine should be scared of its' current target.
 	Void SM_ShouldBeScared()
 	{
 		If (!Target) {Return;} //Null check.
@@ -116,9 +135,82 @@ Mixin Class MarineFunctions
 		|| (Target.bNoDamage || Target.bNoclip)
 		)
 		{
-			a_log ("my target is spooky");
+			//a_log ("my target is spooky");
 			bFrightened = True; //Then be scared.
+			MinMissileChance = 50; //Double the chance of attacking, to make up for all the running away.
+			//console.printf ("MinMissileChance is now %d.",MinMissileChance);
 		}
-		Else {a_log ("my target is not spooky");bFrightened = False;} //If they don't meet any of those criteria, then stop being scared.
+		Else //If they don't meet any of those criteria, then stop being scared.
+		{
+			/*a_log ("my target is not spooky");*/
+			bFrightened = False;
+			MinMissileChance = Default.MinMissileChance; //Go back to the normal firing chance.
+			//console.printf ("MinMissileChance is now %d again.",MinMissileChance);
+		}
+	}
+		
+	//Alerts nearby marines friendly to the calling one of the callers' target.
+	Void SM_AlertNearbyMarines (Double Range = 256, Bool SkipCheck = False)
+	{
+		//Add a user variable that if on, entirely skips this function.
+		//Also possibly add a check, that makes marines only alert each other of sufficiently power NPCs or players. So they don't dogpile a single Zombieman or something like that.
+		
+		Actor PotentialMarine;
+		Bool FoundMarines;
+		
+		If (!LastEnemy && Target || SkipCheck) //If you had no prior enemy, like after giving up on your current target. Or if SkipCheck is true.
+		{
+			BlockThingsIterator AlertNearbyMarines = BlockThingsIterator.Create (Self,Range);
+			
+			While (AlertNearbyMarines.Next())
+			{
+				PotentialMarine = AlertNearbyMarines.Thing;
+				
+				If (PotentialMarine.GetClassName() == "SmartMarine" && Distance3D(PotentialMarine) <= Range && PotentialMarine.Health > 0 && !IsHostile (PotentialMarine) && !(PotentialMarine.Target)) //If the actor is a marine, in range, is not hostile to you, and has no target already.
+				{
+					//Make sure the marine isn't in its' RunAway state, that state must NEVER be broken by being changed or having the marines' target changed during it.
+					If (!(PotentialMarine.InStateSequence(PotentialMarine.CurState,ResolveState ("RunAway"))))
+					{
+						//console.printf ("Switched a nearby friendly marines' target to %s",Target.GetClassName());
+						//spawn ("SmartMarineWanderingMessage",potentialmarine.pos); //Debug sprite, to show which marines were also alerted.
+						PotentialMarine.Target = Target; //Have the marine share your target.
+						FoundMarines = True; //A marine has been found.
+						If (!(PotentialMarine.InStateSequence(PotentialMarine.CurState,ResolveState ("See")))) //If the marine isn't in its' see state already, to chase the target.
+						{
+							//A_log ("Also put him to the See state.");
+							//spawn ("SmartMarineStandingMessage",potentialmarine.pos); //distringuishes marines whose state was also changed
+							PotentialMarine.SetStateLabel ("See"); //Then send them to it.
+						}
+					}
+				}
+				//Else
+				//{A_Log ("Not a marine + not friendly + has a target + you fell off + ratio");}
+			}
+			
+			If (FoundMarines) //If at least one marine was found to alert.
+			{A_StartSound ("Marine/AlertAllies",CHAN_VOICE,attenuation:0.75);}
+		}
+	}
+	
+	//Searches for grenades that are about to explode near the marine.
+	Bool SM_FindNearbyGrenade (Double SearchRadius = 192)
+	{
+		Actor Mobj;
+		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
+		
+		While (GrenadeSearch.Next())
+		{
+			Mobj = GrenadeSearch.Thing;
+			a_log ("looking for grenades");
+			If (Mobj.GetClassName() == "SM_Grenade" && Mobj.ReactionTime <= 5 && Distance3D (Mobj)) //If the found actor is a grenade, that will explode in about a second. And you are in the blast radius.
+			{
+				OriginalTarget = Target; //Keep the original target of the marine stored.
+				Target = Mobj; //Then change the target to the grenade that was found.
+				a_log ("found a grenade");
+				Return True; //And return true.
+			}
+		}
+		a_log ("no grenades found");
+		Return False; //No grenades were found near the marine.
 	}
 }

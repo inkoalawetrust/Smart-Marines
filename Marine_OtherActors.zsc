@@ -36,11 +36,7 @@ Class SmartMarineStandingMessage : Actor
 	{
 		Spawn:
 			MARC A 16;
-			MARC A 1 A_FadeOut (0.05);/*
-			{
-				If (Vel.Z > 0) {Vel.Z -= 1.25;}
-				Else {Vel.Z = 0; A_FadeOut (0.05);}
-			}*/
+			MARC A 1 A_FadeOut (0.05);
 			Wait;
 	}
 }
@@ -51,11 +47,7 @@ Class SmartMarineWanderingMessage : SmartMarineStandingMessage
 	{
 		Spawn:
 			MARC B 16;
-			MARC B 1 A_FadeOut (0.05);/*
-			{
-				If (Vel.Z > 0) {Vel.Z -= 1.25;}
-				Else {Vel.Z = 0; A_FadeOut (0.05);}
-			}*/
+			MARC B 1 A_FadeOut (0.05);
 			Wait;
 	}
 }
@@ -71,9 +63,10 @@ Class SM_Grenade : Actor
 		Mass 1;
 		Gravity 0.5;
 		Scale 0.5;
-		Speed 20;
+		Speed 24;
 		BounceFactor 0.5;
-		WallBounceFactor 0.6;
+		WallBounceFactor 0.5;
+		ReactionTime 12; //Used as the fuse timer, similar to how A_Countdown uses it. This makes the grenade take about 3 seconds to explode.
 		BounceType "Hexen";
 		BounceSound "Grenade/Bounce";
 		Obituary "%o ate a marine's explosive pineapple !";
@@ -87,23 +80,21 @@ Class SM_Grenade : Actor
 		+DontBounceOnSky;
 		+BounceOnActors;
 	}
-	Int FuseTimer; //The time the grenade has before exploding.
 	States
 	{
 		Spawn:
 			TNT1 A 0 NoDelay
 			{
 				A_SpawnItemEx ("SM_GrenadeLever",yvel:FRandom(-2,-4),FRandom(2,4));
-				FuseTimer = 25/2; //This gives the grenade approximately 3 seconds before exploding.
 			}
 			MGRE B 8
 			{
 				Roll += 20;
 				//If the fuse timer is 0 and the grenade exploded above 32 MU, enter the air explosion state.
-				If (FuseTimer <= 0 && (Pos.Z - FloorZ) >= 32) {A_SetRenderStyle (1.0,Style_Add);Return ResolveState ("Death.Air");}
+				If (ReactionTime <= 0 && (Pos.Z - FloorZ) >= 32) {A_SetRenderStyle (1.0,Style_Add);Return ResolveState ("Death.Air");}
 				//If the fuse timer is 0 and the grenade exploded below 32 MU, enter the ground explosion state.
-				If (FuseTimer <= 0 && (Pos.Z - FloorZ) <= 32) {A_SetRenderStyle (1.0,Style_Add);Return ResolveState ("Death.Floor");}
-				FuseTimer--;
+				If (ReactionTime <= 0 && (Pos.Z - FloorZ) <= 32) {A_SetRenderStyle (1.0,Style_Add);Return ResolveState ("Death.Floor");}
+				ReactionTime--;
 				Return ResolveState(Null);
 			}
 			Goto Spawn+1;

@@ -28,3 +28,4 @@ Rifle melee missing sound made by qubodup https://freesound.org/people/qubodup/s
 Grenade exploding sound is by Stefano Cremona, taken from the GDC Audio Library 2020
 Zoomed in rifle sound is a modified version of littlemachine.wav from Half-Life 1, edited by inkoalawetrust
 Machine gun firing and loading sounds are from Call of Duty 2
+Radio static sound by inkoalawetrust

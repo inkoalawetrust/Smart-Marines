@@ -48,7 +48,7 @@ X==Add the ability for them to drown if they are fully submerged for too long, t
 
 *=Improve the rifle and shit, add overlays and all that good stuff too, now that I have a new PC.| Done, the zooming effects are a mess internally.
 
-=Marines that are alerted, will also alert other nearby marines on their side of the target.
+*=Marines that are alerted, will also alert other nearby marines that are on their side of the target.
 
 *=Make them able to get scared of any large monsters like Cyberdemons they may be targeting. Should be easy enough to do.
 
