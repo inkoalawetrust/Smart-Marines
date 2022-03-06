@@ -12,7 +12,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
   - Bashing it with their rifle. They normally avoid it if they can help it though. (Melee)
   - Shoot at it, with a random chance of changing position while doing so. (Ranged)
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
-- Run away from their own grenades. (Unfinished)
+- Run away from their own grenades.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
