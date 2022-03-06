@@ -213,4 +213,80 @@ Mixin Class MarineFunctions
 		a_log ("no grenades found");
 		Return False; //No grenades were found near the marine.
 	}
+
+	Actor FindFriendlyMonster(double distance = 8192)
+	{
+		BlockThingsIterator it = BlockThingsIterator.Create(self, distance);
+
+		while (it.Next())
+		{
+			if (!it.thing || it.thing == self) { continue; }
+
+			if (!it.thing.bFriendly || it.thing.health <= 0 || (!it.thing.bIsMonster && !it.thing.player)) { continue; }
+
+			if (IsVisible (it.thing, false) && IsHostile (it.thing))
+			{
+				return it.thing;
+			}
+		}
+		return null;
+	}
+
+	private bool LookForFriendlyMonster()
+	{
+		let ptr = FindFriendlyMonster();
+		if(ptr)
+		{
+			target = ptr;
+
+			a_log ("i found a friendly monster while being hostile myself.");
+
+			if(SM_IsInState ("Idle") || SM_IsInState ("Spawn"))
+			{
+				SetStateLabel ("AlertOtherMarines"); // Goto see
+			}
+			else
+			{
+				SM_AlertNearbyMarines();
+			}
+			return true;
+		}
+		return false;
+	}
+
+	// A_LookEx + more
+	//		forceTryNewTarget - look for new target even if you already have one
+	void SM_LookForTarget(bool forceTryNewTarget = false)
+	{
+		bStandStill = True; //The flag is used between the A_LookEx call, so the marine doesn't get alerted because the player made a sound.
+
+		if(!target || forceTryNewTarget)
+		{
+			if(bFriendly)
+			{
+				A_LookEx (maxseedist:8192, 3072, 160, "AlertOtherMarines");
+			}
+			else
+			{
+				bool found = LookForFriendlyMonster();
+
+				if(!found || Random(0, 2))
+				{
+					// Try targeting the player instead
+					A_LookEx (maxseedist:8192, 3072, 160, "AlertOtherMarines");
+				}
+			}
+		}
+
+		bStandStill = False;
+	}
+
+	// Manually update the target	
+	void SM_UpdateTarget()
+	{
+		if(!target || target.health <= 0 || !CheckIfTargetInLOS(360))
+		{
+			SM_LookForTarget(true);
+		}
+	}
 }
