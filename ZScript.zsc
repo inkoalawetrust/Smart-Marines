@@ -175,19 +175,19 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 				}
 				
 				//These if statement switches prevent hostile marines from instantly going back to Idle when they have no target.
-				If (Target && !bFriendly && Target.bShootable)
+				If (Target && !bFriendly && Target.bShootable && Target.health > 0)
 				{
 					//a_log ("im chasing you");
 					SM_ShouldBeScared();
 					A_Chase ("RifleSmack","DecideAttack");
 					SM_ShouldBeScared();
 				}
-				Else If (Target && !bFriendly) //This never seems to actually run, but like the TF2 coconut, I'm not removing this in case doing so breaks everything.
+				Else If (!bFriendly) //This never seems to actually run, but like the TF2 coconut, I'm not removing this in case doing so breaks everything.
 				{
 					//a_log ("when you walkin");
 					A_Wander();
 				}
-				Else If (bFriendly)
+				Else
 				{
 					//a_log ("im not chasing you");
 					SM_ShouldBeScared();
