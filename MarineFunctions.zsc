@@ -220,9 +220,12 @@ Mixin Class MarineFunctions
 
 		while (it.Next())
 		{
-			if (!it.thing || it.thing == self) { continue; }
+			if (!it.thing || it.thing == self || it.thing.bNotarget || it.thing.bNeverTarget || it.thing.bDormant || !it.thing.bShootable) { continue; }
 
 			if (!it.thing.bFriendly || it.thing.health <= 0 || (!it.thing.bIsMonster && !it.thing.player)) { continue; }
+
+			// Player specific things such as: notarget and voodoo dolls
+			if (it.thing.player && (it.thing.player.cheats & CF_NOTARGET || it.thing.player.mo != it.thing)) { continue; }
 
 			if (IsVisible (it.thing, false) && IsHostile (it.thing))
 			{
