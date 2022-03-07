@@ -16,7 +16,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
-- When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first. (Unfinished)
+- When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
 - Can be frightened if their target is big and/or strong enough.
 - Alert other marines that are on their side of their current target, if the other marines have no target they are dealing with already.
 - Retreat and keep a distance away from very powerful or large enemies like Cyberdemons.
