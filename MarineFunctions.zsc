@@ -254,6 +254,11 @@ Mixin Class MarineFunctions
 		return false;
 	}
 
+	private bool IsAlerted()
+	{
+		return !(SM_IsInState ("Idle") || SM_IsInState ("Spawn"));
+	}
+
 	// A_LookEx + more
 	//		forceTryNewTarget - look for new target even if you already have one
 	void SM_LookForTarget(bool forceTryNewTarget = false)
@@ -264,7 +269,7 @@ Mixin Class MarineFunctions
 		{
 			if(bFriendly)
 			{
-				A_LookEx (maxseedist:8192, 3072, 160, "AlertOtherMarines");
+				A_LookEx (IsAlerted() ? LOF_NOJUMP | LOF_NOSEESOUND : 0, maxseedist:8192, 3072, 160, "AlertOtherMarines");
 			}
 			else
 			{
@@ -273,7 +278,7 @@ Mixin Class MarineFunctions
 				if(!found || Random(0, 2))
 				{
 					// Try targeting the player instead
-					A_LookEx (maxseedist:8192, 3072, 160, "AlertOtherMarines");
+					A_LookEx (IsAlerted() ? LOF_NOJUMP | LOF_NOSEESOUND : 0, maxseedist:8192, 3072, 160, "AlertOtherMarines");
 				}
 			}
 		}
