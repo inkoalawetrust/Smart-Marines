@@ -64,7 +64,7 @@ Class SM_Grenade : Actor
 		Gravity 0.5;
 		Scale 0.5;
 		Speed 24;
-		BounceFactor 0.5;
+		BounceFactor 0.4;
 		WallBounceFactor 0.5;
 		ReactionTime 12; //Used as the fuse timer, similar to how A_Countdown uses it. This makes the grenade take about 3 seconds to explode.
 		BounceType "Hexen";
@@ -74,6 +74,7 @@ Class SM_Grenade : Actor
 		Projectile;
 		-NoGravity;
 		-NoBlockmap; //So marines can find and run from them.
+		+Friendly; //Through arcane machinations unknown to man. This fixes a bug that makes friendly marines that were spawned in, run in place when finding a grenade near them.
 		+RollSprite;
 		+FloorClip;
 		+CanBounceWater;
@@ -83,10 +84,7 @@ Class SM_Grenade : Actor
 	States
 	{
 		Spawn:
-			TNT1 A 0 NoDelay
-			{
-				A_SpawnItemEx ("SM_GrenadeLever",yvel:FRandom(-2,-4),FRandom(2,4));
-			}
+			TNT1 A 0 NoDelay A_SpawnItemEx ("SM_GrenadeLever",yvel:FRandom(-2,-4),FRandom(2,4));
 			MGRE B 8
 			{
 				Roll += 20;
@@ -106,12 +104,12 @@ Class SM_Grenade : Actor
 				bMoveWithSector = True;
 				A_StartSound ("Grenade/Explode",CHAN_WEAPON,attenuation:0.6);
 				A_QuakeEx (1,1,1,35,0,512);
-				A_AttachLight ("GrenadeLight",DynamicLight.PulseLight,"FFE2B3",256,0,DYNAMICLIGHT.LF_ATTENUATE,param:1.714285714285714*3.4);
+				A_AttachLight ("GrenadeLight",DynamicLight.PulseLight,"FFE2B3",512,0,DYNAMICLIGHT.LF_ATTENUATE,(0,0,1),param:1.714285714285714*3.4);
 				A_SetScale (3.0); //Directly modifying the scale doesn't work for some reason.
 				Roll = 0;
 			}
 			GXPL A 2 Bright;
-			GXPL B 4 Bright A_Explode (96,192,fulldamagedistance:32);
+			GXPL B 4 Bright A_Explode (128,192);
 			GXPL CDEFGHIJKLMNO 4 Bright;
 			Stop;
 		Death.Air:
@@ -121,12 +119,12 @@ Class SM_Grenade : Actor
 				Gravity = 0;
 				A_StartSound ("Grenade/Explode",CHAN_WEAPON,attenuation:0.6);
 				A_QuakeEx (1,1,1,35,0,512);
-				A_AttachLight ("GrenadeLight",DynamicLight.PulseLight,"FFE2B3",256,0,DYNAMICLIGHT.LF_ATTENUATE,param:1.714285714285714*3.4);
+				A_AttachLight ("GrenadeLight",DynamicLight.PulseLight,"FFE2B3",512,0,DYNAMICLIGHT.LF_ATTENUATE,(0,0,1),param:1.714285714285714*3.4);
 				A_SetScale (3.0);
 				Roll = 0;
 			}
 			GAXP A 4 Bright;
-			GAXP B 4 Bright A_Explode (96,192,fulldamagedistance:32);
+			GAXP B 4 Bright A_Explode (128,192);
 			GAXP CDEFGHIJ 4 Bright;
 			Stop;
 	}
@@ -164,5 +162,71 @@ Class SmartMarineEmptyMagazine : Actor
 				Else {SpriteOffset.X = 4; Roll = 90;} //Fall sideways on the floor.
 			}
 			Loop;
+	}
+}
+/*
+class smarterimp : doomimp replaces doomimp
+{
+	Actor OriginalTarget;
+	//Searches for grenades that are about to explode near the marine.
+	Bool SM_FindNearbyGrenade (Double SearchRadius = 256)
+	{
+		Actor Mobj;
+		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
+		
+		While (GrenadeSearch.Next())
+		{
+			Mobj = GrenadeSearch.Thing;
+			//a_log ("looking for grenades");
+			If (Mobj.GetClassName() == "SM_Grenade" && Mobj.ReactionTime <= 6 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True)) //If the found actor is a grenade, that will explode in about a second. And you are in the blast radius and it's visible.
+			{
+				OriginalTarget = Target; //Keep the original target of the marine stored.
+				Target = Mobj; //Then change the target to the grenade that was found.
+				//a_log ("found a grenade");
+				Return True; //And return true.
+			}
+		}
+		//a_log ("no grenades found");
+		Return False; //No grenades were found near the marine.
+	}
+	States
+	{
+		Spawn:
+			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
+			TROO A 10 A_Look();
+			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
+			TROO B 10 A_Look();
+			Loop;
+		See:
+			TROO AABBCCDD 3
+			{
+				A_Chase();
+				
+				If (SM_FindNearbyGrenade())
+				{
+					Return ResolveState ("RunAway");
+				}
+				
+				Return State (Null);
+			}
+			Loop;
+		RunAway: //Makes the marine run away from any grenades about to explode, this state must NEVER be broken.
+			TNT1 A 0 //Stop the state from being interrupted, and make the marine quickly run away from the grenade.
+			{
+				bNoPain = True;
+				bFrightened = True;
+				Speed = Default.Speed*1.75;
+			}
+			TROO AABBCCDD 2 A_Chase (Null,Null);
+			TNT1 A 0
+			{
+				If (OriginalTarget && OriginalTarget.Health > 0)
+				{Target = OriginalTarget;} //If the marine had a target prior to running from a grenade, and it's still alive, then set it back.
+				Else {Target = Null;} //Otherwise just remove the grenade from the target field.
+				bNoPain = False;
+				bFrightened = False;
+				Speed = Default.Speed;
+			}
+			Goto See; //Go back to the see state.
 	}
 }

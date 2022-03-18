@@ -2,29 +2,29 @@
 
 # Smart Marines
 
-A marine NPC actor that is quite a bit smarter than the vanilla brain dead monsters. If it ever stops bugging out every 2 seconds.
+A marine NPC actor that is quite a bit smarter than the vanilla brain dead monsters.
 
 ## Note: The marines are currently being rewritten again. Hopefully they won't totally break once again.
 
-## What they will be able to (hopefully) do
+## What they can do so far
 
 - Attack stuff by:
-  - Bashing it with their rifle. They normally avoid it if they can help it though. (Melee)
+  - Bashing it with their rifle. But they normally avoid it if they can help it. (Melee)
   - Shoot at it, with a random chance of changing position while doing so. (Ranged)
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
-- Run away from their own grenades.
+- They avoid firing their rifles or grenades if their line of fire to the target is blocked by obstacles or allies.
+- Run away from their own grenades once they are about to explode.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
 - When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
-- Can be frightened if their target is big and/or strong enough.
-- Alert other marines that are on their side of their current target, if the other marines have no target they are dealing with already.
+- Alert other marines that are on their side of their current target, if the other marines have no target they are dealing with already. Enemy marines can also hear and react to those alerts.
 - Retreat and keep a distance away from very powerful or large enemies like Cyberdemons.
 - Marines friendly to the player can be ordered to stand still or wander around by pressing use on them. This only works if they aren't currently fighting.
+- They work with ZDoom's built-in patrol system, so you can have them walk around set paths. To do stuff like guard areas.
 - Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*. (Unfinished)
 - Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one. (Unfinished)
 - Includes a separate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on him doesn't get him off. (Unfinished)
-- You can press the use key on friendly marines when they are in their initial Sawn state, to get them to move, or press use on them while they are standing still or looking for enemies. To get them go back to their Spawn state.
 - Can be colored with a variety of colors:  (Unfinished)
   - Red
   - Gray

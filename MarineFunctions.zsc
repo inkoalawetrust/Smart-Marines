@@ -17,11 +17,11 @@ Mixin Class MarineFunctions
 			If (Distance3D (Target) <= DangerDistance || Distance3D(Target) > ThrowDistance) {a_log ("too far, or close");Return False;} //If the target is close enough for you to get caught in the blast, or if the target is too far, don't throw.
 			
 			ThrowChance = Random (0,256);
-			console.printf ("the initial throwing chance is %d",ThrowChance);
+			//console.printf ("the initial throwing chance is %d",ThrowChance);
 			BlockThingsIterator FindTargets = BlockThingsIterator.Create (Target,BlastRadius);
 			
-			If (Target.Health >= 10000) {ThrowChance += 230; a_log ("my target has A LOT of health, so ill definitely throw");}
-			Else If (Target.Health >= 4000 || Target Is "PlayerPawn" && !IsFriend(Target)) {ThrowChance += 80; a_log ("my target has plenty of health or is a player, so ill probably throw");}
+			If (Target.Health >= 10000) {ThrowChance += 230; /*a_log ("my target has A LOT of health, so ill definitely throw");*/}
+			Else If (Target.Health >= 4000) {ThrowChance += 80; /*a_log ("my target has plenty of health, so ill probably throw");*/}
 			
 			While (FindTargets.Next())
 			{
@@ -42,31 +42,31 @@ Mixin Class MarineFunctions
 				}
 				Else If (Mobj Is "PlayerPawn" && !IsFriend (Mobj) && Mobj != Target) //If the actor found is a player hostile to you.
 				{
-					a_log ("found a player, ill probably throw a grenade");
-					ThrowChance += 100; //Then be A LOT more likely to throw a grenade.
+					//a_log ("found a player, ill probably throw a grenade");
+					ThrowChance += 40; //Then be A LOT more likely to throw a grenade.
 				}
 				Else If (Mobj.bIsMonster && IsFriend(Mobj) && IsVisible (Mobj,False) && Mobj != Self) //If the actor that was found is friendly to you, and ISN'T you.
 				{
-					a_log ("a friendly npc is near the blast radius");
+					//a_log ("a friendly npc is near the blast radius");
 					ThrowChance -= 15; //Then decrease the chance of throwing a grenade.
 				}
 				Else If (Mobj Is "PlayerPawn" && IsFriend (Mobj)) //If the actor found is a player friendly to you.
 				{
-					a_log ("a friendly player is near the blast radius, so i think i wont throw the grenade");
+					//a_log ("a friendly player is near the blast radius, so i think i wont throw the grenade");
 					ThrowChance -= 70; //Then be A LOT less likely to throw a grenade.
 				}
 				
-				console.printf ("the throwing chance is now %d",ThrowChance);
+				//console.printf ("the throwing chance is now %d",ThrowChance);
 			}
 						
-			If (ThrowChance >= 200) //The number 240 should be replaced by a user variable that can modify their likelyhood of throwing a grenade.
+			If (ThrowChance >= 240) //The number 240 should be replaced by a user variable that can modify their likelyhood of throwing a grenade.
 			{
-				a_log ("im gonna throw a grenade");
+				//a_log ("im gonna throw a grenade");
 				Return True;
 			}
 		}
 		
-		a_log ("i decided to not throw a grenade");
+		//a_log ("i decided to not throw a grenade");
 		Return False;
 	}
 	
@@ -132,8 +132,7 @@ Mixin Class MarineFunctions
 		|| (Target.bReflective && Target.bAimReflect || Target.bInvulnerable) && Distance3D (Target) <= 2048 && IsVisible (Target,True)
 		
 		//Or if is completely indestructible or noclipping at all, regardless of sight or distance.
-		|| (Target.bNoDamage || Target.bNoclip)
-		)
+		|| (Target.bNoDamage || Target.bNoclip))
 		{
 			//a_log ("my target is spooky");
 			bFrightened = True; //Then be scared.
@@ -153,7 +152,9 @@ Mixin Class MarineFunctions
 	Void SM_AlertNearbyMarines (Double Range = 256, Bool SkipCheck = False)
 	{
 		//Add a user variable that if on, entirely skips this function.
-		//Also possibly add a check, that makes marines only alert each other of sufficiently power NPCs or players. So they don't dogpile a single Zombieman or something like that.
+		//Also possibly add a check, that makes marines only alert each other of sufficiently powerful NPCs or players. So they don't dogpile a single Zombieman or something like that.
+		
+		If (Target && Goal && Target == Goal) Return; //Don't fuck things up by making other marines try and attack a patrol point.
 		
 		Actor PotentialMarine;
 		Bool FoundMarines;
@@ -193,7 +194,7 @@ Mixin Class MarineFunctions
 	}
 	
 	//Searches for grenades that are about to explode near the marine.
-	Bool SM_FindNearbyGrenade (Double SearchRadius = 192)
+	Bool SM_FindNearbyGrenade (Double SearchRadius = 256)
 	{
 		Actor Mobj;
 		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
@@ -201,19 +202,83 @@ Mixin Class MarineFunctions
 		While (GrenadeSearch.Next())
 		{
 			Mobj = GrenadeSearch.Thing;
-			a_log ("looking for grenades");
-			If (Mobj.GetClassName() == "SM_Grenade" && Mobj.ReactionTime <= 5 && Distance3D (Mobj)) //If the found actor is a grenade, that will explode in about a second. And you are in the blast radius.
+			//a_log ("looking for grenades");
+			If (Mobj.GetClassName() == "SM_Grenade" && Mobj.ReactionTime <= 6 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True)) //If the found actor is a grenade, that will explode in about a second. And you are in the blast radius and it's visible.
 			{
 				OriginalTarget = Target; //Keep the original target of the marine stored.
 				Target = Mobj; //Then change the target to the grenade that was found.
-				a_log ("found a grenade");
+				//a_log ("found a grenade");
 				Return True; //And return true.
 			}
 		}
-		a_log ("no grenades found");
+		//a_log ("no grenades found");
 		Return False; //No grenades were found near the marine.
 	}
-
+	
+	Void SM_ListenForEnemyAlerts (Double HearingRadius = 1024)
+	{
+		If (!Target)
+		{
+			Actor Mobj;
+			BlockThingsIterator ListenForEnemyMarines = BlockThingsIterator.Create (Self,HearingRadius);
+			
+			While (ListenForEnemyMarines.Next())
+			{
+				Mobj = ListenForEnemyMarines.Thing;
+				If (Mobj.GetClassName() == "SmartMarine" && IsHostile (Mobj) && Distance3D (Mobj) <= HearingRadius && Mobj.IsActorPlayingSound (CHAN_VOICE,"Marine/AlertAllies") && Mobj.Health > 0)
+				{
+					A_Log ("I heard an enemy marine alert his buddies.");
+					Target = Mobj; //Target the enemy marine that alerted the others.
+					SetStateLabel ("AlertOtherMarines");
+					Break;
+				}
+			}
+		}
+	}
+	
+	//Checks the line of fire between the marine and the target. And returns true if an ally, or an actor or line that could block the shot is in the line of fire.
+	Bool SM_CantHitTarget (Bool GrenadeAttack = False)
+	{
+		Actor Mobj;
+		Line HitLine;
+		FLineTraceData LOFCheck;
+		
+		A_FaceTarget(0,0,flags:FAF_MIDDLE);
+		LineTrace (Angle+BulletSpreadXY,8192+2,Pitch+BulletSpreadZ,0,42,0,-6,LOFCheck);
+		Mobj = LOFCheck.HitActor;
+		HitLine = LOFCheck.HitLine;
+		If (Mobj) //Only run this if an actor was hit by the raycast.
+		{
+			//a_log ("an actor was hit by the raycast");
+			
+			//If the actor is a shootable non-monster, with a width over 10 map units. Or it's a dormant monster.
+			If ((!(Mobj.bIsMonster) && !(Mobj.Player) && Mobj.bShootable && Mobj.Radius > 5) || Mobj.bIsMonster && Mobj.bDormant)
+			{
+			a_log ("im aiming at a shootable decoration over 10 mu thick, or a dormant monster");
+				Return (Random[pr_monsterrefire](0,256) < 88 || GrenadeAttack); //Then have a random chance to eventually stop shooting, similar to A_MonsterRefire().
+			}
+			//If the actor is a monster or player, and is not hostile to you.
+			If ((Mobj.bIsMonster || Mobj.Player) && !IsHostile (Mobj) &&
+			//And it is not targeting a marine that's currently your friend (Which could be yourself as well).
+			!(Mobj.Target && Mobj.Target Is "SmartMarine" && !IsHostile (Mobj.Target)) &&
+			//And it is not your current target.
+			!(Target == Mobj))
+			{
+				a_log ("im aiming at a friend");
+				Return True; //Then return that the actor should not be shot.
+			}
+		}
+		
+		//Avoid firing your gun or throwing grenades if a linedef is between you and the target, that would block the projectile or hitscan attack.
+		If ((!GrenadeAttack && HitLine && (HitLine.ML_BLOCKEVERYTHING || HitLine.ML_BLOCKHITSCAN)) || //Check for hitscan blocking lines.
+		(GrenadeAttack && HitLine && (HitLine.ML_BLOCKEVERYTHING || HitLine.ML_BLOCKPROJECTILE))) //Ditto, but for projectiles, AKA in case the marine is trying to toss a grenade.
+		{Return True;}
+		
+		
+		Return False;
+	}
+	
+	//This code was written by RaveYard, to allow hostile marines to see and attack friendly NPCs.
 	Actor FindFriendlyMonster(double distance = 8192)
 	{
 		BlockThingsIterator it = BlockThingsIterator.Create(self, distance);
@@ -242,7 +307,7 @@ Mixin Class MarineFunctions
 		{
 			target = ptr;
 
-			a_log ("i found a friendly monster while being hostile myself.");
+			//a_log ("i found a friendly monster while being hostile myself.");
 
 			if(SM_IsInState ("Idle") || SM_IsInState ("Spawn"))
 			{

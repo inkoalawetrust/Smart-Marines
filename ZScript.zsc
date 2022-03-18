@@ -1,6 +1,6 @@
 Version "4.7"
 
-#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed by an enemy.
+#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
 #Include "MarineFunctions.zsc" //A mixin container for all the marines' custom functions.
 
 #Include "Marine_Deaths.zsc" //Holds all the death and raise states of the marine.
@@ -13,8 +13,7 @@ IF THE WORD HATE WAS ENGRAVED ON EACH NANOANGSTROM OF THOSE TENS OF BILLIONS OF 
 MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
 //Maybe try adding some slight variation to the distance they run out to when their target is a powerful enemy ? Along with making the distance customizable
 //Perhaps make them able to use berserk packs, to make their rifle swings more devastating. And by extension make them much more likely to use them when cornered.
-//On the subject of making them use items, try figuring out a way to give Stimpacks and Medikits to them, that doesn't require modding the rest of the game.
-//Add a function that allows hostile marines to see and attack friendly NPCs, instead of waiting to be attacked by them.
+//Reimplement the ability for marines to use turrets. They will probably actually move up to a turret by setting it as their goal pointer.
 
 //To do stuff related to user variables:
 //Have their chance of throwing a grenade controllable by a user variable, a value of 0 makes them ALWAYS throw grenades. And a chance of 256 means no grenades.
@@ -24,7 +23,8 @@ MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
 //Make the chance for marines to stay in melee customizable as well, with 0 meaning they always avoid melee.
 //Add a variable to make marines never need to reload.
 //Reimplement the ability to color them using the User_Color variable.
-//Expose the distance in which marines alert other marines customizable, with a distance of 0 meaning that they won't alert other marines friendly to them at all.
+//Expose the distance in which marines alert other marines, with a distance of 0 meaning that they won't alert other marines friendly to them at all.
+//Add a variable that disables the ability of marines to hear enemy marines alerting each other.
 //Also add a variable that randomizes the marines "personality", like the predisposition towards throwing grenades. But not variables like User_NoReload.
 
 Class SmartMarine : Actor //Good joke, me, "smart".
@@ -42,8 +42,8 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		Radius 16;
 		YScale 0.98;
 		Mass 100;
-		Speed 16;
-		FastSpeed 24;
+		Speed 10;
+		FastSpeed 14;
 		PainChance 96;
 		PainThreshold 5;
 		FriendlySeeBlocks 20;
@@ -60,7 +60,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		DropItem "ClipBox", 64;
 		DropItem "VanillaRifle", 48;
 		DamageFactor "MarineHMG", 2.0;
-		PainSound "Marine/pain";
+		PainSound "Marine/Pain";
 		DeathSound "Marine/Death";
 		Monster;
 		+JumpDown;
@@ -92,6 +92,8 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	Override Bool Used (Actor User)
 	{
 		Super.Used (User);
+		
+		If (Goal) Return False; //Ignore all this when patrolling.
 		
 		If (bFriendly) //This should only work if the marine is friendly towards players.
 		{
@@ -128,8 +130,11 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 	Mixin MarineFunctions;
 	Actor OriginalTarget; //Temporarily stores the marines' target while running from a grenade.
 	Int TimeSearching; //Once it increments over a certain value, the marine will stop chasing and go back to wandering/Idle.
+	Int BulletSpreadXY, BulletSpreadZ; //Used to generate the spread for the bullets, before the hitscan is fired.
 	Int AmmoUsed; //Keeps track amount of bullets that have been fired by the marine, before needing to reload.
 	Int EscapeAttempts; //How many times the marine has attempted to run out of sight to reload.
+	Bool RemovedOldMag; //Keeps track of whether or not the marine removed their previous magazine during reloading.
+	Bool ReactionTimeFixed; //When the marines' reaction time is fixed, after being interrupted on a delayed patrol point, this is used to only apply the fix once. To not further break the reaction time.
 	
 	States
 	{
@@ -142,31 +147,59 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 				}
 
 				SM_LookForTarget();
+				SM_ListenForEnemyAlerts();
 				Return State (Null);
 			}
 			Loop;
 		See:
-			MAR2 AABBCCDD 4
+			MAR2 AAAABBBBCCCCDDDD 2
 			{
 				if(!bFriendly)
 				{
 					SM_UpdateTarget();
 				}
-
-				//If (LastHeard) {console.printf ("I last heard a %s",LastHeard.GetClassName());}
-				If (!Target || Target && (!CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY ) || Target.Health <= 0)) //If there is no target, or the target is not visible or alive.
+				
+				//Stuff added to keep the marines working with ZDoom patrol points and routes.
+				If (Target && Target.Health <= 0) Target = Null; //Remove dead targets.
+								
+				If (Target && Goal && Target == Goal) //If moving towards a patrol point.
 				{
-					TimeSearching++; //Increment the amount of time you've been looking for the target.
-					console.printf ("I've been looking for %d",TimeSearching);
-					If (TimeSearching >= 100) //If the timer is over this placeholder value.
-					{
-						A_Log ("I give up.");
-						TimeSearching = 0; //Reset the timer.
-						A_ClearTarget(); //I forgor 💀
-						Return ResolveState ("Idle"); //And go back to wandering.
-					}
+					ReactionTimeFixed = False;
+					Speed = Default.Speed * 0.75; //Don't move so fast when patrolling.
+					Sprite = GetSpriteIndex ('PLAY'); //And change the to the normal player walking sprites, instead of the ADS sprites.
 				}
-				Else {TimeSearching = 0; /*A_Log ("Found you");*/} //If the target is visible, then reset the timer again.
+				Else //If your target is no longer a patrol point.
+				{
+					Speed = Default.Speed;
+					Sprite = GetSpriteIndex ('MAR2');
+				}
+				
+				If (Target && Goal && Target != Goal && !ReactionTimeFixed) //If you were patrolling, but got interrupted by an enemy.
+				{
+					ReactionTime = Default.ReactionTime; //Then reset your reaction time to normal, in case you were on a delayed patrol point before.
+					ReactionTimeFixed = True;
+				}
+				//============================================================================
+				
+				//If (LastHeard) {console.printf ("I last heard a %s",LastHeard.GetClassName());}
+				If (!(Target && Goal && Target == Goal)) //Only run this code if the marine isn't patrolling.
+				{
+					If (!Target || Target && (!CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY ) || Target.Health <= 0)) //If there is no target, or the target is not visible or alive.
+					{
+						TimeSearching++; //Increment the amount of time you've been looking for the target.
+						//console.printf ("I've been looking for %d",TimeSearching);
+						If (TimeSearching >= 200) //If the timer is over this placeholder value.
+						{
+							A_Log ("I give up.");
+							TimeSearching = 0; //Reset the timer.
+							A_ClearTarget(); //I forgor 💀
+							Return ResolveState ("Idle"); //And go back to wandering.
+						}
+					}
+					Else {TimeSearching = 0; /*A_Log ("Found you");*/} //If the target is visible, then reset the timer again.
+				}
+				
+				SM_ListenForEnemyAlerts(); //Listen for enemy marines that alerted their buddies.
 				
 				//Have the marine run away from grenades about to explode.
 				If (SM_FindNearbyGrenade())
@@ -174,15 +207,15 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 					Return ResolveState ("RunAway");
 				}
 				
-				//These if statement switches prevent hostile marines from instantly going back to Idle when they have no target.
-				If (Target && !bFriendly && Target.bShootable && Target.health > 0)
+				//These if statement switches prevent hostile marines from instantly going back to Idle when they have no target. And also makes them move to patrol points.
+				If (Target && !bFriendly && Target.bShootable && Target.health > 0 || Target && Goal && Target == Goal)
 				{
 					//a_log ("im chasing you");
 					SM_ShouldBeScared();
 					A_Chase ("RifleSmack","DecideAttack");
 					SM_ShouldBeScared();
 				}
-				Else If (!bFriendly) //This never seems to actually run, but like the TF2 coconut, I'm not removing this in case doing so breaks everything.
+				Else If (!bFriendly)
 				{
 					//a_log ("when you walkin");
 					A_Wander();
@@ -201,6 +234,17 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 		Idle:
 			PLAY AABBCCDD 3
 			{
+				If (Goal) //If you have a goal, and are therefore probably here because you reached a patrol point with a delay.
+				{
+					Sprite = GetSpriteIndex ('MARI'); //Change sprites to the spawn state ones.
+					Tics = Random (16,22); //And change the state durations to something similar to the ones in Spawn.
+				}
+				Else
+				{
+					Sprite = GetSpriteIndex ('PLAY');
+					Tics = 3;
+				}
+				
 				If (SM_FindNearbyGrenade())
 				{
 					Return ResolveState ("RunAway");
@@ -209,10 +253,18 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 				A_Wander();
 				SM_UpdateTarget();
 				SM_LookForTarget();
+				SM_ListenForEnemyAlerts();
 				
 				Return State (Null);
 			}
-			PLAY A 0 A_Jump (12,"StandStill");
+			PLAY A 0// A_Jump (12,"StandStill");
+			{
+				If (!Goal && Random[pr_cajump](0,256) < 12) //Uses the same RNG as A_Jump's random jump chance, but also only jumps if the marine has no goal.
+				{
+					Return ResolveState ("StandStill");
+				}
+				Return State (Null);
+			}
 			Loop;
 		AlertOtherMarines: //Alerts other marines of the target that the marine just acquired after calling A_LookEx.
 			TNT1 A 0 SM_AlertNearbyMarines();
@@ -226,6 +278,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 					Angle += RandomPick (20,30,45,-45,-30,-20);
 				}
 				SM_LookForTarget();
+				SM_ListenForEnemyAlerts();
 			}
 			MARA A 0 A_Jump (24,"Idle");
 			Loop;
@@ -235,38 +288,55 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 			MAR2 A 0 A_Jump (245,"See"); //High chance to only run once.
 			Goto ChangePosition+1;
 		RunForReload:
-			PLAY AAABBBCCCDDD 2
+			TNT1 A 0 A_SetSpeed (Default.Speed*1.5);
+			PLAY AABBCCDD 2
 			{
-				bFrightened = True;
-				bNoPain = True;
+				//Don't try to run away if you have a goal, and are supposed to chase goals instead of targets..
+				If (bChaseGoal && Goal)
+				{
+					Speed = Default.Speed;
+					Return ResolveState ("Reload");
+				}
+				bFrightened = True; bNoPain = True;
 				A_Chase (Null,Null); //Just run away from your target.
-				bNoPain = False;
-				bFrightened = False;
+				bNoPain = False; bFrightened = False;
+				Return State (Null);
 			}
 			PLAY A 0
 			{
 				EscapeAttempts++;
-				If (EscapeAttempts >= 7 || Target && (!IsVisible (Target,True) || Target.Health <= 0))
+				If (EscapeAttempts >= 10 || Target && (!IsVisible (Target,True) || Target.Health <= 0))
 				{
 					EscapeAttempts = 0;
+					Speed = Default.Speed;
 					Return ResolveState ("Reload");
 				}
 				Return State (Null);
 			}
 			Loop;
 		RunAway: //Makes the marine run away from any grenades about to explode, this state must NEVER be broken.
-			TNT1 A 0 {bNoPain = True; bFrightened = True;} //Stop the state from being interrupted, and make the marine run away from the grenade.
+			TNT1 A 0 //Stop the state from being interrupted, and make the marine quickly run away from the grenade.
+			{
+				bNoPain = True;
+				bFrightened = True;
+				bChaseGoal = False;
+				Speed = Default.Speed*1.75;
+			}
 			PLAY AABBCCDD 2 A_Chase (Null,Null);
 			TNT1 A 0
 			{
 				If (OriginalTarget && OriginalTarget.Health > 0)
 				{Target = OriginalTarget;} //If the marine had a target prior to running from a grenade, and it's still alive, then set it back.
+				Else If (Goal && !OriginalTarget) {Target = Goal;} //If the marine was patrolling on a delayed patrol point before having to run from a grenade. Then this make them resume patrolling, by going to the next patrol point, if any.
 				Else {Target = Null;} //Otherwise just remove the grenade from the target field.
 				bNoPain = False;
 				bFrightened = False;
+				bChaseGoal = Default.bChaseGoal;
+				Speed = Default.Speed;
 			}
 			Goto See; //Go back to the see state.
 		DecideAttack: //Decide if you should throw a grenade, or just shoot.
+			tnt1 a 0 a_log ("pew pew");
 			TNT1 A 0 A_JumpIf (GrenadeAttackDecision(),"ThrowGrenade"); //The code for GrenadeAttackDecision is in MarineFunctions.zsc.
 			Goto RifleBurst;
 		RifleSmack:
@@ -276,10 +346,16 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 			Goto See;
 		RifleBurst:
 			MAR2 A 0 A_JumpIf (AmmoUsed > 20,"RunForReload"); //Run out of sight of the target to reload.
-			MAR2 A 1 A_FaceTarget();
+			MAR2 A 1;
+			MAR2 A 0 //The bullet spread is determined before the shot, so that it can be checked by SM_CantHitTarget(), so the marines won't even shoot their allies by accident.
+			{
+				BulletSpreadXY += 2.4 * Random2[cwbullet]() / 255.;
+				BulletSpreadZ += 2.5 * Random2[cwbullet]() / 255.;
+			}
+			MAR2 A 0 A_JumpIf (SM_CantHitTarget(),"ChangePosition"); //Check if any hitscan blocking actors or lines, or allies. Are in front of the line of fire.
 			MARR A 4 Light ("MarineMuzzleFlash")
 			{
-				A_CustomBulletAttack (2.4,2.5,1,Random(6,10),"SmartMarinePuff",8196+2,CBAF_NORANDOM|CBAF_AIMFACING,spawnheight:42,-6);
+				A_CustomBulletAttack (BulletSpreadXY,BulletSpreadZ,1,Random(6,10),"SmartMarinePuff",8196+2,CBAF_NORANDOM|CBAF_AIMFACING,spawnheight:42,-6);
 				A_StartSound ("Marine/Fire",CHAN_WEAPON);
 				AmmoUsed++;
 			}
@@ -288,7 +364,7 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 			MAR2 A 0 A_Jump (24,"ChangePosition"); //Small chance to change position instead of just shooting in place.
 			Loop;
 		ThrowGrenade: //https://www.youtube.com/watch?v=BJrxKiW5f-4
-			MARG AA 6 A_FaceTarget();
+			MARG AA 6 A_JumpIf (SM_CantHitTarget(True),"ChangePosition");
 			MARG B 6
 			{
 				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
@@ -297,20 +373,56 @@ Class SmartMarine : Actor //Good joke, me, "smart".
 			MARG B 4;
 			Goto See;
 		Reload:
+			PLAY AABBCCDD 2 //Run away a from your target for a bit longer after they are out of sight.
+			{
+				bFrightened = True;
+				bNoPain = True;
+				A_Chase (Null,Null); //Just run away from your target.
+				bNoPain = False;
+				bFrightened = False;
+			}
 			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
-			MARL A 0 {bNoPain = True;}
+			TNT1 A 0 A_JumpIf (RemovedOldMag,6); //Makes the marine not spawn duplicate mags if interrupted before by being hurt or running from a grenade.
+			TNT1 A 0 {bNoPain = True;}
 			MARL ABC 6;
-			MARL D 4 A_SpawnItemEx ("SmartMarineEmptyMagazine",0,16,27,0,4,-1);
+			MARL D 4 {A_SpawnItemEx ("SmartMarineEmptyMagazine",0,16,27,0,4,-1); RemovedOldMag = True;}
 			MARL C 6;
 			MARL B 6
 			{
 				A_StartSound ("Marine/Reload",CHAN_WEAPON);
 				AmmoUsed = 0;
 			}
-			MARL C 4 {bNoPain = False;}
+			MARL A 4 {RemovedOldMag = False; bNoPain = False;}
 			Goto See;	
 		Pain:
+			TNT1 A 0 A_SetSpeed (Default.Speed); //In case you were hurt during RunForReload.
 			PLAY G 10 A_Pain();
+			Goto See;
+	}
+}/*
+
+Class PlayerRelationshipCheckingImp : DoomImp Replaces DoomImp
+{
+	States
+	{
+		Missile:
+			TROO EF 8 A_FaceTarget();
+			TROO G 6
+			{
+				FLineTraceData FindPlayer;
+				Actor Mobj;
+				
+				LineTrace (Angle,8192,Pitch,data:FindPlayer);
+				Mobj = FindPlayer.HitActor;
+				
+				If (Mobj)
+				{
+					If (!IsHostile (Mobj))
+					{
+						A_Log ("The player is my friend.");
+					}
+				}
+			}
 			Goto See;
 	}
 }

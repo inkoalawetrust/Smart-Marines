@@ -7,6 +7,7 @@ Extend Class SmartMarine
 	States
 	{
 		Death: //Plays one of 4 different animations.
+			TNT1 A 0 A_SetSpeed (Default.Speed); //In case the marine died in the RunForReload state.
 			TNT1 A 0 A_Jump (256,"DeathAnim1","DeathAnim2","DeathAnim3","DeathAnim4");
 		DeathAnim1: //The vanilla player death.
 			PLAY H 5 {DeathAnimPlayed = 1;}
@@ -23,13 +24,13 @@ Extend Class SmartMarine
 			MARD O -1;
 			Stop;
 		DeathAnim3: //Falling back death. 
-			MARD H 5  {DeathAnimPlayed = 3;}
+			MARD H 5 {DeathAnimPlayed = 3;}
 			MARD I 5 A_ScreamAndUnblock();
 			MARD JK 5;
 			MARD L -1;
 			Stop;
 		DeathAnim4: //Falling sideways death.
-			MARD P 5  {DeathAnimPlayed = 4;}
+			MARD P 5 {DeathAnimPlayed = 4;}
 			MARD Q 5 A_ScreamAndUnblock();
 			MARD RSTUVW 5;
 			MARD X -1;

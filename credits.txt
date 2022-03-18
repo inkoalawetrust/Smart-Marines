@@ -1,4 +1,7 @@
-Code written by inkoalawetrust. The code for the player usable turret and the marines' grenade throwing function written by Lewisk3.
+Code written by inkoalawetrust.
+The code to make the turrets usable by players, and for the grenade throwing function of the marines was written by Lewisk3.
+The code to make hostile marines able to see and attack friendly NPCs on sight was written by RaveYard.
+
 Playtesting done by RaveYard, TDRR, and inkoalawetrust
 
 ======|Actor sprites|======
