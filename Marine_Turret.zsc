@@ -1,0 +1,431 @@
+Extend Class SmartMarine
+{
+	Actor Turret; //The turret the marine is "using", if any.
+	Bool GoingToTurret; //The marine is running towards a turret.
+	Bool OnTurret; //The marine is currently on a turret.
+	Bool JustGotOnTurret; //Used to make the marine immediately begin attacking it's target if it had one before entering the turret.
+	States
+	{
+		TurretSee:
+			MTUR BBBBBBBBBBBBBBBBBBBBBBBB 1 //The duration is so low so that the marine switches targets as fast as possible.
+			{
+				if(!bFriendly)
+				{
+					SM_UpdateTarget();
+				}
+				
+				If (JustGotOnTurret)
+				{
+					JustGotOnTurret = False;
+					If (Target && Target.bShootable) Return ResolveState ("TurretFire");
+				}
+				
+				If (!Target || Target && (!CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY ) || Target.Health <= 0)) //If there is no target, or the target is not visible or alive.
+				{
+					TimeSearching++; //Increment the amount of time you've been looking for the target.
+					console.printf ("I've been looking for %d",TimeSearching);
+					If (TimeSearching >= 200*2) //If the timer is over this placeholder value.
+					{
+						A_Log ("I give up.");
+						TimeSearching = 0; //Reset the timer.
+						A_ClearTarget(); //I forgor 💀
+						LeaveTurret(); //Make the status changes needed to put the turret and the marine that was "using" it back to normal.
+						Return ResolveState ("Idle"); //And go back to wandering.
+					}
+				}
+				Else {TimeSearching = 0;}
+				
+				//Have the marine run away from grenades about to explode.
+				If (SM_FindNearbyGrenade())
+				{
+					LeaveTurret();
+					a_log ("OH SHIT");
+					Return ResolveState ("RunAway");
+				}
+				
+				If (Target && Target.Health <= 0) Target = Null; //Remove dead targets.
+				
+				If (Target) A_Chase (Null,"TurretFire",CHF_DONTMOVE|CHF_NODIRECTIONTURN);
+				Else SM_LookForTarget();
+				
+				Return State (Null);
+			}
+			MTUR B 0 {If (Random (0,256) > 230) {Angle += RandomPick(45,90,-45,-90);}}
+			Loop;
+		TurretFire:
+			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"LeaveAndRun");
+			TNT1 A 0 A_FaceTarget (10,10); //Not really neccesary, since the code on the bullet itself adjusts the marines' direction. But whatever.
+			TNT1 A 0 A_JumpIf (SM_TurretLOFCheck(),"TurretSee");
+			MTUR C 3 Light ("MarineMGFiringLight") A_SpawnProjectile ("SmartMarineMGBullet",38,4,FRandom (1.0,-1.0),CMF_AIMDIRECTION,Pitch+FRandom(1.3,-1.3));
+			TNT1 A 0 A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
+			
+			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"LeaveAndRun");
+			TNT1 A 0 A_FaceTarget (10,10);
+			MTUR D 3 Light ("MarineMGFiringLight") A_SpawnProjectile ("SmartMarineMGBullet",38,-4,FRandom (1.0,-1.0),CMF_AIMDIRECTION,Pitch+FRandom(1.3,-1.3));
+			TNT1 A 0 A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
+			TNT1 A 0 A_MonsterRefire (96,"TurretSee");
+			Loop;
+		LeaveAndRun:
+		tnt1 a 0 a_log ("FUCK");
+			TNT1 A 0 LeaveTurret();
+			Goto RunAway;
+	}
+}
+
+
+//The code that makes the turret usable by marines was originally written by Lewisk3. Modified by me. The weapon is mostly written by me.
+
+Class SmartMarineMGTurret : Actor
+{
+	Actor operator;
+	uint active_frame; // Switches between not active, active and firing.
+	Bool Occupied; //Only really used when players are using it.
+	Bool curbarrel; //Makes the gun visibly change firing sprites, yes, it's out of sync from the first person weapon. No, I will not try to sync it.
+
+	Default
+	{
+		//$Title Machine Gun Emplacement
+		//$Category Weapons
+		//$Angled
+		//$Sprite MTURA1
+		Height 56;
+		ProjectilePassHeight 1; //Projectiles ignore the turret.
+		+INTERPOLATEANGLES;
+		+Solid;
+		-Shootable;
+	}
+	
+	Void TakeOperator(Actor User)
+	{
+		Operator = User;
+		Operator.A_SetSpeed(0);     // Stop operator from moving.
+		Operator.Player.Vel *= 0;   // Stop Bobbing.
+		Operator.A_SetScale(0);     // Hide operator.
+		Operator.A_SetAngle(Angle); // Set operator to the turrets' last angle.
+		A_StartSound ("Turret/Ready",CHAN_WEAPON); //Because playing the sound from the gun doesn't work.
+		Translation = Operator.Translation; //So the color of the player on and out of the gun are the same, instead of only the default green.
+		bSolid = False;
+		Occupied = True; //Mark the gun as being used.
+		
+		SmartMarineMGWeapon.Enable(User);
+	}
+	
+	Void RemoveOperator(Actor User)
+	{
+		// Restore operator status.
+		Operator.A_SetSpeed(User.Default.Speed);
+		Operator.A_SetScale(User.Default.Scale.X);
+		
+		// Remove gun
+		Let Gun = SmartMarineMGWeapon(Operator.FindInventory("SmartMarineMGWeapon"));
+		If(Gun) Gun.Disable();
+		
+		// Remove operator.
+		Operator = Null;
+		bSolid = True; //Become solid again.
+		Occupied = False; //Unmark it as being used.
+		Translation = Default.Translation; //Reset the translation.
+	}
+	
+	Override Bool Used(Actor User)
+	{
+		//If (!Occupied || operator.player.ReadyWeapon Is "SmartMarineMGWeapon")
+		//{
+			If(!Operator)
+				TakeOperator(User);
+			Else If (User == Operator) // Only allow the operator to exit themselves.
+				RemoveOperator(User);
+		//}
+		
+		Return False;
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		Active_Frame = 0;
+		
+		If(!Operator) Return;
+		
+		// Remove dead operator.
+		If (Operator.Health <= 0) 
+		{
+			RemoveOperator(Operator);
+			Return;
+		}
+		
+		Angle = Operator.Angle;
+		
+		// Update operator position.
+		Double Dist = 16;
+		Vector3 DesiredPos = (RotateVector((Dist,0), Angle), 0);
+		Operator.SetOrigin (Level.vec3offset(Pos, DesiredPos), True);
+		Pitch = Operator.Pitch; //Get the operators' pitch.
+		
+		// Update turret graphics
+		If(Operator) 
+		{
+			Active_Frame = 1;
+			
+			// Figure out if operator is firing their weapon.
+			If (Operator.Player)
+			{
+				Let Weap = Operator.Player.ReadyWeapon;
+				Let PSP = Operator.Player.GetPSprite(PSP_WEAPON);
+				If(PSP.CurState == Weap.ResolveState("Fire"))
+				{
+					Active_Frame = 2 + CurBarrel;
+					CurBarrel = !CurBarrel;
+				}
+			}
+		}
+	}
+	
+	States
+	{
+		Spawn:
+			MTUR "#" 1
+			{
+				Frame = Active_Frame;
+			}
+			Loop;
+	}
+}
+
+//Completely redo the states block on this weapon actor.
+class SmartMarineMGWeapon : Weapon
+{
+	Default
+	{
+		Weapon.BobRangeX 0.0;
+		Weapon.BobRangeY 0.0;
+		Weapon.Kickback 128;
+		Weapon.SelectionOrder 1;
+		Weapon.SlotPriority 50000;
+		AttackSound "Turret/Fire";
+		Decal "SmartMarineMGChip";
+		+Weapon.DontBob;
+		+Weapon.Ammo_Optional;
+		+Weapon.BFG;
+		+Weapon.CheatNotWeapon;
+		+Weapon.NoDeathDeselect;
+		+Weapon.NoDeathInput
+		+Weapon.NoAutoaim;
+	}
+	
+	Static Const String CheatMessages[] =
+	{
+		"Cheaters never prosper.",
+		"You wouldn't download a machine gun.",
+		"https://youtu.be/rGBEoFwlbwg",
+		"doom smart marines machine gun console command free download 100% legit no malware"
+	};
+	
+	Bool Legit; //If this wasn't on when the weapon was attached to the player, then a random cheat message is given.
+	
+	Static Void Enable(Actor User)
+	{
+		Let Gun = Weapon(Actor.Spawn("SmartMarineMGWeapon"));
+		User.AddInventory(Gun);
+		Gun.Use(False);
+		SmartMarineMGWeapon(Gun).Legit = True;
+		
+		// Used for instantly switching to this weapon
+		// from any other weapon.
+		If(User.Player)
+		{
+			Weapon.DoReadyWeaponToSwitch(User.Player, True);
+			User.Player.PendingWeapon = Gun;
+		}
+	}
+	
+	Override Void AttachToOwner (Actor Other)
+	{
+		If (!Legit) {Console.Printf ("%s",CheatMessages[Random(0,3)]);}
+		Super.AttachToOwner (Other);
+	}
+		
+	void Disable()
+	{
+		Owner.A_RemoveLight ("MGFlash");
+		Owner.RemoveInventory(self);
+		GoAwayAndDie();
+	}
+	
+	States
+	{
+		
+		Ready:
+			MTUR E 1 A_WeaponReady();
+			Loop;
+		
+		Select:
+			MTUR E 1 A_Raise(WEAPONTOP);
+			Goto Ready;
+		
+		Deselect:
+			Goto Ready;
+		
+		Fire:
+			MTUR F 3
+			{
+				A_Overlay (PSP_WEAPON+2,"FireGlow");
+				A_Overlay (PSP_WEAPON-2,"MuzzleFlash");
+				
+				A_Overlay (PSP_WEAPON-3,"LightGlow");
+				A_OverlayFlags (PSP_WEAPON-3,PSPF_RENDERSTYLE|PSPF_PIVOTPERCENT,True);
+				A_OverlayRenderStyle(PSP_WEAPON-3, STYLE_Add);
+				A_OverlayPivotAlign (PSP_WEAPON-3,PSPA_CENTER,PSPA_CENTER);
+				A_OverlayScale (PSP_WEAPON-3,2,2);
+				A_WeaponOffset(0, 2, WOF_ADD|WOF_INTERPOLATE);
+				A_QuakeEx (1,1,1,4,0,32,"");
+				
+				A_AttachLightDef ('MGFlash','MarineMGFiringLight');
+				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
+				A_FireProjectile ("SmartMarineMGBullet",FRandom (1.0,-1.0),spawnofs_xy:-4,pitch:FRandom(1.3,-1.3));
+			}
+			MTUR E 3
+			{
+				A_WeaponOffset(0, 2, WOF_ADD|WOF_INTERPOLATE);
+				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
+				A_FireProjectile ("SmartMarineMGBullet",FRandom (1.0,-1.0),spawnofs_xy:4,pitch:FRandom(1.3,-1.3));
+			}
+			TNT1 A 0 A_RemoveLight ('MGFlash');
+			TNT1 A 0 A_WeaponOffset(0, 32, WOF_INTERPOLATE);
+			TNT1 A 0 A_ReFire();
+			Goto Ready;
+				
+		MuzzleFlash:
+			MTUR G 3
+			{
+				A_OverlayOffset (PSP_WEAPON-2,OverlayX(OverlayID())-16,flags:WOF_KEEPY);
+				A_OverlayPivotAlign(OverlayID(), PSPA_CENTER, PSPA_CENTER);
+				A_OverlayRotate(OverlayID(), FRandom(-20,20));
+				//A_OverlayScale (OverlayID(),FRandom(0.5,1.0),flags:WOF_KEEPY);
+			}
+			MTUR G 3
+			{
+				A_OverlayOffset (PSP_WEAPON-2,OverlayX(OverlayID())+16,flags:WOF_KEEPY);
+				A_OverlayPivotAlign(OverlayID(), PSPA_CENTER, PSPA_CENTER);
+				A_OverlayRotate(OverlayID(), FRandom(50,80));
+				//A_OverlayScale (OverlayID(),FRandom(0.5,1.0),flags:WOF_KEEPY);
+			}
+			Stop;
+		
+		FireGlow:
+			MTUR K 3
+			{	
+				A_OverlayFlags(OverlayID(), PSPF_RENDERSTYLE, True);
+				A_OverlayRenderStyle(OverlayID(), STYLE_Add);
+				A_OverlayFlags(OverlayID(), PSPF_ALPHA, True);
+			}
+			MTUR H 3;
+			Stop;
+		
+		LightGlow:
+			MTUR I 6;
+			Stop;
+	}
+}
+
+Class SmartMarineMGBullet : FastProjectile
+{
+	Default
+	{
+		Radius 4;
+		Height 8;
+		Speed 200;
+		Scale 0.2;
+		DamageFunction (Random (25,45)/10); //A ripper damages an actor with a total radius of 64 MU, 10 times, hence dividing the random damage output by 10.
+		ProjectileKickback 8;
+		RipperLevel 3;
+		Projectile;
+		MissileHeight 8;
+		Decal "SmartMarineMGChip";
+		DamageType "MarineHMG";
+		+Ripper;
+	}
+	Int RipAmount;
+	Const Rips = 5; //Roughly how many actors it'll rip.
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		If (!(Target && Target.Target) || Target && Target.Player) Return;
+		VelIntercept (Target.Target);
+		//If (Target.Target)
+		//{
+			Target.Angle = Angle;
+			Target.Pitch = Pitch;
+		//}
+		
+		Angle += FRandom (0.8,-0.8);
+		Pitch += FRandom (1.0,-1.0);
+		Vel3DFromAngle (Speed,Angle,BulletSlope());
+	}
+	
+	Override Int SpecialMissileHit (Actor Victim)
+	{
+		If (Victim.bSolid && !(Victim.bShootable)) {Return 1;} //Don't stop at decorations that normally block projectiles.
+		
+		If (Target && (Victim.bIsMonster || Victim.Player) && !(Target.IsHostile (Victim))) {Return 1;} //Don't harm the shooter or allies.
+		
+		If (Victim.SpawnHealth() <= 200) {bExtremeDeath = True;} //Obliterate any weak enemy.
+		
+		//Stop penetrating if the target has a lot of health, or you ripped for long enough.
+		If (Victim.SpawnHealth() >= 500 || RipAmount > Rips*10) {bRipper = False;}
+		
+		//Stop ripping if you went through a large enough ally.
+		If (Target && Target.bIsMonster && !(Target.IsHostile(Victim)) && Victim.Radius >= 40 && Victim.Height >= 64) {A_Die();}
+		
+		RipAmount++;
+		
+		If (Random (0,256) >= 128+48) {bPainLess = True;} //So monsters aren't frozen in pain from the amount of bullets hitting them.
+		Return -1;
+	}
+	
+	//Creates the tracer trail.
+	Override Void Tick()
+	{
+		If (IsFrozen()) {Return;}
+		Vector3 oldPos = pos;        
+		Super.Tick();
+		If (GetAge() < 1) {Return;} //So the trail doesn't spawn way behind the shooter.
+		Vector3 path = level.vec3Diff( pos, oldPos );
+		double distance = path.length() / 4; //this determines how far apart the particles are
+		Vector3 direction = path / distance;
+		int steps = int( distance );        
+		for( int i = 0; i < steps; i++ )  
+		{
+			actor mo = Spawn("SmartMarineMGTracer", oldPos );        
+			oldPos = level.vec3Offset( oldPos, direction );
+		}
+	}
+	States
+	{
+		Spawn:
+			MTUR Z -1 Light ("MarineMGTracerLight");
+			Stop;
+		Death:
+			TNT1 A 0;
+			Stop;
+	}
+}
+
+Class SmartMarineMGTracer : Actor
+{
+	Default {RenderStyle "Add"; Scale 0.5; +NoBlockmap;}
+	Override Void Tick()
+	{
+		If (IsFrozen()) {Return;}
+		If (GetAge() >= 1)//This number determines the tracers' length.
+		{Destroy();}
+	}
+	States
+	{
+		Spawn:
+			MTUR J -1;
+			Stop;
+	}
+}

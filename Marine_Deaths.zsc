@@ -2,6 +2,18 @@
 
 Extend Class SmartMarine
 {
+	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
+	{
+		LeaveTurret();
+		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
+	}
+	
+	Override Void OnDestroy() //I'd consider this to be a form of death.
+	{
+		LeaveTurret();
+		Super.OnDestroy();
+	}
+
 	Int DeathAnimPlayed; //Keeps track of what death animation the marine played, so it can be played in reverse when resurrected.
 	
 	States

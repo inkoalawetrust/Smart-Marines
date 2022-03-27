@@ -1,3 +1,5 @@
+//Maybe add a melee attack to the rifle ? I'll need sprites though.
+
 Class VanillaRifle : Weapon
 {
 	Default
@@ -40,7 +42,6 @@ Class VanillaRifle : Weapon
 		PSP_IMPOSTOR = 3, //ඞ
 		PSP_FADE = 1001 //The fade transition between the zoomed in and normal state of the rifle.
 	}
-	//Int ShotsFired; //How many rounds in a burst the rifle has fired.
 	Bool AlreadyZoomed; //Is on as long as the gun is zoomed in.
 	States
 	{
@@ -67,6 +68,26 @@ Class VanillaRifle : Weapon
 			Loop;
 		Deselect:
 			TNT1 A 0 A_StopSound (1234);
+			TNT1 A 0 A_JumpIf (!Invoker.AlreadyZoomed,19); //Unzoom the rifle if it was zoomed before being changed.
+			TNT1 A 8 A_Overlay (PSP_FADE,"Green");
+			TNT1 A 0
+			{
+				A_OverlayAlpha (PSP_SCANLINES,0.0);
+				A_ZoomFactor (1,ZOOM_INSTANT);
+				A_SetCrosshair (0);
+				A_StopSound (1234);
+				A_Overlay (PSP_IMPOSTOR,"FakeRifle");
+				A_OverlayPivot (PSP_IMPOSTOR,0.67,0.67);
+				A_OverlayScale (PSP_IMPOSTOR,4.0,4.0); //Pre-scale the rifle to double the size.
+				Invoker.AlreadyZoomed = False;
+			}
+			TNT1 AAAAAAA 1 A_OverlayScale (PSP_IMPOSTOR,-0.4,-0.4,WOF_ADD|WOF_INTERPOLATE); //Zoom out of the rifle.
+			TNT1 A 0
+			{
+				A_Overlay (PSP_IMPOSTOR,Null);
+				A_Overlay (PSP_FADE,Null);
+				A_OverlayAlpha (PSP_WEAPON,1.0);
+			}
 			VRIF AAAAAABBBBBB 1 A_Lower();
 			Loop;
 		Fire:
@@ -76,8 +97,8 @@ Class VanillaRifle : Weapon
 			VRIF C 2
 			{
 				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
-				If (!Invoker.AlreadyZoomed) {A_FireBullets (2.5,2.6,-1,Random(6,12),"SmartMarinePuff",FBF_NORANDOM|FBF_USEAMMO,8192+2,spawnheight:21);}
-				Else {A_FireBullets (1.4,1.5,-1,Random(6,10),"SmartMarinePuff",FBF_NORANDOM|FBF_USEAMMO,8192+2,spawnheight:21);}
+				If (!Invoker.AlreadyZoomed) A_FireBullets (2.2,2.3,-1,Random(6,12),"SmartMarinePuff",FBF_NORANDOM|FBF_USEAMMO,8192+2,spawnheight:21);
+				Else A_FireBullets (1.4,1.5,-1,Random(6,10),"SmartMarinePuff",FBF_NORANDOM|FBF_USEAMMO,8192+2,spawnheight:21);
 				A_GunFlash();
 			}
 			VRIF D 2 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);

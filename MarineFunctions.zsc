@@ -122,22 +122,33 @@ Mixin Class MarineFunctions
 	Void SM_ShouldBeScared()
 	{
 		If (!Target) {Return;} //Null check.
+		//The marine must not have the frightened flag on when going to a turret, to not also avoid the turret they are going to.
 		//If the target is nearby, visible, and hostile, and has over 2500 health.
-		If ((!IsFriend (Target) && Distance3D (Target) <= 2048 && Target.Health >= 2500 && IsVisible (Target,True))
+		If (IsHostile (Target) && Distance3D (Target) <= 2048 && Target.Health >= 2500 && IsVisible (Target,True) && !GoingToTurret
 		
 		//Or if it is big enough and visible and close enough.
-		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3D (Target) <= 2048 && IsVisible (Target,True)
+		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3D (Target) <= 2048 && IsVisible (Target,True) && !GoingToTurret
 		
 		//Or it has any of these flags, along with being nearby and visible to you.
-		|| (Target.bReflective && Target.bAimReflect || Target.bInvulnerable) && Distance3D (Target) <= 2048 && IsVisible (Target,True)
+		|| (Target.bReflective && Target.bAimReflect || Target.bInvulnerable) && Distance3D (Target) <= 2048 && IsVisible (Target,True) && !GoingToTurret
 		
 		//Or if is completely indestructible or noclipping at all, regardless of sight or distance.
 		|| (Target.bNoDamage || Target.bNoclip))
 		{
 			//a_log ("my target is spooky");
+			SM_TurretUseDecision(); //Look for any turrets nearby.
 			bFrightened = True; //Then be scared.
 			MinMissileChance = 50; //Double the chance of attacking, to make up for all the running away.
 			//console.printf ("MinMissileChance is now %d.",MinMissileChance);
+		}
+		//If your target is hostile, and is a player or marine that's on a turret. And they are in range and visible.
+		/*This Else If is here so marines scared of an enemy on a turret, won't be any more likely to get on one themselves.
+		Since protecting yourself from machine gun fire by getting to a stationary turret yourself is stupid, and MORE likely to get you killed.*/
+		Else If (IsHostile(Target) && (Target.Player && Target.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" || Target Is "SmartMarine" && SmartMarine(Target).OnTurret)
+		&& Distance3D (Target) <= 2048 && IsVisible (Target,True) && !GoingToTurret)
+		{
+			bFrightened = True; 
+			MinMissileChance = 50;
 		}
 		Else //If they don't meet any of those criteria, then stop being scared.
 		{
@@ -159,7 +170,7 @@ Mixin Class MarineFunctions
 		Actor PotentialMarine;
 		Bool FoundMarines;
 		
-		If (!LastEnemy && Target || SkipCheck) //If you had no prior enemy, like after giving up on your current target. Or if SkipCheck is true.
+		If (SkipCheck || !LastEnemy && Target) //If you had no prior enemy, like after giving up on your current target. Or if SkipCheck is true.
 		{
 			BlockThingsIterator AlertNearbyMarines = BlockThingsIterator.Create (Self,Range);
 			
@@ -237,7 +248,7 @@ Mixin Class MarineFunctions
 	}
 	
 	//Checks the line of fire between the marine and the target. And returns true if an ally, or an actor or line that could block the shot is in the line of fire.
-	Bool SM_CantHitTarget (Bool GrenadeAttack = False)
+	Bool SM_CantHitTarget (Bool ProjectileAttack = False)
 	{
 		Actor Mobj;
 		Line HitLine;
@@ -255,7 +266,7 @@ Mixin Class MarineFunctions
 			If ((!(Mobj.bIsMonster) && !(Mobj.Player) && Mobj.bShootable && Mobj.Radius > 5) || Mobj.bIsMonster && Mobj.bDormant)
 			{
 			a_log ("im aiming at a shootable decoration over 10 mu thick, or a dormant monster");
-				Return (Random[pr_monsterrefire](0,256) < 88 || GrenadeAttack); //Then have a random chance to eventually stop shooting, similar to A_MonsterRefire().
+				Return (ProjectileAttack || Random[pr_monsterrefire](0,256) < 88); //Then have a random chance to eventually stop shooting, similar to A_MonsterRefire().
 			}
 			//If the actor is a monster or player, and is not hostile to you.
 			If ((Mobj.bIsMonster || Mobj.Player) && !IsHostile (Mobj) &&
@@ -270,12 +281,140 @@ Mixin Class MarineFunctions
 		}
 		
 		//Avoid firing your gun or throwing grenades if a linedef is between you and the target, that would block the projectile or hitscan attack.
-		If ((!GrenadeAttack && HitLine && (HitLine.ML_BLOCKEVERYTHING || HitLine.ML_BLOCKHITSCAN)) || //Check for hitscan blocking lines.
-		(GrenadeAttack && HitLine && (HitLine.ML_BLOCKEVERYTHING || HitLine.ML_BLOCKPROJECTILE))) //Ditto, but for projectiles, AKA in case the marine is trying to toss a grenade.
+		If ((!ProjectileAttack && HitLine && (HitLine.ML_BLOCKEVERYTHING || HitLine.ML_BLOCKHITSCAN)) || //Check for hitscan blocking lines.
+		(ProjectileAttack && HitLine && (HitLine.ML_BLOCKEVERYTHING || HitLine.ML_BLOCKPROJECTILE))) //Ditto, but for projectiles, AKA in case the marine is trying to toss a grenade.
 		{Return True;}
 		
 		
 		Return False;
+	}
+		
+	//Decides if the marine should use a nearby turret, if there's any.
+	Bool SM_TurretUseDecision (Double TurretRadius = 512, Double EnemyRadius = 4096)
+	{
+		If (Goal || GoingToTurret) {a_log ("i already have a goal, or am going to a turret");Return False;}
+		
+		Actor FoundTurret;
+		Actor Mobj;
+		Int UseChance;
+		Bool FoundAllies;
+		
+		LookExParams MarineSight;
+		MarineSight.FOV = 180;
+		MarineSight.MinDist = 0;
+		MarineSight.MaxDist = 8192;
+		MarineSight.MaxHearDist = 3072;
+		
+		BlockThingsIterator FindTurrets = BlockThingsIterator.Create (Self,TurretRadius);
+		
+		While (FindTurrets.Next())
+		{
+			If (FindTurrets.Thing Is "SmartMarineMGTurret" && !(SmartMarineMGTurret(FindTurrets.Thing).Occupied) && IsVisible (FindTurrets.Thing,True) && Distance3D (FindTurrets.Thing) <= TurretRadius)
+			{
+				FoundTurret = FindTurrets.Thing;
+				a_log ("i found a turret");
+				//Break;
+			}
+		}
+		
+		If (!FoundTurret) {a_log ("i havent even found a turret");Return False;} //Don't try deciding to use a turret, if there is none around.
+		
+		UseChance = Random (0,50); console.printf ("the initial random use chance is now %d",UseChance);
+		
+		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,EnemyRadius);
+		
+		While (FindEnemies.Next())
+		{
+			Mobj = FindEnemies.Thing;
+			
+			//If you found a monster or player, that is alive, hostile, close enough to you, and visible.
+			If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj.Health > 0 && IsHostile (Mobj) && Mobj.Distance3D (Target) <= EnemyRadius && IsVisible (Mobj,False,params:MarineSight))
+			{
+				If (Mobj.Health >= 2500) {UseChance += 100; a_log ("oh shit");}
+				Else If (Mobj.Player) {UseChance += 98+Random (0,2);}
+				Else If (Mobj.Health >= 1000) {UseChance += 35;}
+				Else If (Mobj.Health >= 500) {UseChance += 25;}
+				Else If (Mobj.Health >= 150 || Mobj Is "SmartMarine") {UseChance += 10;}
+				Else If (Mobj.Health >= 10) {UseChance += 5;}
+				Else If (Mobj.Health >= 1) {UseChance += 1;}
+				console.printf ("my chance of using a turret is now %d",usechance);
+			}
+			//Also increase the chance for every ally you found around you, that could support you while you are stationary and vulnerable.
+			If (bFriendly)
+			{
+				If (Mobj.Health >= 10 && !IsHostile (Mobj) && Mobj.Distance3D (Target) <= EnemyRadius/2 && IsVisible (Mobj,True))
+				{
+					If ((Mobj.bIsMonster && !IsHostile (Mobj) && Mobj != Self)) {UseChance += 30; FoundAllies = True;a_log ("npc friend found");}
+					Else If (Mobj.Player) {UseChance += 60; FoundAllies = True;a_log ("friendly player found");}
+				}
+			}
+			//Since hostile monsters don't attack friendly ones on sight by default, hostile marines can't rely on other fellow hostile monsters, besides other marines.
+			Else
+			{
+				If (Mobj Is "SmartMarine" && !IsHostile (Mobj) && Mobj.Distance3D (Target) <= EnemyRadius/2 && IsVisible (Mobj,True))
+				{
+					UseChance += 30;
+				}
+			}
+		}
+		
+		If (Health <= Default.Health/3) {UseChance += 40;} //High chance to use the turret if you are already close to dying, will probably better to only make this occur with User_Fearless on.
+		If (!FoundAllies) UseChance -= 60; //More unwilling to use turrets if no allies are around, maybe this could be turned off by the User_Fearless variable ?
+		console.printf ("The use chance, while also accounting for any allies found, is now %d",UseChance);
+		If (UseChance >= 100 && FoundTurret)
+		{
+			a_log ("i decided to use the turret i found");
+			SM_AlertNearbyMarines (512,True);
+			GoingToTurret = True;
+			Goal = Spawn ("SM_TurretLocationMarker",FoundTurret.Pos);
+			Goal.Master = FoundTurret; //Make the turret the goals' master. So the goal will stay on the same position as the turret, if the turret is moved.
+			bChaseGoal = True;
+			Return True;
+		}
+		
+		Return False;
+	}
+	
+	//Similar to SM_CantHitTarget, returns true if there is something in the way of the target that should make the marine not shoot.
+	Bool SM_TurretLOFCheck()
+	{
+		Actor Mobj;
+		Line HitLine;
+		FLineTraceData LOFCheck;
+		
+		LineTrace (Angle,8192+2,Pitch,TRF_SOLIDACTORS|TRF_THRUHITSCAN,42,0,-6,LOFCheck);
+		Mobj = LOFCheck.HitActor;
+		HitLine = LOFCheck.HitLine;
+		
+		If (Mobj)
+		{
+			If ((Mobj.bIsMonster || Mobj.Player) && IsHostile(Mobj)) {a_log ("enemy hit");Return False;} Else If ((Mobj.bIsMonster || Mobj.Player) && !IsHostile(Mobj)) {a_log ("option1");Return True;}
+			If ((Mobj.bShootable && Mobj.ResolveState ("Death")) || Mobj.bSolid && !(Mobj.bShootable)) {a_log ("option2");Return False; }
+			If (Mobj.Radius <= 5 && Mobj.bShootable) {a_log ("option3");Return False;}
+			Return True;
+		}
+		
+		If (HitLine && (HitLine.ML_BLOCKEVERYTHING || HitLine.ML_BLOCKPROJECTILE)) Return True;
+		
+		Return False;
+	}
+	
+	Void LeaveTurret ()
+	{
+		If (Turret && OnTurret)
+		{
+			Turret.A_ChangeLinkFlags (False,False);
+			SmartMarineMGTurret(Turret).Occupied = False;
+			Warp(Turret,-Turret.Radius*2); //Warp the marine at about the same position he is visibly at while on the turret.
+			console.printf ("my angle is %d",angle);
+			Turret.Angle = Self.Angle;
+			console.printf ("my turrets' angle is %d",turret.angle);
+			Turret = Null;
+			ReactionTime = Default.ReactionTime;
+			OnTurret = False;
+			bNoPain = False;
+			bDontThrust = False;
+		}
 	}
 	
 	//This code was written by RaveYard, to allow hostile marines to see and attack friendly NPCs.

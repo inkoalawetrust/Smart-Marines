@@ -23,10 +23,12 @@ Alternate marine colors by inkoalawetrust, partially based on the ones made by D
 Vanilla assault rifle sprites by Mik12. Slightly edited by inkoalawetrust https://forum.zdoom.org/viewtopic.php?f=37&t=29708&p=564526
 Digital sights scanlines and crosshairs made by inkoalawetrust
 First person turret sprites and muzzle flash made by Sergeant_Mark_IV. Overlay glow and light graphics made by inkoalawetrust
+Friendly marine command text made using the Doom Text Generator: https://c.eev.ee/doom-text-generator/
 
 Reloading sound is from Half-Life.
 Gun clicking sound made by knova https://freesound.org/people/knova/sounds/170272/
 Rifle melee sound made by newagesoup https://freesound.org/people/newagesoup/sounds/348244/
+Berserk rifle melee sound made by EFlexMusic https://freesound.org/people/EFlexMusic/sounds/369594/
 Rifle melee missing sound made by qubodup https://freesound.org/people/qubodup/sounds/60013/
 Grenade exploding sound is by Stefano Cremona, taken from the GDC Audio Library 2020
 Zoomed in rifle sound is a modified version of littlemachine.wav from Half-Life 1, edited by inkoalawetrust

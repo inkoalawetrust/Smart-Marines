@@ -10,6 +10,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 
 - Attack stuff by:
   - Bashing it with their rifle. But they normally avoid it if they can help it. (Melee)
+	- Can also use berserk packs, which triple their melee damage, and make them more likely to engage in melee.
   - Shoot at it, with a random chance of changing position while doing so. (Ranged)
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - They avoid firing their rifles or grenades if their line of fire to the target is blocked by obstacles or allies.
@@ -23,7 +24,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
 - Marines friendly to the player can be ordered to stand still or wander around by pressing use on them. This only works if they aren't currently fighting.
 - They work with ZDoom's built-in patrol system, so you can have them walk around set paths. To do stuff like guard areas.
 - Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*. (Unfinished)
-- Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one. (Unfinished)
+- Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one.
 - Includes a separate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on him doesn't get him off. (Unfinished)
 - Can be colored with a variety of colors:  (Unfinished)
   - Red

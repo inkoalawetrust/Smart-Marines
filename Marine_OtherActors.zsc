@@ -52,6 +52,17 @@ Class SmartMarineWanderingMessage : SmartMarineStandingMessage
 	}
 }
 
+Class SmartMarineTurretMessage : SmartMarineStandingMessage
+{
+	States
+	{
+		Spawn:
+			MARC C 16;
+			MARC C 1 A_FadeOut (0.05);
+			Wait;
+	}
+}
+
 //Try rewriting and simplifying the grenade code. And make liquid explosion states based on what fluid the grenade exploded on.
 
 Class SM_Grenade : Actor
@@ -164,69 +175,15 @@ Class SmartMarineEmptyMagazine : Actor
 			Loop;
 	}
 }
-/*
-class smarterimp : doomimp replaces doomimp
+
+Class SM_TurretLocationMarker : PatrolPoint
 {
-	Actor OriginalTarget;
-	//Searches for grenades that are about to explode near the marine.
-	Bool SM_FindNearbyGrenade (Double SearchRadius = 256)
+	Override Void Tick()
 	{
-		Actor Mobj;
-		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
+		Super.Tick();
+		If (!Master) Destroy();
+		If (IsFrozen()) Return;
 		
-		While (GrenadeSearch.Next())
-		{
-			Mobj = GrenadeSearch.Thing;
-			//a_log ("looking for grenades");
-			If (Mobj.GetClassName() == "SM_Grenade" && Mobj.ReactionTime <= 6 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True)) //If the found actor is a grenade, that will explode in about a second. And you are in the blast radius and it's visible.
-			{
-				OriginalTarget = Target; //Keep the original target of the marine stored.
-				Target = Mobj; //Then change the target to the grenade that was found.
-				//a_log ("found a grenade");
-				Return True; //And return true.
-			}
-		}
-		//a_log ("no grenades found");
-		Return False; //No grenades were found near the marine.
-	}
-	States
-	{
-		Spawn:
-			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
-			TROO A 10 A_Look();
-			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
-			TROO B 10 A_Look();
-			Loop;
-		See:
-			TROO AABBCCDD 3
-			{
-				A_Chase();
-				
-				If (SM_FindNearbyGrenade())
-				{
-					Return ResolveState ("RunAway");
-				}
-				
-				Return State (Null);
-			}
-			Loop;
-		RunAway: //Makes the marine run away from any grenades about to explode, this state must NEVER be broken.
-			TNT1 A 0 //Stop the state from being interrupted, and make the marine quickly run away from the grenade.
-			{
-				bNoPain = True;
-				bFrightened = True;
-				Speed = Default.Speed*1.75;
-			}
-			TROO AABBCCDD 2 A_Chase (Null,Null);
-			TNT1 A 0
-			{
-				If (OriginalTarget && OriginalTarget.Health > 0)
-				{Target = OriginalTarget;} //If the marine had a target prior to running from a grenade, and it's still alive, then set it back.
-				Else {Target = Null;} //Otherwise just remove the grenade from the target field.
-				bNoPain = False;
-				bFrightened = False;
-				Speed = Default.Speed;
-			}
-			Goto See; //Go back to the see state.
+		Warp (Master);
 	}
 }

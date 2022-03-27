@@ -54,11 +54,11 @@ X==Add the ability for them to drown if they are fully submerged for too long, t
 
 *=Make placeable machine gun turrets.
 *==These turrets will have infinite ammo, and thrice the fire rate and damage of the marines' rifles.| Sort of done, I nerfed them because they were too OP by being more realistic lol.
-==When a marine is near one and sees multiple targets, or really powerful ones, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
-===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.
-==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
+*==When a marine is near one and sees multiple targets, or really powerful ones, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
+x===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.| Nah, I was able to use patrol goals instead.
+*==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
 ==Make a seperate actor that has the marine already on the turret, and leave the turret unmanned once killed.
-*==I uh, aren't sure how I'll code it to be usable by the player :badpokerface:| Also yep, Lewisk3 coded it to be usable by players.
+*==I uh, aren't sure how I'll code it to be usable by the player :badpokerface:|Lewisk3 coded it to be usable by players.
 
 =MAKE A MARINE WITH A ROCKET LAUNCHER.
 ==Make firing states for the rocket launcher with fire coming out.

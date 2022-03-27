@@ -6,6 +6,7 @@ Marine/Throw  DSNOWAY //https://www.youtube.com/watch?v=UhVHp1cFTTc
 Marine/Fire "Sounds/RifleFire.ogg"
 Marine/Reload "Sounds/RifleReload.ogg"
 Marine/Melee "Sounds/RifleHit.ogg"
+Marine/PowerMelee "Sounds/RifleHitHard.ogg"
 Marine/MeleeMiss "Sounds/RifleSwoosh.ogg"
 VRifle/EmptyGun "Sounds/GunClick.ogg" //The NPCs themselves won't be using this, it's meant for the player weapon.
 VRifle/Zoomed "Sounds/RifleZoomed.ogg"
@@ -25,6 +26,7 @@ $Limit Marine/Throw 0
 $Limit Marine/Fire 0
 $Limit Marine/Reload 0
 $Limit Marine/Melee 0
+$Limit Marine/PowerMelee 0
 $Limit Marine/MeleeMiss 0
 
 $Limit VRifle/EmptyGun 0
