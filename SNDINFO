@@ -1,4 +1,4 @@
-Marine/Death DSPLDETH
+Marine/Death1 DSPLDETH Marine/Death2 DSPDIEHI
 Marine/XDeath  DSSLOP
 Marine/Pain  DSPLPAIN
 Marine/AlertAllies "Sounds/Alert.ogg"
@@ -15,6 +15,12 @@ Turret/Ready "Sounds/TurretReady.ogg"
 
 Grenade/Bounce "Sounds/GrenadeBounce.ogg"
 Grenade/Explode "Sounds/GrenadeBoom.ogg"
+
+$Random Marine/Death
+{
+	Marine/Death1
+	Marine/Death2
+} 
 
 $Attenuation Turret/Fire 0.25
 

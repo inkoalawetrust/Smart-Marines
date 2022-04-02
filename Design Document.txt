@@ -28,21 +28,21 @@ An x means it was cancelled for whatever reason.
 *==They should have a random chance to throw a grenade, they will throw it if the random throwing chance exceeds a threshold that can be user configurable.
 *==Besides the random chance, the number that needs to exceed the threshold should also be increased by 1-2 for every killable enemy around the target
    the marine will toss the grenade to.
-==There should be a user variable to totally turn the grenade throwing off.
+*==There should be a user variable to totally turn the grenade throwing off.
 *==They should run away if they are within the blast radius of any of their grenades.
 
-=Add marine palette translations, such as ones that make him blue, red, purple etc, and that can be set to each marine using a User_Color string variable.
-==Also add a special "random" string, that makes the marine pick a random color.
+*=Add marine palette translations, such as ones that make him blue, red, purple etc, and that can be set to each marine using a User_Color string variable.
+*==Also add a special "random" string, that makes the marine pick a random color.
 
-=Add a User_RandomPersonality variable, which randomizes other user variables to generate a unique marine, such as one that is very likely to throw grenades,
+*=Add a User_RandomPersonality variable, which randomizes other user variables to generate a unique marine, such as one that is very likely to throw grenades,
  never stops chasing their target, and doesn't swim. I should add this for last, once the rest of the list is done.
-==The randomization code should be called before the variables are initialized, so variables can be prevented from being randomized by the mapper.
+*==The randomization code should be called before the variables are initialized, so variables can be prevented from being randomized by the mapper.
 
 x=They should be able to swim across swimmable 3D floors if their target is on the other side. This should be toggleable.| Cancelled, the code is too janky even compared to the rest of the marine code, and I still have no swimming sprites for them even.
 x==They will do that by jumping into the water and swimming on the surface, then jumping out the other side.
 X==Add the ability for them to drown if they are fully submerged for too long, then reset the drown timer once on the surface again, Make the timers' max value into a user variable.
 
-=See about adding taunts to the marines, obviously it should be toggleable too, along with the chance of them doing it.
+x=See about adding taunts to the marines, obviously it should be toggleable too, along with the chance of them doing it.
 
 *=Make pressing use on a marine put it on its' wander state, and pressing use again put it back to its' Spawn state. But only when the marine has no target.
 
@@ -57,7 +57,7 @@ X==Add the ability for them to drown if they are fully submerged for too long, t
 *==When a marine is near one and sees multiple targets, or really powerful ones, he'll run up to it and man it, hopefully I'll be able to get them to walk up to a turret without too much hackery.
 x===Worst case scenario I have to make them just keep facing the turret and walk in a straight line towards it.| Nah, I was able to use patrol goals instead.
 *==When having manned a machine gun, the marine will have a random chance to leave it after not seeing any enemies for a few seconds.
-==Make a seperate actor that has the marine already on the turret, and leave the turret unmanned once killed.
+*==Make a seperate actor that has the marine already on the turret, and leave the turret unmanned once killed.
 *==I uh, aren't sure how I'll code it to be usable by the player :badpokerface:|Lewisk3 coded it to be usable by players.
 
 =MAKE A MARINE WITH A ROCKET LAUNCHER.

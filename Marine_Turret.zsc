@@ -20,20 +20,23 @@ Extend Class SmartMarine
 					If (Target && Target.bShootable) Return ResolveState ("TurretFire");
 				}
 				
-				If (!Target || Target && (!CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY ) || Target.Health <= 0)) //If there is no target, or the target is not visible or alive.
+				If (User_SearchTime != -1)
 				{
-					TimeSearching++; //Increment the amount of time you've been looking for the target.
-					console.printf ("I've been looking for %d",TimeSearching);
-					If (TimeSearching >= 200*2) //If the timer is over this placeholder value.
+					If (!Target || Target && (!CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY ) || Target.Health <= 0)) //If there is no target, or the target is not visible or alive.
 					{
-						A_Log ("I give up.");
-						TimeSearching = 0; //Reset the timer.
-						A_ClearTarget(); //I forgor 💀
-						LeaveTurret(); //Make the status changes needed to put the turret and the marine that was "using" it back to normal.
-						Return ResolveState ("Idle"); //And go back to wandering.
+						TimeSearching++; //Increment the amount of time you've been looking for the target.
+						console.printf ("I've been looking for %d",TimeSearching);
+						If (TimeSearching >= User_SearchTime*1.5)
+						{
+							A_Log ("I give up.");
+							TimeSearching = 0; //Reset the timer.
+							A_ClearTarget(); //I forgor 💀
+							LeaveTurret(); //Make the status changes needed to put the turret and the marine that was "using" it back to normal.
+							Return ResolveState ("Idle"); //And go back to wandering.
+						}
 					}
+					Else {TimeSearching = 0;}
 				}
-				Else {TimeSearching = 0;}
 				
 				//Have the marine run away from grenades about to explode.
 				If (SM_FindNearbyGrenade())
@@ -54,14 +57,14 @@ Extend Class SmartMarine
 			Loop;
 		TurretFire:
 			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"LeaveAndRun");
-			TNT1 A 0 A_FaceTarget (10,10); //Not really neccesary, since the code on the bullet itself adjusts the marines' direction. But whatever.
+			TNT1 A 0 A_FaceTarget (20,20);
 			TNT1 A 0 A_JumpIf (SM_TurretLOFCheck(),"TurretSee");
-			MTUR C 3 Light ("MarineMGFiringLight") A_SpawnProjectile ("SmartMarineMGBullet",38,4,FRandom (1.0,-1.0),CMF_AIMDIRECTION,Pitch+FRandom(1.3,-1.3));
+			MTUR C 3 Light ("MarineMGFiringLight") A_SpawnProjectile ("SmartMarineMGBullet",38,-4.2,FRandom (1.0,-1.0),CMF_AIMDIRECTION|CMF_SAVEPITCH ,Pitch+FRandom(1.3,-1.3));
 			TNT1 A 0 A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
 			
 			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"LeaveAndRun");
-			TNT1 A 0 A_FaceTarget (10,10);
-			MTUR D 3 Light ("MarineMGFiringLight") A_SpawnProjectile ("SmartMarineMGBullet",38,-4,FRandom (1.0,-1.0),CMF_AIMDIRECTION,Pitch+FRandom(1.3,-1.3));
+			TNT1 A 0 A_FaceTarget (20,20);
+			MTUR D 3 Light ("MarineMGFiringLight") A_SpawnProjectile ("SmartMarineMGBullet",38,4.2,FRandom (1.0,-1.0),CMF_AIMDIRECTION|CMF_SAVEPITCH ,Pitch+FRandom(1.3,-1.3));
 			TNT1 A 0 A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
 			TNT1 A 0 A_MonsterRefire (96,"TurretSee");
 			Loop;
@@ -72,6 +75,225 @@ Extend Class SmartMarine
 	}
 }
 
+Class TurretMarine : Actor
+{
+	Default
+	{
+		//$Title AI Marine (Turret)
+		//$Category Marines
+		//$Sprite MTURB1
+		Health 120;
+		GibHealth 20;
+		Height 56;
+		DeathHeight 12;
+		CameraHeight 50;
+		Radius 16;
+		YScale 0.98;
+		Mass 100;
+		FastSpeed 14;
+		FriendlySeeBlocks 20;
+		MaxTargetRange 8192;
+		MinMissileChance 100;
+		Tag "Marine NPC";
+		Species "SmartMarine";
+		Obituary "%o was shot to death by a marine";
+		DropItem "Clip";
+		DropItem "Clip", 128, 2;
+		DropItem "ClipBox", 64;
+		DropItem "VanillaRifle", 48;
+		DamageFactor "MarineHMG", 2.0;
+		PainSound "Marine/Pain";
+		DeathSound "Marine/Death";
+		Monster;
+		+MissileMore;
+		+MissileEvenMore;
+		+Telestomp;
+		+NoInfightSpecies;
+		+FloorClip;
+		+DontThrust;
+		+NoPain;
+		+AvoidHazards; //This ONLY works for crushing ceilings and NOTHING ELSE. So it's largely useless but I'm still adding it.
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (IsFrozen() || Health <= 0) {Return;} //Don't run the below code if frozen in time or dead.
+		
+		If (!bFriendly)
+		{
+			Species = "HostileSmartMarine";
+		}
+		Else
+		{
+			Species = "SmartMarine";
+		}		
+	}
+	
+	Override Void OnDestroy ()
+	{
+		Super.OnDestroy();
+		a_log ("fuck me");
+		If (bKilled) Return;
+		Actor Turret = Spawn ("SmartMarineMGTurret",Pos);
+		If (Turret) {Turret.Angle = Angle; Turret.Pitch = Pitch;}
+	}
+	
+	Override Bool Used(Actor User)
+	{
+		Super.Used (User);
+		
+		If (!User_DisobeyCommands && bFriendly && IsFriend (User))
+		{
+			Spawn ("SmartMarineTurretMessage",(Pos.X,Pos.Y,Pos.Z+Height+4));
+			A_StartSound ("Misc/Chat",CHAN_VOICE,CHANF_OVERLAP,0.25,ATTN_STATIC);
+			SetStateLabel ("LeaveTurret");
+			Return True;
+		}
+		Return False;
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		If (!User_Color || User_Color ~== "") {Return;} //Don't run the code if User_Color is empty.
+		
+		//Handles the random color choice that is performed if the color name given is "Random".
+		If (User_Color ~== "Random")
+		{
+			Static Const String ColorArray[] = {"Red","Gray","White","Black","Blue","Yellow","Orange","Pink","DarkGreen","Default"}; //Contains all the valid color names.
+			
+			User_Color = ColorArray[Random(0,9)]; //Randomly picks a color string.
+		}
+
+		A_SetTranslation (String.Format("Marine_%s", User_Color));
+	}
+	Mixin TurretMarineFunctions;
+	
+	Bool User_RunFromGrenades;
+	Bool User_DisobeyCommands;
+	Bool User_NoRifleDrop;
+	String User_Color;
+	States
+	{
+		Spawn:
+			MTUR BBBBBBBBBBB 6
+			{
+				If (STM_FindNearbyGrenade())
+				{
+					Return ResolveState ("LeaveTurret");
+				}
+
+				STM_LookForTarget();
+				Return State (Null);
+			}
+			MTUR B 0 {If (Random (0,256) > 235) {Angle += RandomPick(45,90,-45,-90);}}
+			Loop;
+		See:
+			MTUR BBBBBBBBBBBBBBBBBBBBBBBB 1
+			{
+				if(!bFriendly)
+				{
+					STM_UpdateTarget();
+				}
+				
+				//Have the marine run away from grenades about to explode.
+				If (STM_FindNearbyGrenade())
+				{
+					a_log ("OH SHIT");
+					Return ResolveState ("LeaveTurret");
+				}
+				
+				If (Target && Target.Health <= 0) Target = Null; //Remove dead targets.
+				
+				If (Target) A_Chase (Null,"TurretFire",CHF_DONTMOVE|CHF_NODIRECTIONTURN);
+				Else STM_LookForTarget();
+				
+				Return State (Null);
+			}
+			MTUR B 0 {If (Random (0,256) > 230) {Angle += RandomPick(45,90,-45,-90);}}
+			Loop;
+		TurretFire:
+			TNT1 A 0 A_JumpIf (STM_FindNearbyGrenade(),"LeaveTurret");
+			TNT1 A 0 A_FaceTarget (20,20);
+			TNT1 A 0 A_JumpIf (STM_TurretLOFCheck(),"See");
+			MTUR C 3 Light ("MarineMGFiringLight") A_SpawnProjectile ("SmartMarineMGBullet",38,-4.2,FRandom (1.0,-1.0),CMF_AIMDIRECTION,Pitch+FRandom(1.3,-1.3));
+			TNT1 A 0 A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
+			
+			TNT1 A 0 A_JumpIf (STM_FindNearbyGrenade(),"LeaveTurret");
+			TNT1 A 0 A_FaceTarget (20,20);
+			MTUR D 3 Light ("MarineMGFiringLight") A_SpawnProjectile ("SmartMarineMGBullet",38,4.2,FRandom (1.0,-1.0),CMF_AIMDIRECTION,Pitch+FRandom(1.3,-1.3));
+			TNT1 A 0 A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
+			TNT1 A 0 A_MonsterRefire (96,"See");
+			Loop;
+		LeaveTurret:
+			TNT1 A 0
+			{
+				Actor Turret = Spawn ("SmartMarineMGTurret",Pos);
+				If (Turret) {Turret.Angle = Angle; Turret.Pitch = Pitch;}
+				Bool b; Actor Mobj;
+				[b,Mobj] = A_SpawnItemEx ("SmartMarine",-Radius*2,flags:SXF_NOCHECKPOSITION);
+				If (Mobj)
+				{
+					If (Target) Mobj.Target = Target;
+					//Transfer these properties over to the marine.
+					If (User_NoRifleDrop) SmartMarine(Mobj).User_NoRifleDrop = True;
+					If (User_Color) SmartMarine(Mobj).User_Color = User_Color;
+					Mobj.SetStateLabel ("See");
+					Mobj.Health = Self.Health;
+				}
+			}
+			Stop;
+		Death:
+			TNT1 A 0
+			{
+				Actor Turret = Spawn ("SmartMarineMGTurret",Pos);
+				If (Turret) {Turret.Angle = Angle; Turret.Pitch = Pitch;}
+				
+				Actor Mobj = Spawn ("SmartMarine",Pos);
+				Mobj.Warp (Self,-Radius*2,flags:WARPF_NOCHECKPOSITION);
+				If (Mobj)
+				{
+					//The hostile check is there because when actors die, they set their killer as the target. And the killer could've been a friend by accident.
+					If (Target && IsHostile (Target)) Mobj.Target = Target;
+					//Transfer these properties over to the marine.
+					If (User_NoRifleDrop) SmartMarine(Mobj).User_NoRifleDrop = True;
+					If (User_Color) SmartMarine(Mobj).User_Color = User_Color;
+					Mobj.A_Die();
+				}
+			}
+			Stop;
+		XDeath:
+			TNT1 A 0
+			{
+				Actor Turret = Spawn ("SmartMarineMGTurret",Pos);
+				If (Turret) {Turret.Angle = Angle; Turret.Pitch = Pitch;}
+				
+				Actor Mobj = Spawn ("SmartMarine",Pos);
+				Mobj.Warp (Self,-Radius*2,flags:WARPF_NOCHECKPOSITION);
+				If (Mobj)
+				{
+					//The hostile check is there because when actors die, they set their killer as the target. And the killer could've been a friend by accident.
+					If (Target && IsHostile (Target)) Mobj.Target = Target;
+					//Transfer these properties over to the marine.
+					If (User_NoRifleDrop) SmartMarine(Mobj).User_NoRifleDrop = True;
+					If (User_Color) SmartMarine(Mobj).User_Color = User_Color;
+					Mobj.A_Die('Extreme');
+				}
+			}
+			Stop;
+		GenericFreezeDeath:
+			PLAY G 0
+			{
+				Actor Turret = Spawn ("SmartMarineMGTurret",Pos);
+				If (Turret) {Turret.Angle = Angle; Turret.Pitch = Pitch;}
+				Warp (Self,-Radius*2,flags:WARPF_NOCHECKPOSITION);
+			}
+			#### # 5 A_GenericFreezeDeath;
+			---- A 1 A_FreezeDeathChunks;
+			Wait;
+	}
+}
 
 //The code that makes the turret usable by marines was originally written by Lewisk3. Modified by me. The weapon is mostly written by me.
 
@@ -115,6 +337,7 @@ Class SmartMarineMGTurret : Actor
 		// Restore operator status.
 		Operator.A_SetSpeed(User.Default.Speed);
 		Operator.A_SetScale(User.Default.Scale.X);
+		Operator.Warp (Self,-Radius*1.5,flags:WARPF_NOCHECKPOSITION|WARPF_INTERPOLATE);
 		
 		// Remove gun
 		Let Gun = SmartMarineMGWeapon(Operator.FindInventory("SmartMarineMGWeapon"));
@@ -362,7 +585,7 @@ Class SmartMarineMGBullet : FastProjectile
 		
 		Angle += FRandom (0.8,-0.8);
 		Pitch += FRandom (1.0,-1.0);
-		Vel3DFromAngle (Speed,Angle,BulletSlope());
+		Vel3DFromAngle (Speed,Angle,Pitch);
 	}
 	
 	Override Int SpecialMissileHit (Actor Victim)
@@ -381,7 +604,7 @@ Class SmartMarineMGBullet : FastProjectile
 		
 		RipAmount++;
 		
-		If (Random (0,256) >= 128+48) {bPainLess = True;} //So monsters aren't frozen in pain from the amount of bullets hitting them.
+		If (!Victim.Player && Victim.PainChance <= 80 && Random (0,256) >= 128+48) {bPainLess = True;} //So monsters aren't frozen in pain from the amount of bullets hitting them.
 		Return -1;
 	}
 	

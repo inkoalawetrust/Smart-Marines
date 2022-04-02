@@ -1,7 +1,7 @@
 DoomEdNums
 {
 	8573 = SmartMarine
-	//8574 = SmartMarineTurret
+	8574 = TurretMarine
 	8575 = VanillaRifle
 	8576 = SmartMarineMGTurret
 }

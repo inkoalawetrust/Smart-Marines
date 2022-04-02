@@ -1,107 +1,83 @@
-NOTE: THE MARINES ARE STILL USING PLACEHOLDER SPRITES FOR DIVING AND SWIMMING, I WILL TRY TO ADD PROPER SPRITES WHENEVER I CAN GET MY HANDS ON THEM.
-
-The credits for this NPC, his rifle and machine gun turret, can be found inside the credits.txt document.
+The credits for every asset used on this NPC, can be found inside credits.txt.
 
 If you have any issues with the marines or some other NPC made by me, you can ask me for help on Discord at inkoalawetrust#9783, or Twitter at @inkoalawetrust.
 
-The marines have 120 health, only a bit higher than the players'. You can just turn on the Friendly flag for them in the editor to use them as smart allies.
-In fact, I've sort of just made them with the intent of being used as allies, like the Allied Marines resource from Realm667.
+The marines have 120 health, somewhat higher than the players'. You can turn on the Friendly flag for them in the editor to use them as smart allies.
+In fact, I've sort of just made them with the intent of being used as allies, like the Allied Marines resource from Realm667. But they should work just as well as enemies.
 
-Their name in the editor is "AI Marine" and "AI Marine (Stationary)", and they can be found under the Marines folder.
+Their name in the editor is "AI Marine" and "AI Marine (Turret)", and they can be found under the Marines folder.
+Their class names are "SmartMarine", "TurretMarine", and the turret is "SmartMarineMGTurret"
 
 ================|WHAT THEY CAN DO|================
 
-Attack stuff by:
-- Bashing it with their rifle. (Melee)
-- Shoot at it in bursts of 5 rounds. (Ranged)
-- Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect) 
-Run away from their own grenades.
-
-Reload their rifles for every 20 rounds they fire in total.
-- They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
-Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
-
-When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
-Can swim across swimmable 3D sectors to reach their target.
-
-Can be frightened if their target is big and/or strong enough.
-
-Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*.
-
-Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one.
-
-Includes a seperate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on him doesn't get him off.
-
-You can press the use key on friendly marines when they are in their initial spawn state, to get them to move.
-
-Can be colored with a variety of colors:
-- Red
-- Gray
-- White
-- Black
-- Blue
-- Yellow
-- Orange
-- Pink
-- Random (Randomly pick a color.)
-Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc.
-
-Most of the marines' behaviour can be configured on a per actor basis using user variables. More on that on the below section.
-
-They also have a rifle that they sometimes drop, which you can pick up and use yourself.
-- The rifle fires bursts of 5 rounds, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
-- It also features animated digital sights complete with an animation for looking in and out of them, using the sights increased you accuracy as well.
-
-*Such as Imps and Pinkies, anything that is really weak (5 or less HP), won't even count as a kill for the marine, so they won't be dancing afer killing 40 flies.
+- Attack stuff by:
+  - Bashing it with their rifle. But they normally avoid it if they can help it. (Melee)
+	- Can also use berserk packs, if one is somehow in their inventory, which triple their melee damage, and make them more likely to engage in melee.
+  - Shoot at it, with a random chance of changing position while doing so. (Ranged)
+  - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
+- They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
+- Run away from the grenades they throw, if those grenades are about to explode.
+- Reload their rifles for every 20 rounds they fire in total.
+  - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
+- Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
+- When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
+- Alert other marines that are on their side of their current target, if the other marines have no target they are dealing with already. They can also hear the alerts of enemy marines.
+- Retreat and keep a distance away from very powerful or large enemies like Cyberdemons. Or enemy players and marines on turrets.
+- Marines friendly to the player can be ordered to stand still or wander around by pressing use on them. This only works if they aren't currently fighting.
+- They work with ZDoom's built-in patrol system, so you can have them walk around set paths. To do stuff like guard areas.*
+- Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one.
+- Includes a separate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on them will get them off, if they are friendly, and User_DisobeyCommands is off.
+- Can be colored with a variety of colors:
+  - Red
+  - Gray
+  - White
+  - Black
+  - Blue
+  - Yellow
+  - Orange
+  - Pink
+  - Dark Green
+  - Random (Randomly pick a color.)
+  - Default (Use the default shade of green. Similar to just leaving User_Color empty.)
+- Most of the marines' behaviour can be configured on a per actor basis using user variables.
+- Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc. Adding a custom value to a user variable prevents it from being randomied.
+- They also have a rifle that they sometimes drop, which you can pick up and use yourself.
+  - The rifle fires at full auto, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
+  - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increased you accuracy as well.
+  - The rifle can be entirely disabled from dropping from dead marines, by enabling User_NoRifleDrop on the marine.
 
 ================|USER VARIABLES|================
-User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring the modify the source code of the actor in any way.
+User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring to modify the source code of the actor in any way.
 If you don't know how to use and/or change the user variables of an actor, then click on this Imgur album to see how: https://imgur.com/a/IF9Ezo2
 
-User_Color: A text input field, that allows you to type in one of several premade colors to set the marines' armor to, those include: Red, Gray, White, Black, Blue, Yellow, Orange, and Pink. You can type random to give the marine a random color.
-User_AttentionSpan: How long the marine will chase his target before losing it, the higher the number, the longer he'll chase. Default is 200.
-User_Persistent: Makes the marine chase his target indefinitely, and negates User_AttentionSpan.
-User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower the number, the more likely he is to throw one. Default is 240.
-User_NoGrenade: If on, the marine will never throw grenades, negates User_GrenadeThreshold.
-User_NoMelee: If on, the marine will never bash enemies with his rifle in melee range.
-User_NoReload: If on, the marine never needs to reload his gun.
-User_NoRetreat: If on, the marine will not try to first get out of sight from his target before reloading.
-User_NoSwim: If on, the marine will not swim when in water or to reach his target.
-User_Fearless: If on, the marine will not be scared of big and/or strong enough enemies that they are targeting.
-User_NoTaunt: If on, the marine will not have a chance to taunt after killing a powerful enemy or a player.
-User_NoMookTaunt: The marine will not have a chance to taunt after killing enough mook enemies, if you don't know what that is, check out this TV Tropes article: https://tvtropes.org/pmwiki/pmwiki.php/Main/Mooks
-User_DontUseTurrets: The marine won't go to and use any turrets near him for any reason.
+User_SearchTime: The amount of time the marine will try to look for his target before giving up. (And getting off the turret if on one.)
+- Default is 300. -1 makes the marine never give up persuit while the target is alive. And immediately go back to wandering once the target is dead.
+User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower the number, the more likely he is to throw one.
+- Default is 240. -1 makes them always throw grenades, unless they would be caught in the blast. And 256 makes them never throw grenades.
+User_DisobeyCommands: Friendly marines will not wander, stay in place, or leave turrets when the player presses use on them.
+User_NoReload: Marines do not need to ever reload their gun.
+User_NoRifleDrop: Marines will never drop their rifles once killed.
+User_RetreatAttempts: The amount of times the marine tries to run out of sight of his target, when he needs to reload.
+- Default is 10. -1 makes the marine reload in the open, without trying to get behind cover at all.
+User_AlertRange: The distance around which a marine will alert other marines on his side of a target.
+- Default is 256 map units. -1 disables alerting entirely for this marine, but still allows them to hear the alerts of other marines.
+User_EnemyAlertHearingRange: The distance around which a marine can hear the alerts of other, enemy marines.
+- Default is 1024 map units. -1 disables hearing enemy alerts entirely, but the marine can still be alerted by other marines on his side.
+User_MeleeChance: The chance of the marine to try changing position after smacking something once.
+- Default is 96, a value of 255 means that the marine will only smack a target when he gets into melee once, then change position. This variable ONLY uses a number range from 0 to 255.
+User_TurretThreshold: How likely the marine is to use a turret near him. Marines are much more likely to use turrets, if they have allies around to cover them. So they are not sitting ducks while on the turret.
+- Default is 100, -1 means that the marine will never use a turret.
+User_FearDistance: The distance that the marine runs away to, if his target is scary enough.
+- Default is 2048 map units, a value of 0 or less makes them fearless. (Within reason, so they still avoid grenades for example.)
+User_Color: Can be used to give the marines different armor colors.
+- Default is no translation, the available colors are Default, Gray, Red, White, Black, Blue, Yellow, Orange, Pink, Dark Green, and Random, which randomly picks any of the afformentioned colors.
+User_RandomPersonality: When on, it randomizes several user variables that could be considered aspects of the marines' personality, such as:
+- User_SearchTime, User_GrenadeThreshold, User_TurretThreshold, User_RetreatAttempts, User_MeleeChance, User_FearDistance, and User_Color.
+- If any of those variables have any values besides their defaults, then they won't be randomized, so you can still for example have marines with random grenade and turret thresholds, but the same melee chance.
+- The variable can be set to true again in-game using SetUserVariable() in ACS, allowing you to randomize a marines' personality mid-game, if you want to do that for some reason.
 
-User_RandomPersonality: If on, it will randomize any above variable that could be seen as having to do with each marines' personality. Setting a value for a variable stops it from being randomized.
-For example, if you turned it on for a group of marines, they will now:
-- Have varying predispositions to throw grenades at enemies.
-- Each chase a target for a different amount of time.
-- Each of them may or may not, use melee attacks, retreat to reload, and throw grenades at all, or any combination of those.
-Note: NoReload isn't randomized, because having a gun with an endless magazine isn't a personality trait. User_Persistent isn't randomly changed
-because it would mean that some marines just always know where their target is at all times somehow.
-
-================|DETAILS ON HOW THE MARINES ACTUALLY WORK|================
-This information is included here to get a better grasp of how the marine works to use them on your maps and mods more effectively.
-
-Their target chasing and losing behaviour uses an internal timer, if User_Persistent is off and they have a target, that timer will begin to increment if
-they cannot see or hear their target, but if they do see or hear the target again, the timer will reset. If the timer increments above the value of
-User_AttentionSpan, then the marine will lose track of his target and wander around until he finds another one.
-
-The marine is more likely to throw a grenade at a strong enough target, and even more likely to throw one depending on how many other enemies are around
-that target and would be caught in the grenades' blast radius. Lowering the value of User_GrenadeThreshold increases the chance to toss a grenade even more.
-
-
-================|THE ASSAULT RIFLE|================
-When a marine dies, you may have noticed that they drop a rifle, or you just noticed it in the editor.
-
-The buttons you need to use this rifle are the standard fire button, the reload button, and zoom button, if you don't have the latter two specified,
-you have to go to Options>Customize Controls>Weapon, and bind those actions to keys, usually they are mapped to R and Z respectively.
-
-The rifle is based on the rifle that Doomguy and the former humans carry, it fires 5 shots at a time, and has a
-20 round magazine, it also has digital sights that you can look through with the zoom key, which increase your accuracy.
-
-================|THE MACHINE GUN TURRET|================
-A machine gun turret that can be placed down by mappers (Or just spawned through the console obviously.) is also included, if one is near a marine and
-there are enough enemies around or at least on really powerful enemy. The marine will run up to it and use it, once every enemy is dead the marine will
-then eventually leave the turret, the player is also able to use the turret, and can get a friendly marine in one to leave it by pressing the use key.
-There is also a variant of the marine that is on the turret and always stays on it until killed. And has a User_TurretMarineColor variable, that behaves exactly like User_Color.
+STATIONARY TURRET MARINE VARIABLES:
+- User_RunFromGrenades: When turned on, the stationary marine will leave his turret to run from any grenades about to explode, like the marines normally do.
+- User_DisoberyCommands: Like the same variable on the normal NPC. This will prevent the friendly turret marines from getting off the turret when you press use on them.
+- User_NoRifleDrop: Works exactly like it does on the main marine NPC.
+- User_Color: Also works exactly like it does on the main marine NPC.

@@ -20,6 +20,7 @@ Extend Class SmartMarine
 	{
 		Death: //Plays one of 4 different animations.
 			TNT1 A 0 A_SetSpeed (Default.Speed); //In case the marine died in the RunForReload state.
+			TNT1 A 0 {If (!User_NoRifleDrop) A_DropItem ("VanillaRifle",-1,48);}
 			TNT1 A 0 A_Jump (256,"DeathAnim1","DeathAnim2","DeathAnim3","DeathAnim4");
 		DeathAnim1: //The vanilla player death.
 			PLAY H 5 {DeathAnimPlayed = 1;}
@@ -80,5 +81,10 @@ Extend Class SmartMarine
 		RaiseAnim4:
 			MARD XWVUTSRQP 5;
 			Goto See;
+		GenericFreezeDeath:
+			PLAY G 0;
+			#### # 5 A_GenericFreezeDeath;
+			---- A 1 A_FreezeDeathChunks;
+			Wait;
 	}
 }

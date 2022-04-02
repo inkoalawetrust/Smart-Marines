@@ -1,32 +1,29 @@
-![](https://i.imgur.com/phgBzq8.png)
+![](https://i.imgur.com/BgUlzkp.png)
 
 # Smart Marines
 
 A marine NPC actor that is quite a bit smarter than the vanilla brain dead monsters.
 
-## Note: The marines are currently being rewritten again. Hopefully they won't totally break once again.
-
-## What they can do so far
+## What they can do
 
 - Attack stuff by:
   - Bashing it with their rifle. But they normally avoid it if they can help it. (Melee)
-	- Can also use berserk packs, which triple their melee damage, and make them more likely to engage in melee.
+	- Can also use berserk packs, if one is somehow in their inventory, which triple their melee damage, and make them more likely to engage in melee.
   - Shoot at it, with a random chance of changing position while doing so. (Ranged)
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
-- They avoid firing their rifles or grenades if their line of fire to the target is blocked by obstacles or allies.
-- Run away from their own grenades once they are about to explode.
+- They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
+- Run away from the grenades they throw, if those grenades are about to explode.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
 - When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
-- Alert other marines that are on their side of their current target, if the other marines have no target they are dealing with already. Enemy marines can also hear and react to those alerts.
-- Retreat and keep a distance away from very powerful or large enemies like Cyberdemons.
+- Alert other marines that are on their side of their current target, if the other marines have no target they are dealing with already. They can also hear the alerts of enemy marines.
+- Retreat and keep a distance away from very powerful or large enemies like Cyberdemons. Or enemy players and marines on turrets.
 - Marines friendly to the player can be ordered to stand still or wander around by pressing use on them. This only works if they aren't currently fighting.
-- They work with ZDoom's built-in patrol system, so you can have them walk around set paths. To do stuff like guard areas.
-- Can have a chance to taunt and wave their rifle after killing a powerful NPC, player, or a lot of weaker enemies*. (Unfinished)
+- They work with ZDoom's built-in patrol system, so you can have them walk around set paths. To do stuff like guard areas.*
 - Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one.
-- Includes a separate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on him doesn't get him off. (Unfinished)
-- Can be colored with a variety of colors:  (Unfinished)
+- Includes a separate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on them will get them off, if they are friendly, and User_DisobeyCommands is off.
+- Can be colored with a variety of colors:
   - Red
   - Gray
   - White
@@ -35,27 +32,23 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
   - Yellow
   - Orange
   - Pink
+  - Dark Green
   - Random (Randomly pick a color.)
-- Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc. Adding a custom value to a user variable prevents it from being randomied. (Unfinished)
-- Most of the marines' behaviour can be configured on a per actor basis using user variables. (Unfinished)
+  - Default (Use the default shade of green. Similar to just leaving User_Color empty.)
+- Most of the marines' behaviour can be configured on a per actor basis using user variables.
+- Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc. Adding a custom value to a user variable prevents it from being randomied.
 - They also have a rifle that they sometimes drop, which you can pick up and use yourself.
   - The rifle fires at full auto, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
   - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increased you accuracy as well.
+  - The rifle can be entirely disabled from dropping from dead marines, by enabling User_NoRifleDrop on the marine.
 
-*Such as Imps and Pinkies, anything that is really weak (5 or less HP), won't even count as a kill for the marine, so they won't be dancing after killing 40 flies.
+More information, such as info on what all the user variables available on the marines are, and what they do. Can be found inside Document.txt
 
-## Potential future additions for the marines
-Note: Considering how much of a pain coding these marines to completion has been, I'll probably only do the first one. And someone else will have to go through the pain of coding the rest. If I can even finish the above list of features that is.
-
-- Add the StayOnLift and AvoidHazards flags to the marines.
-- Make them able to crouch across sectors with short ceilings, along with being able to crouch fire. I will not be able to do this though.
-- Give them some kind of cover system, that allows them to run to predetermined points in the map while fighting or running to reload.
-  - I would need to somehow implement an actual pathfinding system of some kind, or use code for such a thing made by someone else. Since these marines still ultimately use (Z)Doom's brain dead AI, meaning they basically just randomly move around. Hence for example, why they just randomly run around to get out of their targets' sight and reload, instead of actually mapping a path to a location where their target cannot see them, and run to it.
-  - As it stands currently, if I added a cover system with no pathfinding, it would suck because the marines wouldn't be able to actually go AROUND their cover and hide behind it, only go to its' general direction and then randomly move around, until MAYBE bypassing their own cover to go behind it.
 
 ## Scrapped features
 
 - Swimming, the code and behavior for it is janky (Or rather, it was always more janky than the rest of my shit code from the very beginning.). Their water movement is just moving in a straight line, and on top of all that. I still have not been able to get any swimming sprites for the marine, so it still used the normal player moving animation as a placeholder. So the swimming behavior will be scraped entirely.
+- Taunting, I have had to rewrite this NPC 6 goddamn times, so I won't even bother readding this. Plus it looked kinda stupid anyway.
 
 # Note about the marines (January 25, 2021)
 
