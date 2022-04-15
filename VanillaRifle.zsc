@@ -1,7 +1,5 @@
-//Maybe add a melee attack to the rifle ? I'll need sprites though.
-
 Class VanillaRifle : Weapon
-{
+{ 
 	Default
 	{
 		//$Title Vanilla Rifle

@@ -25,10 +25,8 @@ Extend Class SmartMarine
 					If (!Target || Target && (!CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY ) || Target.Health <= 0)) //If there is no target, or the target is not visible or alive.
 					{
 						TimeSearching++; //Increment the amount of time you've been looking for the target.
-						console.printf ("I've been looking for %d",TimeSearching);
 						If (TimeSearching >= User_SearchTime*1.5)
 						{
-							A_Log ("I give up.");
 							TimeSearching = 0; //Reset the timer.
 							A_ClearTarget(); //I forgor 💀
 							LeaveTurret(); //Make the status changes needed to put the turret and the marine that was "using" it back to normal.
@@ -42,7 +40,6 @@ Extend Class SmartMarine
 				If (SM_FindNearbyGrenade())
 				{
 					LeaveTurret();
-					a_log ("OH SHIT");
 					Return ResolveState ("RunAway");
 				}
 				
@@ -69,7 +66,6 @@ Extend Class SmartMarine
 			TNT1 A 0 A_MonsterRefire (96,"TurretSee");
 			Loop;
 		LeaveAndRun:
-		tnt1 a 0 a_log ("FUCK");
 			TNT1 A 0 LeaveTurret();
 			Goto RunAway;
 	}
@@ -134,7 +130,6 @@ Class TurretMarine : Actor
 	Override Void OnDestroy ()
 	{
 		Super.OnDestroy();
-		a_log ("fuck me");
 		If (bKilled) Return;
 		Actor Turret = Spawn ("SmartMarineMGTurret",Pos);
 		If (Turret) {Turret.Angle = Angle; Turret.Pitch = Pitch;}
@@ -200,7 +195,6 @@ Class TurretMarine : Actor
 				//Have the marine run away from grenades about to explode.
 				If (STM_FindNearbyGrenade())
 				{
-					a_log ("OH SHIT");
 					Return ResolveState ("LeaveTurret");
 				}
 				
@@ -391,7 +385,7 @@ Class SmartMarineMGTurret : Actor
 		{
 			Active_Frame = 1;
 			
-			// Figure out if operator is firing their weapon.
+			// Figure out if operator is firing their weapon. And also uncrouch the player if they tried crouching while on the turret.
 			If (Operator.Player)
 			{
 				Let Weap = Operator.Player.ReadyWeapon;
@@ -401,6 +395,8 @@ Class SmartMarineMGTurret : Actor
 					Active_Frame = 2 + CurBarrel;
 					CurBarrel = !CurBarrel;
 				}
+				
+				If (Operator.Player.Crouching) Operator.Player.Uncrouch();
 			}
 		}
 	}
@@ -416,7 +412,8 @@ Class SmartMarineMGTurret : Actor
 	}
 }
 
-//Completely redo the states block on this weapon actor.
+//$GZDB_SKIP
+
 class SmartMarineMGWeapon : Weapon
 {
 	Default
@@ -560,7 +557,7 @@ Class SmartMarineMGBullet : FastProjectile
 		Height 8;
 		Speed 200;
 		Scale 0.2;
-		DamageFunction (Random (25,45)/10); //A ripper damages an actor with a total radius of 64 MU, 10 times, hence dividing the random damage output by 10.
+		DamageFunction (Random (40,50)/10); //A ripper damages an actor with a total radius of 64 MU, 10 times, hence dividing the random damage output by 10.
 		ProjectileKickback 8;
 		RipperLevel 3;
 		Projectile;
@@ -577,11 +574,9 @@ Class SmartMarineMGBullet : FastProjectile
 		Super.PostBeginPlay();
 		If (!(Target && Target.Target) || Target && Target.Player) Return;
 		VelIntercept (Target.Target);
-		//If (Target.Target)
-		//{
-			Target.Angle = Angle;
-			Target.Pitch = Pitch;
-		//}
+		
+		Target.Angle = Angle;
+		Target.Pitch = Pitch;
 		
 		Angle += FRandom (0.8,-0.8);
 		Pitch += FRandom (1.0,-1.0);

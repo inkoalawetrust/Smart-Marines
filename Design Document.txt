@@ -12,7 +12,7 @@ NOTE: Each of these goals or whatever, test them THOROUGHLY TO MAKE SURE THERE A
 An asterisk (*) before the = means that I finished that goal on the current iteration of the marine NPCs.
 An x means it was cancelled for whatever reason.
 
-=THIS SHOULD BE THE FINAL TIME I HAVE TO REFACTOR THEM.| DONE, FINALLY | NOT DONE, THEY BROKE AGAIN, IT WILL NEVER BE DONE
+*=THIS SHOULD BE THE FINAL TIME I HAVE TO REFACTOR THEM.| DONE, FINALLY | NOT DONE, THEY BROKE AGAIN, IT WILL NEVER BE DONE | DONE, FOR THE SIXTH TIME, FUCKING FINALLY
 
 *=Be able to forget their target after a set amount of time, the time it takes should be exposed to a user variable, a value of 0 means they will not stop chasing their target.
 *==If their target is forgotten, they should begin wandering around until they find a new one, while doing so, they should have a chance to enter a state

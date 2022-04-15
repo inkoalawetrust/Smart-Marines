@@ -6,7 +6,8 @@ The marines have 120 health, somewhat higher than the players'. You can turn on 
 In fact, I've sort of just made them with the intent of being used as allies, like the Allied Marines resource from Realm667. But they should work just as well as enemies.
 
 Their name in the editor is "AI Marine" and "AI Marine (Turret)", and they can be found under the Marines folder.
-Their class names are "SmartMarine", "TurretMarine", and the turret is "SmartMarineMGTurret"
+Their class names are "SmartMarine", "TurretMarine"
+The turret's editor name is "Machine Gun Emplacement", and it can be found in the Weapons folder, its' class name is "SmartMarineMGTurret"
 
 ================|WHAT THEY CAN DO|================
 
@@ -17,6 +18,7 @@ Their class names are "SmartMarine", "TurretMarine", and the turret is "SmartMar
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
 - Run away from the grenades they throw, if those grenades are about to explode.
+- They have multiple death animations that can play randomly.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.

@@ -1,3 +1,5 @@
+//$GZDB_SKIP
+
 //The code related to the marine dying is stored here, mostly due to all the different animation states.
 
 Extend Class SmartMarine

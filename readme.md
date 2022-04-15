@@ -2,9 +2,9 @@
 
 # Smart Marines
 
-A marine NPC actor that is quite a bit smarter than the vanilla brain dead monsters.
+Smart marines are NPCs for Doom that are far more intelligent than vanilla monsters
 
-## What they can do
+## What they can do (There is a lot)
 
 - Attack stuff by:
   - Bashing it with their rifle. But they normally avoid it if they can help it. (Melee)
@@ -13,6 +13,7 @@ A marine NPC actor that is quite a bit smarter than the vanilla brain dead monst
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
 - Run away from the grenades they throw, if those grenades are about to explode.
+- They have multiple death animations that can play randomly.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
 - Chase around their target for some time before losing track of it, if they can't hear or see it for too long.
@@ -49,17 +50,3 @@ More information, such as info on what all the user variables available on the m
 
 - Swimming, the code and behavior for it is janky (Or rather, it was always more janky than the rest of my shit code from the very beginning.). Their water movement is just moving in a straight line, and on top of all that. I still have not been able to get any swimming sprites for the marine, so it still used the normal player moving animation as a placeholder. So the swimming behavior will be scraped entirely.
 - Taunting, I have had to rewrite this NPC 6 goddamn times, so I won't even bother readding this. Plus it looked kinda stupid anyway.
-
-# Note about the marines (January 25, 2021)
-
-While I was working on gz_bigcity 2 weeks ago, a map originally made, so I could showcase the marines on after I make a showcase video for them. I decided to place one of them down for fun, and it only threw a grenade at me once, then refused to attack. Which indicated that they broke once again. So now I have to waste a month total recoding them for the sixth time, so that they will inevitably completely break once again. And the cycle can start again.
-
-# Note about the marines (August 21, 2021) (Old)
-
-Making just this basic version of them was an absolute nightmare, I begun work on them about 5 months ago or so, before I had my new PC, in that time I had to refactor them thrice because they got insanely buggy for some reason or another. And then, I lost access to the computer I used to develop my mods and make video showcases of them, and since my SFF OptiPlex 760 was too shit to be used for much of anything - I spent THREE MONTHS not being able to work on these marines or any major mod, until I finally got a new PC two weeks ago, and was able to continue working on my projects, starting with finishing these marines.
-
-But as it turns out that would not be the end of it, after beginning to work on the marines on my new PC, I had to refactor them a fourth time due to the code being infested with bugs again, and then after working on the fourth iteration for 4-5 days, IT ALSO BROKE FROM TOO MANY BUGS.
-
-Now, on my fifth iteration, I was finally fucking able to get AT LEAST the basic version to work without the AI going FUBAR **AGAIN**. I haven't even been able to work on many more of my projects, which I've amassed a huge backlog of on my 3 month forced hiatus. And despite all that, because of how hard it was to even get the basic marine to work, I haven't been able to add the more advanced behaviour on them such as crouching and swimming. Or further work on the rifle they sometimes drop when killed.
-
-It's pretty easy to tell how much of a huge pain the development of these marines has been, if you just look on the broken code folder, and how angry several of my comments are on the current, and some of the previous, iterations of the marines.

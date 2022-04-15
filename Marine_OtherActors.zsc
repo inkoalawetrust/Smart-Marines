@@ -1,6 +1,6 @@
 //$GZDB_SKIP
 
-//Actors that are in some way related to the marines' attacks.
+//Miscellaneous related to the marine.
 
 Class SmartMarinePuff : BulletPuff
 {
@@ -63,7 +63,17 @@ Class SmartMarineTurretMessage : SmartMarineStandingMessage
 	}
 }
 
-//Try rewriting and simplifying the grenade code. And make liquid explosion states based on what fluid the grenade exploded on.
+//This will be used in a future update, when GZDoom 4.8.0 comes out.
+Class SmartMarineFollowingMessage : SmartMarineStandingMessage
+{
+	States
+	{
+		Spawn:
+			MARC D 16;
+			MARC D 1 A_FadeOut (0.05);
+			Wait;
+	}
+}
 
 Class SM_Grenade : Actor
 {
@@ -184,6 +194,6 @@ Class SM_TurretLocationMarker : PatrolPoint
 		If (!Master) Destroy();
 		If (IsFrozen()) Return;
 		
-		Warp (Master);
+		Warp (Master); //If the turret moves horizontally somehow, then move too, to update the location the marine has to go to.
 	}
 }
