@@ -13,10 +13,9 @@ Rifle reloading sprites made by Tabijaky.
 Rifle melee sprites made by TG5.
 Grenade air blast sprites by Gorman Freebmane.
 Grenade sprites made by inkoalawetrust.
-Marine taunt sprites MWAV A-F have no known maker, MWAV I-N made by Das M and edited by Sergeant_Mark_IV.
 Alternate marine death sprites made by DavidG/ItsNatureToDie.
-Rocket launcher marine sprites made by Vader, edited by Sergeant_Mark_IV, then edited again by TG5, TG5's version is the one I'm using with firing sprites of my own.
-Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5
+Rocket launcher marine sprites made by Vader, edited by Sergeant_Mark_IV, then edited again by TG5.
+Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
 
 ======|Other graphics|======
 Alternate marine colors by inkoalawetrust, partially based on the ones made by DBJ87 for the Allied Marines Realm667 resource.

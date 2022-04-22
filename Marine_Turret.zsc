@@ -472,7 +472,6 @@ class SmartMarineMGWeapon : Weapon
 		Owner.RemoveInventory(self);
 		GoAwayAndDie();
 	}
-	
 	States
 	{
 		

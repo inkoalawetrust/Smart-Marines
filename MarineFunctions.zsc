@@ -136,7 +136,7 @@ Mixin Class MarineFunctions
 		If (User_FearDistance <= 0 || !Target) Return;
 		//The marine must not have the frightened flag on when going to a turret, to not also avoid the turret they are going to.
 		//If the target is nearby, visible, and hostile, and has over 2500 health.
-		If (IsHostile (Target) && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && Target.Health >= 2500 && IsVisible (Target,True) && !GoingToTurret
+		If (IsHostile (Target) && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && Target.SpawnHealth() >= 2000 && IsVisible (Target,True) && !GoingToTurret
 		
 		//Or if it is big enough and visible and close enough.
 		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && IsVisible (Target,True) && !GoingToTurret

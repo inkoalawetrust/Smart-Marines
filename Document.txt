@@ -1,5 +1,7 @@
 The credits for every asset used on this NPC, can be found inside credits.txt.
 
+SHOWCASE VIDEO AND DOCUMENTATION OF THE MARINES: https://www.youtube.com/watch?v=PlZSs5XyEdU
+
 If you have any issues with the marines or some other NPC made by me, you can ask me for help on Discord at inkoalawetrust#9783, or Twitter at @inkoalawetrust.
 
 The marines have 120 health, somewhat higher than the players'. You can turn on the Friendly flag for them in the editor to use them as smart allies.
@@ -51,6 +53,7 @@ The turret's editor name is "Machine Gun Emplacement", and it can be found in th
 ================|USER VARIABLES|================
 User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring to modify the source code of the actor in any way.
 If you don't know how to use and/or change the user variables of an actor, then click on this Imgur album to see how: https://imgur.com/a/IF9Ezo2
+The marines have plenty of user variables, for you to fine tune their behavior or even straight up disable features as you see fit.
 
 User_SearchTime: The amount of time the marine will try to look for his target before giving up. (And getting off the turret if on one.)
 - Default is 300. -1 makes the marine never give up persuit while the target is alive. And immediately go back to wandering once the target is dead.
@@ -58,7 +61,7 @@ User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower th
 - Default is 240. -1 makes them always throw grenades, unless they would be caught in the blast. And 256 makes them never throw grenades.
 User_DisobeyCommands: Friendly marines will not wander, stay in place, or leave turrets when the player presses use on them.
 User_NoReload: Marines do not need to ever reload their gun.
-User_NoRifleDrop: Marines will never drop their rifles once killed.
+User_NoRifleDrop: Marines will never drop their rifles when killed.
 User_RetreatAttempts: The amount of times the marine tries to run out of sight of his target, when he needs to reload.
 - Default is 10. -1 makes the marine reload in the open, without trying to get behind cover at all.
 User_AlertRange: The distance around which a marine will alert other marines on his side of a target.
@@ -67,8 +70,8 @@ User_EnemyAlertHearingRange: The distance around which a marine can hear the ale
 - Default is 1024 map units. -1 disables hearing enemy alerts entirely, but the marine can still be alerted by other marines on his side.
 User_MeleeChance: The chance of the marine to try changing position after smacking something once.
 - Default is 96, a value of 255 means that the marine will only smack a target when he gets into melee once, then change position. This variable ONLY uses a number range from 0 to 255.
-User_TurretThreshold: How likely the marine is to use a turret near him. Marines are much more likely to use turrets, if they have allies around to cover them. So they are not sitting ducks while on the turret.
-- Default is 100, -1 means that the marine will never use a turret.
+User_TurretThreshold: How likely the marine is to use a turret near him. Marines are much more likely to use turrets, if they have friendly players and/or NPCs around to cover them.
+- Default is 100, -1 means that the marine will never use a turret. Lower values increase the use chance.
 User_FearDistance: The distance that the marine runs away to, if his target is scary enough.
 - Default is 2048 map units, a value of 0 or less makes them fearless. (Within reason, so they still avoid grenades for example.)
 User_Color: Can be used to give the marines different armor colors.
