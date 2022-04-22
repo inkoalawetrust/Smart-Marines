@@ -1,4 +1,4 @@
-![](https://i.imgur.com/BgUlzkp.png)
+![](https://i.imgur.com/HKnzbLI.png)
 
 # Smart Marines
 
