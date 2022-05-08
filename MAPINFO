@@ -5,8 +5,3 @@ DoomEdNums
 	8575 = VanillaRifle
 	8576 = SmartMarineMGTurret
 }
-
-GameInfo
-{
-	//AddEventHandlers = "SmartMarineTauntHandler"
-}

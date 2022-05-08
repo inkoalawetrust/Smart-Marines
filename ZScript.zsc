@@ -125,7 +125,7 @@ Class SmartMarine : Actor
 	
 	Override Bool OkayToSwitchTarget(Actor Other)
 	{
-		If (Other.bIsMonster && IsHostile(Other) && Other.Health > 0) {SM_AlertNearbyMarines(User_AlertRange,True);}
+		If ((Other.bIsMonster || Other.Player) && IsHostile(Other) && Other.Health > 0) {SM_AlertNearbyMarines(User_AlertRange,True);}
 		Return Super.OkayToSwitchTarget(Other);
 	}
 	
@@ -404,7 +404,8 @@ Class SmartMarine : Actor
 		DecideAttack: //Decide if you should use a turret, throw a grenade, or just shoot.
 			TNT1 A 0 SM_TurretUseDecision();
 			TNT1 A 0 A_JumpIf (GrenadeAttackDecision(),"ThrowGrenade"); //The code for GrenadeAttackDecision is in MarineFunctions.zsc.
-			Goto RifleBurst;
+			TNT1 A 0 A_JumpIf (!SM_CantHitTarget(True),"RifleBurst"); //Make sure nothing is getting in the way of the rifle hitscans.
+			Goto ChangePosition;
 		RifleSmack:
 			MARA A 3 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
 			MARM A 3;

@@ -14,7 +14,6 @@ Rifle melee sprites made by TG5.
 Grenade air blast sprites by Gorman Freebmane.
 Grenade sprites made by inkoalawetrust.
 Alternate marine death sprites made by DavidG/ItsNatureToDie.
-Rocket launcher marine sprites made by Vader, edited by Sergeant_Mark_IV, then edited again by TG5.
 Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
 
 ======|Other graphics|======
