@@ -1,4 +1,4 @@
-Version "4.3.3"
+Version "4.7.0"
 
 #Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
 #Include "MarineFunctions.zsc" //A mixin container for all the marines' custom functions.
