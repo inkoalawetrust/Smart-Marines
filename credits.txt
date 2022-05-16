@@ -15,6 +15,7 @@ Grenade air blast sprites by Gorman Freebmane.
 Grenade sprites made by inkoalawetrust.
 Alternate marine death sprites made by DavidG/ItsNatureToDie.
 Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
+Marine jumping/dodging sprites made by Sergeant_Mark_IV.
 
 ======|Other graphics|======
 Alternate marine colors by inkoalawetrust, partially based on the ones made by DBJ87 for the Allied Marines Realm667 resource.

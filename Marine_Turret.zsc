@@ -92,7 +92,7 @@ Class TurretMarine : Actor
 		MinMissileChance 100;
 		Tag "Marine NPC";
 		Species "SmartMarine";
-		Obituary "%o was shot to death by a marine";
+		Obituary "%o was turned into swiss cheese by a marines' turret !";
 		DropItem "Clip";
 		DropItem "Clip", 128, 2;
 		DropItem "ClipBox", 64;

@@ -1,3 +1,27 @@
+Class SM_ProjectileHandler : EventHandler
+{
+	//Much faster alternative to just using a ThinkerIterator.
+	Array <Actor> ProjectileList;
+	
+	Override Void WorldThingSpawned(WorldEvent E)
+	{
+		//Add every spawned projectile to a big list.
+		If (E.Thing && E.Thing.bMissile)
+		{
+			ProjectileList.Push(E.Thing);
+		}
+	}
+	
+	Override Void WorldThingDied (WorldEvent E)
+	{
+		//Delete any destroyed projectiles from the list.
+		If (E.Thing)
+		{
+			ProjectileList.Delete(ProjectileList.Find(E.Thing));
+		}
+	}
+}
+
 Mixin Class MarineFunctions
 {
 	//Shorthand for checking what state the marine is in.
@@ -166,6 +190,128 @@ Mixin Class MarineFunctions
 			bFrightened = False;
 			MinMissileChance = Default.MinMissileChance; //Go back to the normal firing chance.
 		}
+	}
+	
+	//Checks what directions the marine will be able to jump to, to avoid any incoming projectiles.
+	//This (mostly) prevents marines from jumping into walls or off very tall ledges.
+	Bool SM_ShouldDodgeProjectile (Double Distance = 284)
+	{
+		If (User_NoDodging) Return False;
+		
+		Bool LeftSafe;
+		Bool RightSafe;
+		Double OldAngle;
+		
+		If (SM_FindNearbyProjectile (Distance))
+		{
+			OldAngle = Angle; //Store the current angle before facing the projectile to dodge it.
+			
+			MaxDropOffHeight = 128; //Temporarily increase the maximum height the marine can drop from.
+			
+			A_Face (NearbyProjectile,flags:FAF_MIDDLE);
+			//Check if it's safe to strafe 56 map units to the left or right, or both. Or none even, like in the case of crammed corridors.
+			LeftSafe = CheckMove (Vec2Angle (56,Angle+90),PCM_DROPOFF);
+			RightSafe = CheckMove (Vec2Angle (56,Angle-90),PCM_DROPOFF);
+							
+			If ((LeftSafe && RightSafe)) //Both directions are safe to strafe to.
+				StrafeDirection = STRAFE_RANDOM;
+			Else If ((!LeftSafe && !RightSafe)) //The area is too crammed to strafe anywhere here.
+			{
+				Angle = OldAngle; //Revert the marines' angle if you can't dodge.
+				StrafeDirection = STRAFE_NONE; //Reset the strafe direction to none.
+				MaxDropOffHeight = Default.MaxDropOffHeight; //Revert the property to the default again.
+				Return False; //Don't break whatever state sequence the marine is currently in to tell him he can't dodge.
+			}
+			Else If (LeftSafe && !RightSafe) //Can only strafe left.
+				StrafeDirection = STRAFE_LEFT;
+			Else If (!LeftSafe && RightSafe) //Can only strafe right.
+				StrafeDirection = STRAFE_RIGHT;
+			
+			MaxDropOffHeight = Default.MaxDropOffHeight; //Revert the property to the default again.
+			Return True; //Found a direction to strafe at to dodge.
+		}
+		
+		Return False; //Didn't even find a projectile to dodge.
+	}
+	
+	//Checks if an enemy projectile, or one that should always be avoided, or a really harmful one, is approaching the marines' direction.
+	//The IgnoredProjectiles and AlwaysAvoid arrays can be used to list what projectiles the marines should always avoid or ignore.
+	Bool SM_FindNearbyProjectile (Double Range = 384)
+	{
+		If (User_NoDodging) Return False;
+		
+		Bool EpicFail; //Makes the function immediately stop running if the projectile is on the ignore list.
+		Bool SkipAllyCheck;
+		
+		Static Const Name IgnoredProjectiles[] = //A list of enemy projectiles that they don't try avoiding.
+		{
+			"SM_Grenade" //Grenades have special handling.
+		};
+		
+		Static Const Name AlwaysAvoid[] = //A list of projectiles to always avoid, even if fired by a friend.
+		{
+			"Rocket",
+			"BFGBall"
+			//"SM_Missile" //Future feature.
+		};
+		
+		Let ProjectileHandler = SM_ProjectileHandler(EventHandler.Find("SM_ProjectileHandler"));
+		
+		If (ProjectileHandler)
+		{
+			For (Int I; I < ProjectileHandler.ProjectileList.Size(); I++)
+			{
+				Actor Projectile = ProjectileHandler.ProjectileList[I];
+				
+				//Null check.
+				If (!Projectile) Continue;
+				
+				//Out of range.
+				If (Distance3DSquared(Projectile) > Range*Range) Continue;
+				
+				//Don't keep dodging the same projectile.
+				If (Projectile == PreviousProjectile) Continue;
+				
+				//Don't return true if it's part of the blacklist.
+				For (Int I; I < IgnoredProjectiles.Size(); I++)
+				{
+					If (Projectile.GetClassName() == IgnoredProjectiles[I]) {EpicFail = True; Continue;}
+				}
+				
+				If (EpicFail) Continue;
+				
+				//If the projectile heading towards you will do way too much damage, then avoid it even if it was shot by a friend. This has to account for Doom's absurd damage variation.
+				If (Projectile.bStrifeDamage && Projectile.Damage >= Health/3 || Projectile.Damage >= Health/6) {SkipAllyCheck = True;}
+				
+				For (Int I; I < AlwaysAvoid.Size(); I++)
+				{
+					If (Projectile.GetClassName() == AlwaysAvoid[I]) {SkipAllyCheck = True; Continue;}
+				}
+				
+				If (!SkipAllyCheck && Projectile.Target && !IsHostile(Projectile.Target)) Continue;
+				
+				//Don't return true if the projectile isn't visible at all, or is too far away from the marines' peripheral vision. Or if it isn't so close that it's impossible not to notice it.
+				If (!(IsVisible (Projectile,True) &&
+				(AbsAngle (Angle,AngleTo(Projectile)) < 120.0 || !(Distance3DSquared(Projectile) > Range*Range/6))))
+				Continue;
+				
+				//Is the projectile about to hit me ? Weird math nonsense written by RaveYard.
+				bool projectile_is_flying_towards_me = (Vec3To(projectile).Unit() dot projectile.vel.Unit()) < -0.15;
+				double projectileSafeRadius = sqrt(2 * ((projectile.radius + radius) ** 2.2));
+				if(projectile_is_flying_towards_me && distance3dline(pos, projectile.pos, projectile.pos + projectile.vel) < projectileSafeRadius)
+				{
+					
+					NearbyProjectile = Projectile;
+					Return True;
+				}
+			}
+		}
+		Return False;
+	}
+	
+	static double Distance3dLine(Vector3 a, Vector3 b, Vector3 c)
+	{
+		return (((A - B) cross (C - B))).length() / (C - B).length();
 	}
 		
 	//Alerts nearby marines friendly to the calling one of the callers' target.

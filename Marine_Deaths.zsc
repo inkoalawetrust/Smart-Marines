@@ -15,6 +15,14 @@ Extend Class SmartMarine
 		LeaveTurret();
 		Super.OnDestroy();
 	}
+	
+	Override String GetObituary (Actor Victim, Actor Inflictor, Name MOD, Bool PlayerAttack)
+	{
+		If (MOD == "MarineHMG")
+			Return "%o was turned into swiss cheese by a marines' turret !";
+		
+		Return Super.GetObituary (Victim,Inflictor,MOD,PlayerAttack);
+	}
 
 	Int DeathAnimPlayed; //Keeps track of what death animation the marine played, so it can be played in reverse when resurrected.
 	

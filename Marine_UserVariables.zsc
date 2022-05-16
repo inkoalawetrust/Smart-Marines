@@ -75,6 +75,7 @@ Extend Class SmartMarine
 	Double User_FearDistance;
 	Bool User_DisobeyCommands;
 	Bool User_NoReload;
+	Bool User_NoDodging;
 	Bool User_RandomPersonality;
 	Bool User_NoRifleDrop;
 	String User_Color;

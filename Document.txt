@@ -20,6 +20,7 @@ The turret's editor name is "Machine Gun Emplacement", and it can be found in th
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
 - Run away from the grenades they throw, if those grenades are about to explode.
+- Intelligently dodge enemy or extremely harmful projectiles heading their way.
 - They have multiple death animations that can play randomly.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
@@ -62,6 +63,7 @@ User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower th
 User_DisobeyCommands: Friendly marines will not wander, stay in place, or leave turrets when the player presses use on them.
 User_NoReload: Marines do not need to ever reload their gun.
 User_NoRifleDrop: Marines will never drop their rifles when killed.
+User_NoDodging: Marines will not attempt to evade incoming projectiles.
 User_RetreatAttempts: The amount of times the marine tries to run out of sight of his target, when he needs to reload.
 - Default is 10. -1 makes the marine reload in the open, without trying to get behind cover at all.
 User_AlertRange: The distance around which a marine will alert other marines on his side of a target.
