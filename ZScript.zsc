@@ -563,28 +563,3 @@ Class SmartMarine : Actor
 			Goto See;
 	}
 }
-
-Class PainfulArchvile : Archvile Replaces Archvile
-{
-	States
-	{
-		Missile:
-			VILE G 0 BRIGHT A_VileStart();
-			VILE G 10 BRIGHT A_FaceTarget();
-			VILE H 8 BRIGHT
-			{
-				A_VileTarget();
-				If (Target)
-					Target.TriggerPainChance ('Fire',True);
-			}
-			VILE IJKLMN 8 BRIGHT
-			{
-				A_FaceTarget();
-				If (Target)
-					Target.TriggerPainChance ('Fire',True);
-			}
-			VILE O 8 BRIGHT A_VileAttack();
-			VILE P 20 BRIGHT;
-			Goto See;
-	}
-}
