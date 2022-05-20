@@ -465,7 +465,7 @@ class SmartMarineMGWeapon : Weapon
 		If (!Legit) {Console.Printf ("%s",CheatMessages[Random(0,3)]);}
 		Super.AttachToOwner (Other);
 	}
-		
+	
 	void Disable()
 	{
 		Owner.A_RemoveLight ("MGFlash");

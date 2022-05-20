@@ -20,6 +20,15 @@ Class SM_ProjectileHandler : EventHandler
 			ProjectileList.Delete(ProjectileList.Find(E.Thing));
 		}
 	}
+	
+	Override Void WorldThingDestroyed (WorldEvent E)
+	{
+		//Delete any removed projectiles from the list.
+		If (E.Thing)
+		{
+			ProjectileList.Delete(ProjectileList.Find(E.Thing));
+		}
+	}
 }
 
 Mixin Class MarineFunctions
@@ -194,9 +203,9 @@ Mixin Class MarineFunctions
 	
 	//Checks what directions the marine will be able to jump to, to avoid any incoming projectiles.
 	//This (mostly) prevents marines from jumping into walls or off very tall ledges.
-	Bool SM_ShouldDodgeProjectile (Double Distance = 284)
+	Bool SM_ShouldDodgeProjectile (Double Distance = 384)
 	{
-		If (User_NoDodging) Return False;
+		If (User_DodgeRange == -1) Return False;
 		
 		Bool LeftSafe;
 		Bool RightSafe;
@@ -238,7 +247,6 @@ Mixin Class MarineFunctions
 	//The IgnoredProjectiles and AlwaysAvoid arrays can be used to list what projectiles the marines should always avoid or ignore.
 	Bool SM_FindNearbyProjectile (Double Range = 384)
 	{
-		If (User_NoDodging) Return False;
 		
 		Bool EpicFail; //Makes the function immediately stop running if the projectile is on the ignore list.
 		Bool SkipAllyCheck;
@@ -279,6 +287,8 @@ Mixin Class MarineFunctions
 				}
 				
 				If (EpicFail) Continue;
+				
+				If (!bFriendly) SkipAllyCheck = True; //As a hostile marine, just dodge ANY projectile not on the IgnoredProjectiles list.
 				
 				//If the projectile heading towards you will do way too much damage, then avoid it even if it was shot by a friend. This has to account for Doom's absurd damage variation.
 				If (Projectile.bStrifeDamage && Projectile.Damage >= Health/3 || Projectile.Damage >= Health/6) {SkipAllyCheck = True;}
@@ -332,7 +342,7 @@ Mixin Class MarineFunctions
 			{
 				PotentialMarine = AlertNearbyMarines.Thing;
 				
-				If (PotentialMarine.GetClassName() == "SmartMarine" && Distance3D(PotentialMarine) <= Range && PotentialMarine.Health > 0 && !IsHostile (PotentialMarine) && !(PotentialMarine.Target)) //If the actor is a marine, in range, is not hostile to you, and has no target already.
+				If (!PotentialMarine.bDormant && PotentialMarine.GetClassName() == "SmartMarine" && Distance3D(PotentialMarine) <= Range && PotentialMarine.Health > 0 && !IsHostile (PotentialMarine) && !(PotentialMarine.Target)) //If the actor is not dormant, a marine, in range, is not hostile to you, and has no target already.
 				{
 					//Make sure the marine isn't in its' RunAway state, that state must NEVER be broken by being changed or having the marines' target changed during it.
 					If (!(PotentialMarine.InStateSequence(PotentialMarine.CurState,ResolveState ("RunAway"))))

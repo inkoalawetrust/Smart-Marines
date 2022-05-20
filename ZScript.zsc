@@ -83,7 +83,7 @@ Class SmartMarine : Actor
 		}
 		
 		//These states have really long frame durations. So the projectile check is done here so the marines can respond while standing still.
-		If ((SM_IsInState ("Spawn") || SM_IsInState("StandStill")) && SM_ShouldDodgeProjectile())
+		If ((SM_IsInState ("Spawn") || SM_IsInState("StandStill")) && SM_ShouldDodgeProjectile(User_DodgeRange))
 		{
 			SetStateLabel ("Evade");
 		}
@@ -95,7 +95,7 @@ Class SmartMarine : Actor
 		
 		If (User_DisobeyCommands || Goal) Return False; //Ignore all this when patrolling. Or if it is disabled.
 		
-		If (bFriendly) //This should only work if the marine is friendly towards players.
+		If (bFriendly && !bDormant) //This should only work if the marine is friendly towards players and not dormant.
 		{
 			If (SM_IsInState ("Spawn") && !Target && IsFriend (User)) //If you are in the spawn state, have no target, and your user was friendly.
 			{
@@ -121,7 +121,7 @@ Class SmartMarine : Actor
 				Return True;
 			}
 		}
-		Else If (!bFriendly && IsHostile (User) && (SM_IsInState ("Spawn") || SM_IsInState ("Idle") || SM_IsInState ("StandStill"))) //If you are hostile and a player tried using you while in your Spawn, Idle, or StandStill state.
+		Else If (!bFriendly && !bDormant && IsHostile (User) && (SM_IsInState ("Spawn") || SM_IsInState ("Idle") || SM_IsInState ("StandStill"))) //If you are hostile and not dormant, and a player tried using you while in your Spawn, Idle, or StandStill state.
 		{
 			Target = User;
 			SM_AlertNearbyMarines (User_AlertRange,True); //And alert all marines around you of the player.
@@ -265,7 +265,7 @@ Class SmartMarine : Actor
 				If (SM_FindNearbyGrenade())
 					Return ResolveState ("RunAway");
 				
-				If (SM_ShouldDodgeProjectile())
+				If (SM_ShouldDodgeProjectile(User_DodgeRange))
 					Return ResolveState ("Evade");
 				
 				If (!Target && AmmoUsed >= 10 && TimeSearching >= 50*FRandom(1.1f,1.4f)) //Check if your magazine is half empty. And you haven't seen an enemy in a while.
@@ -312,7 +312,7 @@ Class SmartMarine : Actor
 				If (SM_FindNearbyGrenade())
 					Return ResolveState ("RunAway");
 				
-				If (SM_ShouldDodgeProjectile())
+				If (SM_ShouldDodgeProjectile(User_DodgeRange))
 					Return ResolveState ("Evade");
 				
 				If (User_SearchTime == -1) //Since the marines go back here immediately, if SearchTime is -1. This early reloading behavior has to be handled here.
@@ -391,7 +391,7 @@ Class SmartMarine : Actor
 			}
 			MARJ A 1
 			{
-				vel.z *= 0.95;
+				vel.z *= 0.95; //"Air friction"
 				//Break the jumping loop once you hit the ground.
 				If (FloorZ >= Pos.Z)
 					Return A_Jump (255,1);
@@ -426,7 +426,7 @@ Class SmartMarine : Actor
 			}
 			PLAY AABBCCDD 2
 			{
-				If (SM_ShouldDodgeProjectile())
+				If (SM_ShouldDodgeProjectile(User_DodgeRange))
 					Return ResolveState ("Evade");
 				//Don't try to run away if you have a goal, and are supposed to chase goals instead of targets.
 				If (User_RetreatAttempts == -1 || bChaseGoal && Goal)
@@ -483,7 +483,7 @@ Class SmartMarine : Actor
 			Goto ChangePosition;
 		RifleSmack:
 			MARA A 3 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
-			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(),"Evade");
+			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(User_DodgeRange),"Evade");
 			MARM A 3;
 			TNT1 A 0 A_JumpIf (CountInv("PowerStrength") > 0,3);
 			MARM B 8 A_CustomMeleeAttack (Random(4,8),"Marine/Melee","Marine/MeleeMiss",'Melee',False); //Blunt force attack, so no blood.
@@ -509,7 +509,7 @@ Class SmartMarine : Actor
 				If (!User_NoReload) AmmoUsed++;
 			}
 			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
-			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(),"Evade");
+			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(User_DodgeRange),"Evade");
 			MAR2 A 1 A_MonsterRefire (96,"See");
 			MAR2 A 0 //Small chance to change position instead of just shooting in place.
 			{
@@ -542,7 +542,7 @@ Class SmartMarine : Actor
 				bFrightened = False;
 			}
 			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
-			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(),"Evade");
+			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(User_DodgeRange),"Evade");
 			TNT1 A 0 A_JumpIf (RemovedOldMag,6); //Makes the marine not spawn duplicate mags if interrupted before by being hurt or running from a grenade.
 			TNT1 A 0 {bNoPain = True; QuickReload = False;}
 			MARL ABC 6;
@@ -560,6 +560,31 @@ Class SmartMarine : Actor
 			TNT1 A 0 A_JumpIf (OnTurret,"TurretSee"); //Just in case the NoPain flag somehow fails, while the marine is still on a turret.
 			TNT1 A 0 A_SetSpeed (Default.Speed); //In case you were hurt during RunForReload.
 			PLAY G 10 A_Pain();
+			Goto See;
+	}
+}
+
+Class PainfulArchvile : Archvile Replaces Archvile
+{
+	States
+	{
+		Missile:
+			VILE G 0 BRIGHT A_VileStart();
+			VILE G 10 BRIGHT A_FaceTarget();
+			VILE H 8 BRIGHT
+			{
+				A_VileTarget();
+				If (Target)
+					Target.TriggerPainChance ('Fire',True);
+			}
+			VILE IJKLMN 8 BRIGHT
+			{
+				A_FaceTarget();
+				If (Target)
+					Target.TriggerPainChance ('Fire',True);
+			}
+			VILE O 8 BRIGHT A_VileAttack();
+			VILE P 20 BRIGHT;
 			Goto See;
 	}
 }

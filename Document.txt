@@ -20,7 +20,7 @@ The turret's editor name is "Machine Gun Emplacement", and it can be found in th
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
 - Run away from the grenades they throw, if those grenades are about to explode.
-- Intelligently dodge enemy or extremely harmful projectiles heading their way.
+- Intelligently dodge enemy or extremely harmful projectiles heading their way. More information below.
 - They have multiple death animations that can play randomly.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
@@ -51,6 +51,53 @@ The turret's editor name is "Machine Gun Emplacement", and it can be found in th
   - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increases your accuracy as well.
   - The rifle can be entirely disabled from dropping from dead marines, by enabling User_NoRifleDrop on the marine.
 
+================|PROJECTILE DODGING|================
+Marines are also able to dodge projectiles that are heading in their direction, the text below will explain how the dodging behavior works exactly.
+
+WHAT THEY DODGE:
+Friendly marines will avoid all projectiles fired by unfriendly monsters, but will not avoid projectiles fired by other friendly monsters or players,
+unless the projectile in question would do way too much damage to them, or it is part of the Always Avoid list. So for example, if you fire a rocket
+at a friendly marine, he will always dodge even though it was fired by an ally, because the projectile is both part of the Always Avoid list, and
+because it would do enough damage to kill him most of the time. But if you fire a plasma rifle at him, he won't dodge the projectiles until his health
+is so low that getting hit by one or two more plasma balls would kill him.
+
+Hostile marines on the other hand, will avoid all incoming projectiles, Including ones fired by other enemy monsters,
+as unfriendly monsters do not attempt to avoid friendly fire at all by default.
+
+Both friendly and unfriendly marines will dodge projectiles heading at them, that are within their field of view. If a projectile is coming at them from
+an angle out of their FOV, such as behind them. They will also be able to notice it and dodge it, but the range at which they react to projectiles coming
+behind them is much shorter. Similar to how monsters can still see players that get too close to them. Even if the player sneaks up behind the monster.
+
+In addition to all this, the function that the marines use to determine if they should dodge a projectile (SM_FindNearbyProjectile()) has two easy to edit
+lists:
+
+AlwaysAvoid: Any projectile class name added to this list will ALWAYS be avoided by friendly marines, even if it doesn't do enough damage to kill them in 1-2 hits.
+The vanilla rocket projectile and the BFG Ball is included in this list by default.
+
+IgnoredProjectiles: Any projectiles in this list will always be ignored by both friendly and hostile marines, the marines' grenades (SM_Grenade) are in this list by default,
+as the marines have special handling for grenades in particular (Running away from them entirely.)
+
+WHEN THEY DODGE:
+If any of the above conditions are true, and the marine decides it needs to dodge the incoming projectile. It will not just blindly jump in any direction.
+First the marine will check if he can jump to his left and right, if a tall ledge, wall, or other blocking actor is on his right,
+then he will only jump to the left to dodge, since his right side is blocked, and vice versa.
+If he is able to jump both left and right, then he will randomly pick a direction to jump to. But if both his left and right are blocked
+(e.g he is on a small bridge, or tight corridor), then he won't try dodging the incoming projectile at all. Since he has nowhere to jump away from it.
+
+HOW IT WORKS (TECHNICAL):
+Because projectiles are not part of the blockmap normally, a BlockThingsIterator cannot be used to detect nearby projectiles. So an event handler is used instead. (SM_ProjectileHandler)
+The event handler has a dynamic array inside of it. When an actor with the bMissile flag is spawned during WorldThingSpawned, a pointer to that actor will be added to the array.
+Likewise, when a projectile explodes or is erased entirely, the array will update on WorldThingDied and WorldThingDestroyed respectively, to remove the pointer to that projectile.
+This dynamic array inside of the SM_ProjectileHandler event handler is then accessed and iterated through by SM_FindNearbyProjectile() to search for projectiles.
+
+This method is a lot faster than using a Thinker Iterator instead, which would have to iterate through every single actor on the map every time SM_FindNearbyProjectile() is called.
+But it does have its' limits, for example, if your mod or map has actors that use the bMissile flag for whatever reason. But are not projectiles. The marines will still treat them as such.
+And try to dodge them, in cases like those, you should add the class names of those actors inside of the IgnoredProjectiles list.
+
+NOTE:
+While the dodging behavior works pretty well with projectiles like the ones in vanilla Doom, they will not be able to dodge faster projectiles as well.
+Unless the total range at which they check for projectiles is extended in the code.
+
 ================|USER VARIABLES|================
 User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring to modify the source code of the actor in any way.
 If you don't know how to use and/or change the user variables of an actor, then click on this Imgur album to see how: https://imgur.com/a/IF9Ezo2
@@ -63,11 +110,12 @@ User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower th
 User_DisobeyCommands: Friendly marines will not wander, stay in place, or leave turrets when the player presses use on them.
 User_NoReload: Marines do not need to ever reload their gun.
 User_NoRifleDrop: Marines will never drop their rifles when killed.
-User_NoDodging: Marines will not attempt to evade incoming projectiles.
 User_RetreatAttempts: The amount of times the marine tries to run out of sight of his target, when he needs to reload.
 - Default is 10. -1 makes the marine reload in the open, without trying to get behind cover at all.
 User_AlertRange: The distance around which a marine will alert other marines on his side of a target.
 - Default is 384 map units. -1 disables alerting entirely for this marine, but still allows them to hear the alerts of other marines.
+User_DodgeRange: The maximum range in which marines react to incoming projectiles.
+- Default is 384 map units. -1 disables dodging entirely for this marine.
 User_EnemyAlertHearingRange: The distance around which a marine can hear the alerts of other, enemy marines.
 - Default is 1024 map units. -1 disables hearing enemy alerts entirely, but the marine can still be alerted by other marines on his side.
 User_MeleeChance: The chance of the marine to try changing position after smacking something once.

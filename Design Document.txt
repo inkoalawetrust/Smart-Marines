@@ -78,7 +78,7 @@ x===Worst case scenario I have to make them just keep facing the turret and walk
 ==Perhaps I can make them able to move to occasionaly move to predefined, map placeable sniper spots.
 ==The sniper shot is incredibly damaging, obviously.
 ==The snipers' editor sprite should be of both him and the spotter crouched next to each other.
-==And optional flanker who can be turned on to also spawn near a map placed sniper, who is basically a standard AI marine.
+==An optional flanker who can be turned on to also spawn near a map placed sniper, who is basically a standard AI marine.
 
 -------|DO THE ABOVE FIRST, THEN WE CAN SEE ABOUT THE REST|-------
 

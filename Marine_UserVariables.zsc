@@ -15,6 +15,7 @@ Extend Class SmartMarine
 			If (!User_TurretThreshold) User_TurretThreshold = 100*Frandom (0.5,1.5);
 			If (User_AlertRange == 0) User_AlertRange = 384;
 			If (User_EnemyAlertHearingRange == 0) User_EnemyAlertHearingRange = 1024;
+			If (User_DodgeRange == 0) User_DodgeRange = 384;
 			If (!User_MeleeChance) User_MeleeChance = 96*FRandom (0.5,2.5);
 			If (!User_Color || User_Color ~== "") User_Color = "Random";
 			User_RandomPersonality = False;
@@ -26,6 +27,7 @@ Extend Class SmartMarine
 			If (User_RetreatAttempts == 0) User_RetreatAttempts = 10; //Default amount of attempts the marine makes to run for cover to reload.
 			If (User_AlertRange == 0) User_AlertRange = 384; //Default range in which marines alert each other of enemies.
 			If (User_EnemyAlertHearingRange == 0) User_EnemyAlertHearingRange = 1024; //Default range in which marines can hear the alerts of enemy marines.
+			If (User_DodgeRange == 0) User_DodgeRange = 384; //Default range in which marines dodge projectiles.
 			If (User_MeleeChance == 0) User_MeleeChance = 96; //Default chance for the marine to try running away after hitting something with his rifles' stock.
 			If (User_TurretThreshold == 0) User_TurretThreshold = 100; //Default chance for the marine to use a turret.
 			If (User_FearDistance == 0) User_FearDistance = 2048; //The default distance the marines keeps from powerful enemies.
@@ -73,9 +75,9 @@ Extend Class SmartMarine
 	Double User_AlertRange;
 	Double User_EnemyAlertHearingRange;
 	Double User_FearDistance;
+	Double User_DodgeRange;
 	Bool User_DisobeyCommands;
 	Bool User_NoReload;
-	Bool User_NoDodging;
 	Bool User_RandomPersonality;
 	Bool User_NoRifleDrop;
 	String User_Color;
