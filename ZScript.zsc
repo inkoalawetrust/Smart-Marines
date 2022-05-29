@@ -65,7 +65,9 @@ Class SmartMarine : Actor
 	{
 		Super.Tick();
 		
-		If (IsFrozen() || Health <= 0) {Return;} //Don't run the below code if frozen in time or dead.
+		//Don't run the below code if frozen in time or dead.
+		If (IsFrozen() || Health <= 0)
+			Return;
 		
 		If (GrenadeDelay > 0) GrenadeDelay--;
 		If (DodgeDelay > 0) DodgeDelay--;
@@ -74,18 +76,21 @@ Class SmartMarine : Actor
 		
 		HandleRandomPersonalityMidGame(); //Allows switching on User_RandomPersonality mid-game, to randomize the marine in-game... if you want that for some reason.
 		If (!bFriendly)
-		{
 			Species = "HostileSmartMarine";
-		}
 		Else
-		{
 			Species = "SmartMarine";
-		}
 		
 		//These states have really long frame durations. So the projectile check is done here so the marines can respond while standing still.
 		If ((SM_IsInState ("Spawn") || SM_IsInState("StandStill")) && SM_ShouldDodgeProjectile(User_DodgeRange))
-		{
 			SetStateLabel ("Evade");
+		
+		//If the marine is currently in one of Evade's substates.
+		If (Evading)
+		{
+				vel.z *= 0.95; //"Air friction"
+				//Break the jumping loop once you hit the ground.
+				If (FloorZ >= Pos.Z)
+					SetStateLabel ("EndEvade");
 		}
 	}
 	
@@ -132,6 +137,15 @@ Class SmartMarine : Actor
 		Return False;
 	}
 	
+	Override Int DamageMobj (Actor Inflictor,Actor Source, Int Damage, Name MOD, Int Flags, Double Angle)
+	{		
+		//Marines take a little less damage when behind cover. From attacks that aren't already really weak, that is.
+		If (Crouching && Height <= 30 && Damage >= 5)
+			Damage *= 0.8;
+		
+		Return Super.DamageMobj(Inflictor,Source,Damage,MOD,Flags,Angle);;
+	}
+	
 	Override Bool OkayToSwitchTarget(Actor Other)
 	{
 		If ((Other.bIsMonster || Other.Player) && IsHostile(Other) && Other.Health > 0) {SM_AlertNearbyMarines(User_AlertRange,True);}
@@ -143,17 +157,22 @@ Class SmartMarine : Actor
 	Actor PreviousProjectile; //The previous nearby projectile the marine had found.
 	Actor OriginalTarget; //Temporarily stores the marines' target while running from a grenade.
 	Int TimeSearching; //Once it increments over a certain value, the marine will stop chasing and go back to wandering/Idle.
-	Int BulletSpreadXY, BulletSpreadZ; //Used to generate the spread for the bullets, before the hitscan is fired.
+	Int BulletSpreadXY, BulletSpreadZ; //Used to generate the spread for the bullets, before the hitscan is fired. These should've been doubles, but fixing this requires too much refactoring.
 	Int AmmoUsed; //Keeps track amount of bullets that have been fired by the marine, before needing to reload.
 	Int EscapeAttempts; //How many times the marine has attempted to run out of sight to reload.
 	Int GrenadeDelay; //Marines set this timer on each other after throwing grenades, to not all spam grenades at once when in groups.
 	Int DodgeDelay; //Once this reaches 0, the marine clears the PreviousProjectile pointer. Alowing him to dodge the same projectile again.
+	Int LookingUpDelay; //Used in the Crouch state, to make the marine look up sometimes while crouched. This is purely cosmetic.
+	Int CrouchAttackDelay; //Used when the marine decides to stop shooting for a bit while behind cover. Or after ducking to avoid a projectile.
 	Bool RemovedOldMag; //Keeps track of whether or not the marine removed their previous magazine during reloading.
 	Bool ReactionTimeFixed; //When the marines' reaction time is fixed, after being interrupted on a delayed patrol point, this is used to only apply the fix once. To not further break the reaction time.
 	Bool QuickReload; //Used to make the marines reload in the open. If they have no enemies around, or to quickly reload if they have Don't Chase Targets on, and are patrolling.
 	Bool Maneuvering; //Used when the marine goes to the ChangePosition state while firing.
 	Bool WasChaseGoalOn; //Used in the RunAway state, to keep track of whether or not the marine was following a patrol point with ChaseGoal on before running away,
 	Bool RunningToReload; //Used when the marine is running to reload. So they can dodge projectiles then go right back to running.
+	Bool StrafeAttack; //If on while the marine is jumping out of a projectiles' way, he will shoot at the projectiles' shooter if it was hostile.
+	Bool Evading; //Turned on while the marine is evading, to tell the air friction and height check code in Tick() to run.
+	Bool Crouching; //Is on when the marine is behind cover, not necessarily when he's actually crouch though, for that you check if he's also at his crouched height.
 	
 	Int StrafeDirection; //Stores what direction SM_ShouldDodgeProjectile() told the marine to strafe to.
 	Enum StrafeDirections
@@ -180,7 +199,7 @@ Class SmartMarine : Actor
 		See:
 			MAR2 AAAABBBBCCCCDDDD 2
 			{
-				If((Target && Target is 'PatrolPoint') && ((Goal && Target != Goal) || !Goal)) Target = Null;
+				If((Target && Target Is 'PatrolPoint') && ((Goal && Target != Goal) || !Goal)) Target = Null; //Don't target patrol points you aren't heading to.
 				
 				if(!bFriendly)
 				{
@@ -249,7 +268,7 @@ Class SmartMarine : Actor
 				If (!Target || Target && (!CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY ) || Target.Health <= 0)) //If there is no target, or the target is not visible or alive.
 				{
 					TimeSearching++; //Increment the amount of time you've been looking for the target.
-					//Only run this code if the feature isn't disabled, or if the marine isn't patrolling..
+					//Only run this code if the feature isn't disabled, or if the marine isn't patrolling.
 					If ((User_SearchTime != -1 && !(Target && Goal && Target == Goal)) && TimeSearching >= User_SearchTime)
 					{
 						TimeSearching = 0; //Reset the timer.
@@ -257,7 +276,8 @@ Class SmartMarine : Actor
 						Return ResolveState ("Idle"); //And go back to wandering.
 					}
 				}
-				Else {TimeSearching = 0;} //If the target is visible, then reset the timer again.
+				Else
+					TimeSearching = 0; //If the target is visible, then reset the timer again.
 				
 				SM_ListenForEnemyAlerts(User_EnemyAlertHearingRange); //Listen for enemy marines that alerted their buddies.
 				
@@ -267,7 +287,7 @@ Class SmartMarine : Actor
 				
 				If (SM_ShouldDodgeProjectile(User_DodgeRange))
 					Return ResolveState ("Evade");
-				
+								
 				If (!Target && AmmoUsed >= 10 && TimeSearching >= 50*FRandom(1.1f,1.4f)) //Check if your magazine is half empty. And you haven't seen an enemy in a while.
 				{
 					QuickReload = True;
@@ -275,6 +295,9 @@ Class SmartMarine : Actor
 				}
 				
 				If (CountInv ("PowerStrength") > 0) bAvoidMelee = False; Else bAvoidMelee = True; //Don't avoid melee combat if you have a berserk pack.
+				
+				If (SM_CanCrouch())
+					Return ResolveState ("Crouch");
 				
 				//These if statement switches prevent hostile marines from instantly going back to Idle when they have no target. And also makes them move to patrol points.
 				If (Target && !bFriendly && Target.bShootable && Target.Health > 0 || Target && Goal && Target == Goal)
@@ -344,24 +367,24 @@ Class SmartMarine : Actor
 		AlertOtherMarines: //Alerts other marines of the target that the marine just acquired after calling A_LookEx.
 			TNT1 A 0 SM_AlertNearbyMarines(User_AlertRange);
 			TNT1 A 0 A_JumpIf (OnTurret,"TurretSee");
+			TNT1 A 0 A_JumpIf (Crouching,"Crouch");
 			Goto See;
 		StandStill:
 			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
 			MARA A 10
 			{
 				If (Random (0,256) >= 220) //Random chance to turn around a bit.
-				{
 					Angle += RandomPick (20,30,45,-45,-30,-20);
-				}
 				SM_LookForTarget();
 				SM_ListenForEnemyAlerts(User_EnemyAlertHearingRange);
 			}
 			MARA A 0 A_Jump (24,"Idle");
 			Loop;
 		ChangePosition: //The marine doesn't check for grenades while here, so there is SOME time window where a marine can be harmed by one.
+			TNT1 A 0 A_JumpIf (Crouching,"Crouch");
 			MAR2 A 0 A_SetAngle (Angle+Random (-60,60));
 			MAR2 AABBCCDD 3 A_Wander (CHF_NORANDOMTURN);
-			MAR2 A 0 A_JumpIf (Maneuvering,2); //If you change position while shooting.
+			MAR2 A 0 A_JumpIf (Maneuvering,2); //If you changed position while shooting.
 			MAR2 A 0 A_Jump (245,"See"); //High chance to only move once.
 			Goto ChangePosition+1;
 			TNT1 A 0 {Maneuvering = False;}
@@ -372,52 +395,267 @@ Class SmartMarine : Actor
 				Return State (Null);
 			}
 			Goto RifleBurst;
-		Evade: //These jumping sprites will hopefully be placeholders.
-			MARJ A 1
-			{
-				If (StrafeDirection == STRAFE_RANDOM)
-					A_ChangeVelocity (0,RandomPick (-6,6),4,CVF_RELATIVE);
-				//This shouldn't happen under normal circumstances, the entire point of not doing the position check in this state,
-				//is so the marines' other actions aren't interrupted if he can't dodge the incoming projectile.
-				Else If (StrafeDirection == STRAFE_NONE)
-					Return A_Jump (255,4);
-				Else If (StrafeDirection == STRAFE_LEFT)
-					A_ChangeVelocity (0,6,4,CVF_RELATIVE);
-				Else If (StrafeDirection == STRAFE_RIGHT)
-					A_ChangeVelocity (0,-6,4,CVF_RELATIVE);
+		//The Evade state is split into multiple sub-states, because I couldn't figure any better alternative to make them able to dodge, and also shoot sometimes while doing so.
+		Evade:
+		
+			EvadeStart:
+				TNT1 A 0 A_JumpIf (Crouching,"EndEvade"); //Marines in cover evade projectiles by just ducking down.
+				MARJ A 0
+				{
+					If (StrafeDirection == STRAFE_RANDOM)
+						A_ChangeVelocity (0,RandomPick (-6,6),4,CVF_RELATIVE);
+					//This shouldn't happen under normal circumstances, the entire point of not doing the position check in this state,
+					//is so the marines' other actions aren't interrupted if he can't dodge the incoming projectile.
+					Else If (StrafeDirection == STRAFE_NONE)
+					{
+						Evading = False;
+						Return A_Jump (255,"EndEvade");
+					}
+					Else If (StrafeDirection == STRAFE_LEFT)
+						A_ChangeVelocity (0,6,4,CVF_RELATIVE);
+					Else If (StrafeDirection == STRAFE_RIGHT)
+						A_ChangeVelocity (0,-6,4,CVF_RELATIVE);
 					
-				A_StartSound ("Marine/Throw",CHAN_VOICE); //Umf
-				Return State (Null);
-			}
-			MARJ A 1
+					//May shoot at the shooter of the projectile he is dodging while in mid air, if the marine has ammo left.
+					StrafeAttack = (AmmoUsed < 19 && Random (0,255) < 180);
+						
+					If (!(Random (0,255) == Random (0,255)))
+						A_StartSound ("Marine/Throw",CHAN_VOICE); //Umf
+					Else
+						A_StartSound ("Marine/Wahoo",CHAN_VOICE); //https://www.youtube.com/watch?v=7NFwhd0zsHU
+					Return State (Null);
+				}
+				MARJ A 1;
+				MARJ A 0 {Evading = True;} //So the check in Tick() doesn't instantly return that the marine's on the ground.
+			StrafeWait: //Wait here until the code that runs in Tick() detects that you hit the ground.
+				MARJ A 1 A_JumpIf (StrafeAttack,"StrafeTargetDecide"); //Or go to the below state if StrafeAttack is true.
+				Wait;
+			StrafeTargetDecide: //Otherwise, he will decide who to shoot while jumping.
+				TNT1 A 0
+				{
+					//Don't bother with this if you don't even have any ammo.
+					If (AmmoUsed >= 20)
+					{
+						StrafeAttack = False;
+						A_StartSound ("VRifle/EmptyGun",CHAN_WEAPON);
+						Return ResolveState ("StrafeWait");
+					}
+					
+					//If the projectile you are dodging still exists, and has a targetable hostile shooter attached to it.
+					If (NearbyProjectile && NearbyProjectile.Target && IsHostile(NearbyProjectile.Target) && SM_CanBeTargeted (NearbyProjectile.Target))
+						Return ResolveState ("StrafeAttackShooter"); //Then shoot them.
+					//Otherwise fall back to shooting at your current target if any.
+					Else If (Target)
+						Return ResolveState ("StrafeAttackTarget");
+					//And if you have no target either. Just don't shoot.
+					Else
+					{
+						StrafeAttack = False;
+						Return ResolveState ("StrafeWait");
+					}
+				}
+			StrafeAttackTarget: //If none of the above conditions are met somehow, then fall back to attacking your current target.
+				MARJ A 1
+				{
+					//Worse accuracy since the marine isn't aiming down the sights, and is also literally mid-air.
+					BulletSpreadXY += 2.8 * Random2[cwbullet]() / 255.;
+					BulletSpreadZ += 2.9 * Random2[cwbullet]() / 255.;
+				}
+				TNT1 A 0
+				{
+					If (!Target)
+						Return ResolveState ("StrafeWait");
+					
+					//If you are out of ammo while in mid-air.
+					If (!User_NoReload && AmmoUsed > 19)
+					{
+						If (Random(0,255) < 160) A_StartSound ("VRifle/Empty",CHAN_WEAPON);
+						Return ResolveState ("StrafeWait");
+					}
+										
+					//Don't shoot if the target is currently out of sight or the LOF. Just go back at the start of this state until the target is visible again or you landed.
+					If (!CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES) || SM_CantHitTarget ())
+						Return ResolveState ("StrafeAttackTarget");
+					
+					Return State (Null);
+				}
+				MARJ B 3 Light ("MarineMuzzleFlash")
+				{
+					A_Face (Target,flags:FAF_MIDDLE);
+					SM_MarineBulletAttack(25);
+					//A_CustomBulletAttack (BulletSpreadXY,BulletSpreadZ,1,Random(6,10),"SmartMarinePuff",8196+2,CBAF_NORANDOM|CBAF_AIMFACING|CBAF_EXPLICITANGLE,spawnheight:42,-6);
+					A_StartSound ("Marine/Fire",CHAN_WEAPON);
+					If (!User_NoReload) AmmoUsed++;
+				}
+				Loop;
+			StrafeAttackShooter:
+				MARJ A 1
+				{
+					//Worse accuracy since the marine isn't aiming down the sights, and is also literally mid-air.
+					BulletSpreadXY += 2.8 * Random2[cwbullet]() / 255.;
+					BulletSpreadZ += 2.9 * Random2[cwbullet]() / 255.;
+				}
+				TNT1 A 0
+				{
+					//If you are out of ammo while in mid-air.
+					If (!User_NoReload && AmmoUsed > 19)
+					{
+						If (Random(0,255) < 160) A_StartSound ("VRifle/Empty",CHAN_WEAPON);
+						Return ResolveState ("StrafeWait");
+					}
+					
+					//If the projectile or its' shooter no longer exist, or the projectiles shooter is not visible, or the LOF check returns false, then try attacking your target instead.
+					If (!NearbyProjectile || NearbyProjectile && !NearbyProjectile.Target ||
+					NearbyProjectile && NearbyProjectile.Target && !CheckSight (NearbyProjectile.Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES) || SM_CantHitTarget ())
+						Return ResolveState ("StrafeAttackTarget");
+					
+					Return State (Null);
+				}
+				MARJ B 3 Light ("MarineMuzzleFlash")
+				{
+					A_Face (NearbyProjectile.Target,flags:FAF_MIDDLE);
+					SM_MarineBulletAttack(25);
+					//A_CustomBulletAttack (BulletSpreadXY,BulletSpreadZ,1,Random(6,10),"SmartMarinePuff",8196+2,CBAF_NORANDOM|CBAF_AIMFACING|CBAF_EXPLICITANGLE,spawnheight:42,-6);
+					A_StartSound ("Marine/Fire",CHAN_WEAPON);
+					If (!User_NoReload) AmmoUsed++;
+				}
+				Loop;
+			EndEvade:
+				MARJ A 0
+				{
+					Evading = StrafeAttack = False;
+					PreviousProjectile = NearbyProjectile;
+					NearbyProjectile = Null;
+					DodgeDelay = 35;
+					StrafeDirection = STRAFE_NONE;
+					A_FaceTarget();
+				}
+				MARJ A 0
+				{
+					If (Crouching)
+					{
+						DodgeDelay = 10;
+						//Try making this code somehow set the crouch delay based on the speed of the incoming projectile.
+						CrouchAttackDelay = 5;
+						
+						Return ResolveState ("Crouch");
+					}
+					
+					//50/50 chance to go straight to attacking at your target after dodging, if you have one and can shoot it.
+					//This should hopefully make the marine still attack even when dodging a bunch of projectiles.
+					If ((RunningToReload || AmmoUsed > 19)) //But first, check if you were running away to reload before dodging. Or if you are out of ammo right now.
+						Return ResolveState ("RunForReload");
+					Else If (Random (0,255) < 255/2 && Target && CheckMissileRange())
+						Return ResolveState ("DecideAttack");
+					Else
+						Return ResolveState ("See");
+				}
+				Goto See; //Fallback, in case the above somehow fails.
+		Crouch:
+			MARP F 0
 			{
-				vel.z *= 0.95; //"Air friction"
-				//Break the jumping loop once you hit the ground.
-				If (FloorZ >= Pos.Z)
-					Return A_Jump (255,1);
-				Return State (Null);
+				Crouching = True;
+				Height = 30; //Shrink hitbox.
+				Mass = Default.Mass*1.5; //Get pushed around a bit less by demage while crouched down.
+				TimeSearching = 0;
+				bNoForwardFall = True; //Stops marines behind cover from ever being thrust out of their cover by being hit from the front.
 			}
-			Wait;
-			MARJ A 0
+			MARP A 5
 			{
-				PreviousProjectile = NearbyProjectile;
-				DodgeDelay = 35;
-				NearbyProjectile = Null;
-				StrafeDirection = STRAFE_NONE;
-				A_FaceTarget();
-			}
-			MARJ A 0
-			{
-				//50/50 chance to go straight to attacking at your target after dodging, if you have one and can shoot it.
-				//This should hopefully make the marine still attack even when dodging a bunch of projectiles.
-				If (RunningToReload) //But first, check if you were running away to reload before dodging.
-					Return ResolveState ("RunForReload");
-				Else If (Random (0,255) < 255/2 && Target && CheckMissileRange())
-					Return ResolveState ("DecideAttack");
+				//Chance for the marine to randomly look up while crouched.
+				If (Random (0,255) < 2)
+				{
+					LookingUpDelay = Random (35/2,55); //Random duration for how long he looks up.
+				}
+				
+				If (LookingUpDelay)
+				{
+					Frame = 5; //Frame F.
+					LookingUpDelay--;
+				}
 				Else
+					Frame = 0; //Frame A.
+					
+				//Stop crouching if the level geometry changed and you aren't covered anymore. Or if your target is behind your cover.
+				If (Target && !SM_CanCrouch())
+				{
+					Crouching = False;
+					bNoForwardFall = False;
+					Height = Default.Height;
+					Mass = Default.Mass;
+					LookingUpDelay = CrouchAttackDelay = 0;
 					Return ResolveState ("See");
+				}
+				
+				//Do still run away from nearby grenades.
+				If (SM_FindNearbyGrenade())
+				{
+					Crouching = False;
+					bNoForwardFall = False;
+					Height = Default.Height;
+					Mass = Default.Mass;
+					LookingUpDelay = CrouchAttackDelay = 0;
+					Return ResolveState ("RunAway");
+				}
+				
+				//Don't target dead or friendly NPCs.
+				If (Target && Target.Health <= 0 || Target && !IsHostile(Target) || Target == Self)
+					A_ClearTarget();
+				
+				Height = Default.Height; //So all the functions here that call visibility checks will work properly.
+				
+				//If you have no target, or your target is a patrol point, or your target is friendly or dead.
+				If (!Target || Target && Goal && Target == Goal )
+				{
+					SM_LookForTarget(True);
+				}
+				
+				If (!Target || Target && (!CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY )|| Target.Health <= 0))
+				{
+					TimeSearching++;
+					
+					If (TimeSearching >= 50)
+					{
+						Crouching = False;
+						bNoForwardFall = False;
+						Height = Default.Height;
+						Mass = Default.Mass;
+						LookingUpDelay = CrouchAttackDelay = 0;
+						Return ResolveState ("See");
+					}
+				}
+				Else
+					TimeSearching = 0;
+				
+				A_FaceTarget (10);
+				bMissileEvenMore = False; //Marines are less likely to shoot while in cover.
+				MinMissileChance *= 2;
+				ReactionTime = 0; //Makes CheckMissileRange work.
+								
+				If (CrouchAttackDelay <= 0 && CheckMissileRange())
+				{
+					bNoForwardFall = False;
+					bMissileEvenMore = True;
+					MinMissileChance *= 0.5;
+					Height = Default.Height;
+					Mass = Default.Mass;
+					LookingUpDelay = CrouchAttackDelay = 0;
+					
+					If (GrenadeAttackDecision())
+						Return ResolveState ("ThrowGrenade");
+					
+					Return ResolveState ("RifleBurst");
+				}
+				Else
+					CrouchAttackDelay--;
+				
+				bMissileEvenMore = True;
+				MinMissileChance *= 2;
+				Height = 30; //Sight checks are done, so revert the height.
+				
+				Return State (Null);
 			}
-			Goto See; //Fallback, in case the above somehow fails.
+			Goto Crouch+1;
 		RunForReload:
 			TNT1 A 0
 			{
@@ -428,10 +666,11 @@ Class SmartMarine : Actor
 			{
 				If (SM_ShouldDodgeProjectile(User_DodgeRange))
 					Return ResolveState ("Evade");
-				//Don't try to run away if you have a goal, and are supposed to chase goals instead of targets.
-				If (User_RetreatAttempts == -1 || bChaseGoal && Goal)
+				//Don't try to run away if retreating to reload is off entirely, you have a goal, and are supposed to chase goals instead of targets. Or are behind cover.
+				If (User_RetreatAttempts == -1 || bChaseGoal && Goal || Crouching)
 				{
 					Speed = Default.Speed;
+					RunningToReload = False;
 					QuickReload = True;
 					Return ResolveState ("Reload");
 				}
@@ -461,14 +700,21 @@ Class SmartMarine : Actor
 				WasChaseGoalOn = bChaseGoal;
 				bChaseGoal = False;
 				Speed = Default.Speed*1.75;
+				Crouching = False;
 			}
 			PLAY AABBCCDD 2 A_Chase (Null,Null);
 			TNT1 A 0
 			{
+				//If the marine had a target prior to running from a grenade, and it's still alive, then set it back.
 				If (OriginalTarget && OriginalTarget.Health > 0)
-				{Target = OriginalTarget;} //If the marine had a target prior to running from a grenade, and it's still alive, then set it back.
-				Else If (Goal && !OriginalTarget) {Target = Goal;} //If the marine was patrolling on a delayed patrol point before having to run from a grenade. Then this make them resume patrolling, by going to the next patrol point, if any.
-				Else {Target = Null;} //Otherwise just remove the grenade from the target field.
+					Target = OriginalTarget;
+				//If the marine was patrolling on a delayed patrol point before having to run from a grenade. Then this makes them resume patrolling, by going to the next patrol point, if any.
+				Else If (Goal && !OriginalTarget)
+					Target = Goal;
+				//Otherwise just remove the grenade from the target field.
+				Else
+					Target = Null;
+				
 				bNoPain = False;
 				bFrightened = False;
 				bChaseGoal = WasChaseGoalOn;
@@ -498,25 +744,60 @@ Class SmartMarine : Actor
 			MAR2 A 1;
 			MAR2 A 0 //The bullet spread is determined before the shot, so that it can be checked by SM_CantHitTarget(), so the marines won't even shoot their allies by accident.
 			{
-				BulletSpreadXY += 2.2 * Random2[cwbullet]() / 255.;
-				BulletSpreadZ += 2.3 * Random2[cwbullet]() / 255.;
+				If (!Crouching)
+				{
+					BulletSpreadXY += 2.2 * Random2[cwbullet]() / 255.;
+					BulletSpreadZ += 2.3 * Random2[cwbullet]() / 255.;
+				}
+				//Marines are slightly more accurate when shooting behind cover.
+				Else
+				{
+					BulletSpreadXY += 2.0 * Random2[cwbullet]() / 255.;
+					BulletSpreadZ += 2.1 * Random2[cwbullet]() / 255.;
+				}
 			}
-			MAR2 A 0 A_JumpIf (SM_CantHitTarget(),"ChangePosition"); //Check if any hitscan blocking actors or lines, or allies. Are in front of the line of fire.
+			MAR2 A 0 A_JumpIf (SM_CantHitTarget(),"ChangePosition"); //Go somewhere else to shoot if the LOF is blocked. And you aren't behind cover.
 			MARR A 4 Light ("MarineMuzzleFlash")
 			{
-				A_CustomBulletAttack (BulletSpreadXY,BulletSpreadZ,1,Random(6,10),"SmartMarinePuff",8196+2,CBAF_NORANDOM|CBAF_AIMFACING,spawnheight:42,-6);
+				SM_MarineBulletAttack();
+				//A_CustomBulletAttack (BulletSpreadXY,BulletSpreadZ,1,Random(6,10),"SmartMarinePuff",8192,CBAF_NORANDOM|CBAF_AIMFACING|CBAF_NOPITCH|CBAF_EXPLICITANGLE,spawnheight:42,-6);
 				A_StartSound ("Marine/Fire",CHAN_WEAPON);
 				If (!User_NoReload) AmmoUsed++;
 			}
 			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
 			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(User_DodgeRange),"Evade");
-			MAR2 A 1 A_MonsterRefire (96,"See");
+			MAR2 A 1 //This is mostly a direct ZScript conversion of A_MonsterRefire, just to make the marine go back to the Crouch state if behind cover.
+			{
+				A_FaceTarget();
+				
+				If (Random[pr_monsterrefire](0,255) < 96)
+					Return State (Null);
+				
+				If (!Target || HitFriend() || Target.Health <= 0 || !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
+				{
+					If (!Crouching)
+						Return ResolveState ("See");
+					Else
+						Return ResolveSTate ("Crouch");
+				}
+				
+				Return State (Null);
+			}
 			MAR2 A 0 //Small chance to change position instead of just shooting in place.
 			{
 				If (Random[pr_cajump](0,255) < 24)
 				{
-					Maneuvering = True;
-					Return ResolveState ("ChangePosition");
+					//If behind cover, the marine will just go back to crouching.
+					If (!Crouching)
+					{
+						Maneuvering = True;
+						Return ResolveState ("ChangePosition");
+					}
+					Else
+					{
+						CrouchAttackDelay = Random (4,10);
+						Return ResolveState ("Crouch");
+					}
 				}
 				Return State (Null);
 			}
@@ -530,9 +811,10 @@ Class SmartMarine : Actor
 				FireGrenade (Target,"SM_Grenade",55,1.1,1024);
 			}
 			MARG B 4;
+			TNT1 A 0 A_JumpIf (Crouching,"Crouch");
 			Goto See;
-		Reload:
-			TNT1 A 0 A_JumpIf (QuickReload,9);
+		Reload: //I really need some sprites of the crouched marine reloading, to the marines stay ducked to reload.
+			TNT1 A 0 A_JumpIf ((QuickReload || Crouching),9);
 			PLAY AABBCCDD 2 //Run away a from your target for a bit longer after they are out of sight.
 			{
 				bFrightened = True;
@@ -546,7 +828,7 @@ Class SmartMarine : Actor
 			TNT1 A 0 A_JumpIf (RemovedOldMag,6); //Makes the marine not spawn duplicate mags if interrupted before by being hurt or running from a grenade.
 			TNT1 A 0 {bNoPain = True; QuickReload = False;}
 			MARL ABC 6;
-			MARL D 4 {A_SpawnItemEx ("SmartMarineEmptyMagazine",0,16,27,0,4,-1); RemovedOldMag = True;}
+			MARL D 4 {A_SpawnItemEx ("SmartMarineEmptyMagazine",0,16,27,0,FRandom(2,5),FRandom(-1,-0.5)); RemovedOldMag = True;}
 			MARL C 6;
 			MARL B 6
 			{
@@ -554,12 +836,41 @@ Class SmartMarine : Actor
 				AmmoUsed = 0;
 			}
 			MARL A 4 {RemovedOldMag = False; bNoPain = False;}
+			MARL A 0 A_JumpIf (Crouching,"Crouch");
 			Goto See;	
 		Pain:
-			TNT1 A 0 {Maneuvering = False;}
+			TNT1 A 0
+			{
+				Maneuvering = False;
+				
+				//In case the marine was evading when hurt.
+				Evading = StrafeAttack = False;
+				PreviousProjectile = NearbyProjectile;
+				DodgeDelay = 35;
+				NearbyProjectile = Null;
+				StrafeDirection = STRAFE_NONE;
+			}
 			TNT1 A 0 A_JumpIf (OnTurret,"TurretSee"); //Just in case the NoPain flag somehow fails, while the marine is still on a turret.
 			TNT1 A 0 A_SetSpeed (Default.Speed); //In case you were hurt during RunForReload.
+			TNT1 A 0 A_JumpIf (Crouching,2);
 			PLAY G 10 A_Pain();
 			Goto See;
+			MARP F 10 A_Pain();
+			MARP F 0
+			{
+				//Turn off the crouching variable to run the shorter cover check of the marine. To check if the marine is covered properly still,
+				//After being thrust back from the attack that hurt him. 
+				Crouching = False;
+				A_Pain();
+				If (!SM_CanCrouch())
+				{
+					Height = Default.Height;
+					Return ResolveState ("See");
+				}
+				Crouching = True;
+				
+				Return State (Null);
+			}
+			Goto Crouch+1;
 	}
 }

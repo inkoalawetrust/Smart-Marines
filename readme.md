@@ -14,6 +14,7 @@ Smart marines are NPCs for Doom that are far more intelligent than vanilla monst
 - They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
 - Run away from the grenades they throw, if those grenades are about to explode.
 - Intelligently dodge enemy or extremely harmful projectiles heading their way. More information can be found inside Document.txt
+- Dynamically take cover behind sufficiently tall level geometry or shootable actors when attacking enemies. More information can be found inside Document.txt
 - They have multiple death animations that can play randomly.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
@@ -49,5 +50,5 @@ More information, such as info on what all the user variables available on the m
 
 ## Scrapped features
 
-- Swimming, the code and behavior for it is janky (Or rather, it was always more janky than the rest of my shit code from the very beginning.). Their water movement is just moving in a straight line, and on top of all that. I still have not been able to get any swimming sprites for the marine, so it still used the normal player moving animation as a placeholder. So the swimming behavior will be scraped entirely.
+- Swimming, the code and behavior for it was janky, barebones, and prone to breaking. And TG5 was never able to make the swimming sprites for the marine, so it was scrapped.
 - Taunting, I have had to rewrite this NPC 6 goddamn times, so I won't even bother readding this. Plus it looked kinda stupid anyway.

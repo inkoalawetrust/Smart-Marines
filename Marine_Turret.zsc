@@ -561,6 +561,7 @@ Class SmartMarineMGBullet : FastProjectile
 		RipperLevel 3;
 		Projectile;
 		MissileHeight 8;
+		Obituary "%o was killed by a stray machine gun round !";
 		Decal "SmartMarineMGChip";
 		DamageType "MarineHMG";
 		+Ripper;
@@ -624,8 +625,14 @@ Class SmartMarineMGBullet : FastProjectile
 		Spawn:
 			MTUR Z -1 Light ("MarineMGTracerLight");
 			Stop;
-		Death:
-			TNT1 A 0;
+		Death: //Bullet hit level geometry.
+			TNT1 A 1 A_StartSound ("Turret/Impact");
+			Stop;
+		XDeath: //Bullet hit a bleeding actor.
+			TNT1 A 1; //Don't play the impact sound on bleeding actors.
+			Stop;
+		Crash: //Bullet hit a non bleeding actor.
+			TNT1 A 1 A_StartSound ("Turret/Impact");
 			Stop;
 	}
 }

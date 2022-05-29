@@ -84,9 +84,9 @@ x===Worst case scenario I have to make them just keep facing the turret and walk
 
 Other ideas (DO THE ABOVE FIRST)
 
-=Crouching mode, if they are going to walk into a sector is lower than the standard height, then they should change their height and enter into alternate
- crouched versions of their normal firing, walking, pain etc states. This isn't as important, like literally should be the last thing I do.
-==Make sure to replace the old ZDoom sprites with the new ones TG5 made, and to credit him obviously.
+*=Crouching mode, if they are going to walk into a sector is lower than the standard height, then they should change their height and enter into alternate
+ crouched versions of their normal firing, walking, pain etc states. This isn't as important, like literally should be the last thing I do.| Done, didn't even realize I could actually make this happen until much later.
+*==Make sure to replace the old ZDoom sprites with the new ones TG5 made, and to credit him obviously.
 
 Marine translations:
 

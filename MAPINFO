@@ -8,5 +8,5 @@ DoomEdNums
 
 GameInfo
 {
-	AddEventHandlers = "SM_ProjectileHandler"
+	AddEventHandlers = "SM_ProjectileHandler", "SM_LiquidTextureNameList"
 }

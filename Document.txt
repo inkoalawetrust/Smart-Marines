@@ -21,6 +21,7 @@ The turret's editor name is "Machine Gun Emplacement", and it can be found in th
 - They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
 - Run away from the grenades they throw, if those grenades are about to explode.
 - Intelligently dodge enemy or extremely harmful projectiles heading their way. More information below.
+- Dynamically take cover behind sufficiently tall level geometry or shootable actors when attacking enemies. More information below.
 - They have multiple death animations that can play randomly.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
@@ -84,6 +85,17 @@ then he will only jump to the left to dodge, since his right side is blocked, an
 If he is able to jump both left and right, then he will randomly pick a direction to jump to. But if both his left and right are blocked
 (e.g he is on a small bridge, or tight corridor), then he won't try dodging the incoming projectile at all. Since he has nowhere to jump away from it.
 
+STRAFE FIRING:
+
+In addition, when marines dodge a projectile, they have a fairly high chance to decide to shoot while in mid air. Normally, they will shoot at the projectiles'
+shooter, but if the projectile doesn't exist anymore, has no shooter attached to it, the shooter has the NOTARGET or NEVERTARGET actor flags and/or cheats,
+Or is an ally of the marine that shot him by accident. Then the marine will instead fall back to shooting at his target. If the marine has no target either.
+Or has an empty magazine currently. Then he will simply not shoot.
+
+When shooting at a target while strafing, the marines can fire faster, at the expense of accuracy, due to them hip firing while in mid-air.
+Of course, marines will also stop firing if anything gets in the way of the enemy shooter/target. Or if they simply run out of ammo. In which case, their
+gun will make a clicking sound just like the one you hear when you pick up their rifles and try shooting it with no ammo.
+
 HOW IT WORKS (TECHNICAL):
 Because projectiles are not part of the blockmap normally, a BlockThingsIterator cannot be used to detect nearby projectiles. So an event handler is used instead. (SM_ProjectileHandler)
 The event handler has a dynamic array inside of it. When an actor with the bMissile flag is spawned during WorldThingSpawned, a pointer to that actor will be added to the array.
@@ -98,6 +110,30 @@ NOTE:
 While the dodging behavior works pretty well with projectiles like the ones in vanilla Doom, they will not be able to dodge faster projectiles as well.
 Unless the total range at which they check for projectiles is extended in the code.
 
+================|COVER BEHAVIOR|================
+
+When attacking, marines are able to take cover behind any sufficiently tall barricade.
+
+WHEN THEY TAKE COVER:
+Marines take cover any time that they are attacking an enemy, and detect that any tall enough (Around 24 map units.) level geometry is between them and their target.
+They will also crouch behind sufficiently tall actors, but only if those actors are not NPCs or players, are as wide or wider than the marines' own width,
+can block both projectiles AND hitscans (So Doom's vanilla obstacles are excluded.), and the actor doesn't have very low health.
+This ensures that they will only take cover behind obstacles that can protect them fully, and are not fragile.
+Do note that they will not take cover when patrolling or heading to a turret.
+
+WHEN THEY GET OUT:
+Marines that have found cover will only get out of cover in the following sitations:
+- Their target has gone over or around their cover, or is within melee range.
+- A grenade is nearby and about to explode.
+- The area of the map they are taking cover at has changed, e.g the wall they were hiding behind lowered, or the actor they were behind moved or was destroyed.
+- Their target is gone, and they haven't found any other target for several seconds.
+
+MISCELLANEOUS:
+- Marines also avoid projectiles when behind cover. By ducking back in again. Friendly marines in cover will also avoid other friendly projectiles. Unless they are on the ignore list.
+- While crouched, marines will sometimes look up. This is a purely cosmetic visual effect.
+- When crouched, they use a different pain state, and will also play a crouched death animation if killed while in cover.
+- Marines behind cover are a bit more accurate with their shooting, and when they are crouched down they will take 20% less damage, and get pushed back by damage less easily.
+
 ================|USER VARIABLES|================
 User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring to modify the source code of the actor in any way.
 If you don't know how to use and/or change the user variables of an actor, then click on this Imgur album to see how: https://imgur.com/a/IF9Ezo2
@@ -109,6 +145,7 @@ User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower th
 - Default is 240. -1 makes them always throw grenades, unless they would be caught in the blast. And 256 makes them never throw grenades.
 User_DisobeyCommands: Friendly marines will not wander, stay in place, or leave turrets when the player presses use on them.
 User_NoReload: Marines do not need to ever reload their gun.
+User_NoCover: Marines do not take cover when attacking.
 User_NoRifleDrop: Marines will never drop their rifles when killed.
 User_RetreatAttempts: The amount of times the marine tries to run out of sight of his target, when he needs to reload.
 - Default is 10. -1 makes the marine reload in the open, without trying to get behind cover at all.

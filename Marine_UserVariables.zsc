@@ -5,7 +5,7 @@ Extend Class SmartMarine
 	Override Void PostBeginPlay()
 	{
 		Super.PostBeginPlay();
-				
+		
 		If (User_RandomPersonality)
 		{
 			If (!User_SearchTime) User_SearchTime = 300*FRandom (-0.6,3.0);
@@ -78,6 +78,7 @@ Extend Class SmartMarine
 	Double User_DodgeRange;
 	Bool User_DisobeyCommands;
 	Bool User_NoReload;
+	Bool User_NoCover;
 	Bool User_RandomPersonality;
 	Bool User_NoRifleDrop;
 	String User_Color;

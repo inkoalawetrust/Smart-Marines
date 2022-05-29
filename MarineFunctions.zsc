@@ -31,13 +31,137 @@ Class SM_ProjectileHandler : EventHandler
 	}
 }
 
+Class SM_LiquidTextureNameList : EventHandler
+{
+	/*===============================================================
+	This event handler stores the names of the different textures used for each type of liquid.
+	And is then accessed by the grenades and the marines' hitscan attack, to determine what splash to produce on impact, if any.
+	These lists can be expanded as seen fit for your project, in case it has additional custom water/nukage/blood/lava/slime textures.
+	The lists already contain some names of liquid flats that don't exist in the vanilla game, for built-in mod compatibility.
+	Such as by having waterfall textures that don't exist like WFALL# and NFALL#.
+	===============================================================*/
+	Static Const String WaterTextures[] ={"FWATER1", "FWATER2", "FWATER3", "FWATER4", "WFALL1", "WFALL2", "WFALL3", "WFALL4"};
+	Static Const String NukageTextures[] ={"NUKAGE1", "NUKAGE2", "NUKAGE3", "NFALL1", "NFALL2", "NFALL3", "NFALL4"};
+	Static Const String BloodTextures[] ={"BLOOD1", "BLOOD2", "BLOOD3", "BFALL1", "BFALL2", "BFALL3", "BFALL4"};
+	Static Const String LavaTextures[] ={"LAVA1","LAVA2", "LAVA3", "LAVA4", "DBRAIN1", "DBRAIN2", "DBRAIN3", "DBRAIN4", "LFALL1", "LFALL2", "LFALL3", "LFALL4"};
+	Static Const String SlimeTextures[] ={"SLIME01","SLIME02", "SLIME03", "SLIME04", "SLIME05","SLIME06", "SLIME07", "SLIME08", "SFALL1", "SFALL2", "SFALL3", "SFALL4"};
+
+}
+
+//Boy, these functions are so basic, my next project should have more generic functions like these, that aren't reliant on any specific actor.
+Mixin Class GrenadeFunctions
+{
+	//Checks if the calling actor is within a swimmable or non-solid 3D floor. Written by Boondorl.
+	F3DFloor SM_GetSwimmable3DFloor()
+	{
+		if (waterLevel <= 0)
+			return null;
+
+		for (int i = 0; i < curSector.Get3DFloorCount(); i++)
+		{
+			F3DFloor ff = curSector.Get3DFloor(i);
+			if (!(ff.flags & F3DFloor.FF_EXISTS) || (ff.flags & F3DFloor.FF_SOLID) || !(ff.flags & F3DFloor.FF_SWIMMABLE))
+				continue;
+
+			if (pos.z+height > ff.bottom.ZAtPoint(pos.xy) && pos.z < ff.top.ZAtPoint(pos.xy))
+				return ff;
+		}
+
+		return null;
+	}
+	
+	//This function doesn't really work with swimmable 3D floors, and since I've had no luck getting a raycast to detect swimmable floors using a Line Tracer class, this will have to do.
+	F3DFloor SM_Find3DFloorBelow (Double CheckDistance = 32)
+	{
+		FLineTraceData ThreeDFloorCheck;
+		LineTrace (0,CheckDistance,90,TRF_THRUACTORS,data:ThreeDFloorCheck);
+		
+		Return ThreeDFloorCheck.Hit3DFloor;
+	}
+	
+	Int SM_GrenadeExplodedOnLiquid()
+	{
+		F3DFloor RORSector;
+		F3DFloor RORSectorBelow;
+		TextureID FloorTexture;
+		TextureID FloorTextureBelow;
+		
+		Let LiquidList = SM_LiquidTextureNameList(EventHandler.Find("SM_LiquidTextureNameList"));
+		
+		RORSector = SM_GetSwimmable3DFloor();
+		
+		If (RORSector)
+			FloorTexture = RORSector.GetTexture(0);
+		
+		RORSectorBelow = SM_Find3DFloorBelow();
+				
+		If (RORSectorBelow)
+			FloorTextureBelow = RORSectorBelow.GetTexture(0);
+		
+		//Look through the list of water textures.
+		For (Int I = 0; I < LiquidList.WaterTextures.Size(); I++)
+		{
+			//Are you inside or above a swimmable 3D floor with a water texture ?
+			If (TexMan.CheckForTexture(LiquidList.WaterTextures[I]) == FloorTexture || TexMan.CheckForTexture(LiquidList.WaterTextures[I]) == FloorTextureBelow ||
+			//If not, then check if the floor texture of the sector the grenade is in matches. And that you are close enough to the floor.
+			TexMan.CheckForTexture(LiquidList.WaterTextures[I]) == FloorPic && (Pos.Z - FloorZ) <= 32)
+				Return SM_HitWater;
+		}
+		
+		//The rest is basically the same, except that it checks for different lists of textures.
+		For (Int I = 0; I < LiquidList.NukageTextures.Size(); I++)
+		{
+			//Are you inside or above a swimmable 3D floor with a water texture ?
+			If (TexMan.CheckForTexture(LiquidList.NukageTextures[I]) == FloorTexture || TexMan.CheckForTexture(LiquidList.NukageTextures[I]) == FloorTextureBelow ||
+			//If not, then check if the floor texture of the sector the grenade is in matches. And that you are close enough to the floor.
+			TexMan.CheckForTexture(LiquidList.NukageTextures[I]) == FloorPic && (Pos.Z - FloorZ) <= 32)
+				Return SM_HitNukage;
+		}
+		
+		For (Int I = 0; I < LiquidList.BloodTextures.Size(); I++)
+		{
+			//Are you inside or above a swimmable 3D floor with a water texture ?
+			If (TexMan.CheckForTexture(LiquidList.BloodTextures[I]) == FloorTexture || TexMan.CheckForTexture(LiquidList.BloodTextures[I]) == FloorTextureBelow ||
+			//If not, then check if the floor texture of the sector the grenade is in matches. And that you are close enough to the floor.
+			TexMan.CheckForTexture(LiquidList.BloodTextures[I]) == FloorPic && (Pos.Z - FloorZ) <= 32)
+				Return SM_HitBlood;
+		}
+		
+		For (Int I = 0; I < LiquidList.LavaTextures.Size(); I++)
+		{
+			//Are you inside or above a swimmable 3D floor with a water texture ?
+			If (TexMan.CheckForTexture(LiquidList.LavaTextures[I]) == FloorTexture || TexMan.CheckForTexture(LiquidList.LavaTextures[I]) == FloorTextureBelow ||
+			//If not, then check if the floor texture of the sector the grenade is in matches. And that you are close enough to the floor.
+			TexMan.CheckForTexture(LiquidList.LavaTextures[I]) == FloorPic && (Pos.Z - FloorZ) <= 32)
+				Return SM_HitLava;
+		}
+		
+		For (Int I = 0; I < LiquidList.SlimeTextures.Size(); I++)
+		{
+			//Are you inside or above a swimmable 3D floor with a water texture ?
+			If (TexMan.CheckForTexture(LiquidList.SlimeTextures[I]) == FloorTexture || TexMan.CheckForTexture(LiquidList.SlimeTextures[I]) == FloorTextureBelow ||
+			//If not, then check if the floor texture of the sector the grenade is in matches. And that you are close enough to the floor.
+			TexMan.CheckForTexture(LiquidList.SlimeTextures[I]) == FloorPic && (Pos.Z - FloorZ) <= 32)
+				Return SM_HitSlime;
+		}
+		
+		Return SM_HitNoLiquid;
+	}
+}
+
 Mixin Class MarineFunctions
 {
 	//Shorthand for checking what state the marine is in.
 	Bool SM_IsInState (StateLabel CheckFor = "Spawn")
 	{
-		If (InStateSequence(CurState,ResolveState (CheckFor))) {Return True;}
-		Return False;
+		Return (InStateSequence(CurState,ResolveState (CheckFor)));
+	}
+	
+	//Returns true if the specified actor doesn't have any flags that should make it unable to be targeted.
+	Bool SM_CanBeTargeted (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (Other && !Other.bNoTarget && !Other.bNeverTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
 	}
 	
 	Bool GrenadeAttackDecision (Double BlastRadius = 192, Double ThrowDistance = 1024, Double DangerDistance = 224)
@@ -163,6 +287,109 @@ Mixin Class MarineFunctions
 		) * nade.Speed;
 	}
 	
+	//A_CustomBulletAttack() does this this really awesome thing where you cannot actually fucking offset the spawning position of the hitscan itself.
+	//So I have to manually fire a custom hitscan, one that is far more likely than not broken, and doesn't behave like normal hitscans.
+	//All so I can change the spawn height and horizontal offsets of the hitscans they fire.
+	Void SM_MarineBulletAttack (Double SpawnHeight = 42)
+	{
+		Double XY_Spread;
+		Double SlopeBullshit = 0.;
+		Bool LiquidHit;
+		
+		A_StartSound(AttackSound, CHAN_WEAPON);
+		
+		SlopeBullshit = /*AimLineAttack (Angle,8192)*/ Pitch + BulletSpreadZ;
+		
+		XY_Spread = Angle + BulletSpreadXY;
+		
+		Actor Puff = LineAttack (XY_Spread,8192,SlopeBullshit,Random (6,10),"HitScan","SmartMarinePuff",LAF_OVERRIDEZ,offsetz:SpawnHeight,0,-6);
+		
+		//Bullet impact splash handling.
+		//The splashes only work with solid surfaces because I tried getting them to work with swimmable 3D floors for 2 days straight to no avail.
+		//Also, the rifle the marines drop doesn't produce splashes because calling this exact same code from the player produces pitch differences
+		//between where the line trace is fired, and where the actual hitscan attack is fired because reason I guess.
+		FLineTraceData LiquidCheck;
+		Actor Splash;
+		Let LiquidList = SM_LiquidTextureNameList(EventHandler.Find("SM_LiquidTextureNameList"));	
+		LineTrace (XY_Spread,8192,SlopeBullshit,0,SpawnHeight,0,-6,LiquidCheck);
+		
+		//Check the list of water textures.
+		For (Int I = 0; I < LiquidList.WaterTextures.Size(); I++)
+		{
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.WaterTextures[I]))
+			{
+				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
+				LiquidHit = True;
+				Break;
+			}
+		}
+		
+		//Check the list of nukage textures.
+		For (Int I = 0; I < LiquidList.NukageTextures.Size(); I++)
+		{
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.NukageTextures[I]))
+			{
+				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
+				Splash.A_SetTranslation("SM_Splash_Nukage");
+				LiquidHit = True;
+				Break;
+			}
+		}
+		
+		//Check the list of blood textures.
+		For (Int I = 0; I < LiquidList.BloodTextures.Size(); I++)
+		{
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.BloodTextures[I]))
+			{
+				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
+				Splash.A_SetTranslation("SM_Splash_Blood");
+				LiquidHit = True;
+				Break;
+			}
+		}
+		
+		//Check the list of slime textures.
+		For (Int I = 0; I < LiquidList.SlimeTextures.Size(); I++)
+		{
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.SlimeTextures[I]))
+			{
+				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
+				Splash.A_SetTranslation("SM_Splash_Slime");
+				LiquidHit = True;
+				Break;
+			}
+		}
+		
+		//Check the list of lava textures.
+		For (Int I = 0; I < LiquidList.LavaTextures.Size(); I++)
+		{
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.LavaTextures[I]))
+			{
+				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
+				Splash.A_SetTranslation("SM_Splash_Lava");
+				LiquidHit = True;
+				Break;
+			}
+		}
+		
+		If (Puff)
+		{
+			//Don't play both the splash sound and impact at once, it wouldn't make sense, plus it's kinda annoying to hear both sounds at once.
+			If (!LiquidHit)
+				Puff.A_StartSound ("VRifle/Impact");
+			Else
+			{
+				Puff.bAllowParticles = False;
+				Puff.Alpha = 0; //Only show the liquid splash.
+			}
+		}
+	}
+	
 	//Determines if the marine should be scared of its' current target.
 	Void SM_ShouldBeScared()
 	{
@@ -205,7 +432,7 @@ Mixin Class MarineFunctions
 	//This (mostly) prevents marines from jumping into walls or off very tall ledges.
 	Bool SM_ShouldDodgeProjectile (Double Distance = 384)
 	{
-		If (User_DodgeRange == -1) Return False;
+		If (User_DodgeRange == -1 || bDormant) Return False;
 		
 		Bool LeftSafe;
 		Bool RightSafe;
@@ -247,7 +474,6 @@ Mixin Class MarineFunctions
 	//The IgnoredProjectiles and AlwaysAvoid arrays can be used to list what projectiles the marines should always avoid or ignore.
 	Bool SM_FindNearbyProjectile (Double Range = 384)
 	{
-		
 		Bool EpicFail; //Makes the function immediately stop running if the projectile is on the ignore list.
 		Bool SkipAllyCheck;
 		
@@ -288,7 +514,8 @@ Mixin Class MarineFunctions
 				
 				If (EpicFail) Continue;
 				
-				If (!bFriendly) SkipAllyCheck = True; //As a hostile marine, just dodge ANY projectile not on the IgnoredProjectiles list.
+				//Hostile marines and any marines currently in cover will ignore all projectiles, except for ones on the Ignored Projectiles list.
+				If (!bFriendly || Crouching) SkipAllyCheck = True;
 				
 				//If the projectile heading towards you will do way too much damage, then avoid it even if it was shot by a friend. This has to account for Doom's absurd damage variation.
 				If (Projectile.bStrifeDamage && Projectile.Damage >= Health/3 || Projectile.Damage >= Health/6) {SkipAllyCheck = True;}
@@ -310,7 +537,6 @@ Mixin Class MarineFunctions
 				double projectileSafeRadius = sqrt(2 * ((projectile.radius + radius) ** 2.2));
 				if(projectile_is_flying_towards_me && distance3dline(pos, projectile.pos, projectile.pos + projectile.vel) < projectileSafeRadius)
 				{
-					
 					NearbyProjectile = Projectile;
 					Return True;
 				}
@@ -329,7 +555,7 @@ Mixin Class MarineFunctions
 	{
 		If (User_AlertRange == -1) Return;
 		
-		If (Target && Goal && Target == Goal) Return; //Don't fuck things up by making other marines try and attack a patrol point.
+		If ((Target && Goal && Target == Goal) && !GoingToTurret) Return; //Don't fuck things up by making other marines try and attack a patrol point. Or stoping them from going to a turret.
 		
 		Actor PotentialMarine;
 		Bool FoundMarines;
@@ -344,12 +570,12 @@ Mixin Class MarineFunctions
 				
 				If (!PotentialMarine.bDormant && PotentialMarine.GetClassName() == "SmartMarine" && Distance3D(PotentialMarine) <= Range && PotentialMarine.Health > 0 && !IsHostile (PotentialMarine) && !(PotentialMarine.Target)) //If the actor is not dormant, a marine, in range, is not hostile to you, and has no target already.
 				{
-					//Make sure the marine isn't in its' RunAway state, that state must NEVER be broken by being changed or having the marines' target changed during it.
-					If (!(PotentialMarine.InStateSequence(PotentialMarine.CurState,ResolveState ("RunAway"))))
+					//Make sure the marine isn't in its' RunAway state or crouching, that state must NEVER be broken by being changed or having the marines' target changed during it.
+					If (!SM_IsInState ("RunAway") && !Crouching)
 					{
 						PotentialMarine.Target = Target; //Have the marine share your target.
 						FoundMarines = True; //A marine has been found.
-						If (!(PotentialMarine.InStateSequence(PotentialMarine.CurState,ResolveState ("See")))) //If the marine isn't in its' see state already, to chase the target.
+						If (!SM_IsInState ("See")) //If the marine isn't in its' see state already, to chase the target.
 						{
 							PotentialMarine.SetStateLabel ("See"); //Then send them to it.
 						}
@@ -358,20 +584,22 @@ Mixin Class MarineFunctions
 			}
 			
 			If (FoundMarines) //If at least one marine was found to alert.
-			{A_StartSound ("Marine/AlertAllies",CHAN_VOICE,attenuation:0.75);}
+				A_StartSound ("Marine/AlertAllies",CHAN_VOICE,attenuation:0.75);
 		}
 	}
 	
 	//Searches for grenades that are about to explode near the marine.
 	Bool SM_FindNearbyGrenade (Double SearchRadius = 256)
 	{
+		If (bDormant) Return False;
 		Actor Mobj;
 		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
 		
 		While (GrenadeSearch.Next())
 		{
 			Mobj = GrenadeSearch.Thing;
-			If (Mobj.GetClassName() == "SM_Grenade" && Mobj.ReactionTime <= 6 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True)) //If the found actor is a grenade, that will explode in about a second. And you are in the blast radius and it's visible.
+			//If the found actor is a grenade, that hasn't exploded already, but that will explode in about a second. And you are in the blast radius, and it's visible.
+			If (Mobj.GetClassName() == "SM_Grenade" && !(SM_Grenade(Mobj).Exploded) && Mobj.ReactionTime <= 6 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True))
 			{
 				OriginalTarget = Target; //Keep the original target of the marine stored.
 				Target = Mobj; //Then change the target to the grenade that was found.
@@ -381,6 +609,75 @@ Mixin Class MarineFunctions
 		Return False; //No grenades were found near the marine.
 	}
 	
+	//Returns if the marine can or cannot crouch.
+	Bool SM_CanCrouch ()
+	{
+		FLineTraceData EyeLevel;
+		FLineTraceData HipLevel;
+		Bool EyeLevelBlocked;
+		Bool HipLevelBlocked;
+		Int HasHit;
+		Actor Mobj;
+		
+		If (User_NoCover)
+			Return False;
+		
+		//Don't crouch if you have no target, or your target is your goal too. AKA you are patrolling.
+		If (!Target || Target && (Target && Goal && Target == Goal))
+			Return False;
+		
+		//If your target is this close to you, you probably can't crouch.
+		If (Distance3DSquared(Target) <= 72*72)
+			Return False;
+		
+		/*
+		This fires two raycasts from the marines' eyes and hips. Then the Eye and HipLevelBlocked booleans return true or false.
+		Based on whether or not they hit any level geometry before stopping. The distance that the raycasts travel double when
+		the marine is already crouched, so they don't get out of cover even when their target hasn't breached said cover.
+		*/
+		
+		If (!Crouching)
+			LineTrace (AngleTo (Target),48,0,TRF_THRUHITSCAN,50,data:EyeLevel);
+		Else
+			LineTrace (AngleTo (Target),128,0,TRF_THRUHITSCAN,50,data:EyeLevel);
+		
+		HasHit = EyeLevel.HitType;
+		EyeLevelBlocked = (EyeLevel.HitActor || (HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling));
+		
+		If (!Crouching)
+			LineTrace (AngleTo (Target),48,0,TRF_THRUHITSCAN,18,data:HipLevel);
+		Else
+			LineTrace (AngleTo (Target),128,0,TRF_THRUHITSCAN,18,data:HipLevel);
+		
+		HasHit = HipLevel.HitType;
+		Mobj = HipLevel.HitActor;
+		//Only take cover behind large enough actors that aren't other NPCs or players. And aren't about to break.
+		If ((HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling) ||
+		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height < 40 && Mobj.Health >= 40))
+			HipLevelBlocked = True;
+		
+		//Only run this if the marine is not crouched already, and also has a target, that isn't a patrol point.
+		If (!Crouching)
+		{
+			If (!EyelevelBlocked && HipLevelBlocked && CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY))
+				Return True;
+		}
+		
+		//If you are crouching already and have a line of sight to your target.
+		If (Crouching && CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY))
+		{
+			//Then return if you can crouch based on where or not your hips are blocked by cover still.
+			Return HipLevelBlocked;
+		}
+		
+		//If none of the other checks are true, but you are crouching already, then just assume you can keep doing so.
+		If (Crouching)
+			Return True;
+		
+		Return False;
+	}
+	
+	//Makes the marine listen for any enemy marines playing the radio transmission sound, which is played when marines alert each other.
 	Void SM_ListenForEnemyAlerts (Double HearingRadius = 1024)
 	{
 		If (User_EnemyAlertHearingRange == -1) Return; //Don't run this if the feature is turned off.
@@ -411,12 +708,12 @@ Mixin Class MarineFunctions
 		FLineTraceData LOFCheck;
 		
 		A_FaceTarget(0,0,flags:FAF_MIDDLE);
+
 		LineTrace (Angle+BulletSpreadXY,8192+2,Pitch+BulletSpreadZ,0,42,0,-6,LOFCheck);
 		Mobj = LOFCheck.HitActor;
 		HitLine = LOFCheck.HitLine;
 		If (Mobj) //Only run this if an actor was hit by the raycast.
 		{
-			
 			//If the actor is a shootable non-monster, with a width over 10 map units. Or it's a dormant monster.
 			If ((!(Mobj.bIsMonster) && !(Mobj.Player) && Mobj.bShootable && Mobj.Radius > 5) || Mobj.bIsMonster && Mobj.bDormant)
 			{
