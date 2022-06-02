@@ -44,6 +44,7 @@ Turret/Impact "Sounds/MGImpact.ogg"
 //Grenade sounds
 Grenade/Bounce "Sounds/GrenadeBounce.ogg"
 Grenade/Explode "Sounds/GrenadeBoom.ogg"
+Grenade/Warning "Sounds/GrenadeBeep.ogg"
 Grenade/WaterBlast "Sounds/WaterBoom.ogg"
 
 $Attenuation Turret/Fire 0.25

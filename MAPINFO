@@ -4,6 +4,7 @@ DoomEdNums
 	8574 = TurretMarine
 	8575 = VanillaRifle
 	8576 = SmartMarineMGTurret
+	8577 = SM_NoCrouchZone
 }
 
 GameInfo

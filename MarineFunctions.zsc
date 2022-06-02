@@ -6,7 +6,7 @@ Class SM_ProjectileHandler : EventHandler
 	Override Void WorldThingSpawned(WorldEvent E)
 	{
 		//Add every spawned projectile to a big list.
-		If (E.Thing && E.Thing.bMissile)
+		If (E.Thing && E.Thing.bMissile && E.Thing.Damage > 0)
 		{
 			ProjectileList.Push(E.Thing);
 		}
@@ -599,7 +599,7 @@ Mixin Class MarineFunctions
 		{
 			Mobj = GrenadeSearch.Thing;
 			//If the found actor is a grenade, that hasn't exploded already, but that will explode in about a second. And you are in the blast radius, and it's visible.
-			If (Mobj.GetClassName() == "SM_Grenade" && !(SM_Grenade(Mobj).Exploded) && Mobj.ReactionTime <= 6 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True))
+			If (Mobj.GetClassName() == "SM_Grenade" && !(SM_Grenade(Mobj).Exploded) && Mobj.ReactionTime <= 40 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True))
 			{
 				OriginalTarget = Target; //Keep the original target of the marine stored.
 				Target = Mobj; //Then change the target to the grenade that was found.
@@ -614,12 +614,12 @@ Mixin Class MarineFunctions
 	{
 		FLineTraceData EyeLevel;
 		FLineTraceData HipLevel;
-		Bool EyeLevelBlocked;
+		Bool EyeLevelUnblocked;
 		Bool HipLevelBlocked;
 		Int HasHit;
 		Actor Mobj;
 		
-		If (User_NoCover)
+		If (User_NoCover || CrouchDelay)
 			Return False;
 		
 		//Don't crouch if you have no target, or your target is your goal too. AKA you are patrolling.
@@ -637,16 +637,15 @@ Mixin Class MarineFunctions
 		*/
 		
 		If (!Crouching)
-			LineTrace (AngleTo (Target),48,0,TRF_THRUHITSCAN,50,data:EyeLevel);
+			LineTrace (AngleTo (Target),48,0,0,50,data:EyeLevel);
 		Else
-			LineTrace (AngleTo (Target),128,0,TRF_THRUHITSCAN,50,data:EyeLevel);
+			LineTrace (AngleTo (Target),128,0,0,50,data:EyeLevel);
 		
-		HasHit = EyeLevel.HitType;
-		EyeLevelBlocked = (EyeLevel.HitActor || (HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling));
-		
+		EyeLevelUnblocked = SM_EyeLevelBlocked (EyeLevel);
+
 		If (!Crouching)
 			LineTrace (AngleTo (Target),48,0,TRF_THRUHITSCAN,18,data:HipLevel);
-		Else
+		Else //Run a longer range trace when crouched to not go out of cover as easily when behind strangely shaped cover like star shaped fountains.
 			LineTrace (AngleTo (Target),128,0,TRF_THRUHITSCAN,18,data:HipLevel);
 		
 		HasHit = HipLevel.HitType;
@@ -659,14 +658,14 @@ Mixin Class MarineFunctions
 		//Only run this if the marine is not crouched already, and also has a target, that isn't a patrol point.
 		If (!Crouching)
 		{
-			If (!EyelevelBlocked && HipLevelBlocked && CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY))
+			If (EyelevelUnblocked && HipLevelBlocked && CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY))
 				Return True;
 		}
 		
 		//If you are crouching already and have a line of sight to your target.
 		If (Crouching && CheckSight (Target,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY))
 		{
-			//Then return if you can crouch based on where or not your hips are blocked by cover still.
+			//Then return if you can crouch based on whether or not your hips are blocked by cover still.
 			Return HipLevelBlocked;
 		}
 		
@@ -676,6 +675,27 @@ Mixin Class MarineFunctions
 		
 		Return False;
 	}
+	
+    Bool SM_EyeLevelBlocked (FLineTraceData Data)
+    {
+        Int HasHit;
+        
+        HasHit = Data.HitType;
+		
+        If (Data.HitActor)
+            Return False;
+        
+        If (HasHit == TRACE_HitWall)
+            Return False;
+        
+        If (HasHit == TRACE_HitFloor)
+            Return False;
+		
+		If (HasHit == Trace_HitCeiling)
+			Return False;
+        
+        Return True;
+    }
 	
 	//Makes the marine listen for any enemy marines playing the radio transmission sound, which is played when marines alert each other.
 	Void SM_ListenForEnemyAlerts (Double HearingRadius = 1024)

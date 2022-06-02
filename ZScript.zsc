@@ -16,6 +16,7 @@ MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
 /*When the new GZDoom version comes out, begin using CHF_DONTIDLE, and also use my DONTFOLLOWPLAYERS flag, to add an additional use mode for friendly marines,
 that makes them follow you. While the wandering mode makes them actually wander around, instead of following you.*/
 //Maybe add a secondary melee attack to the rifle weapon, like what the marines have. I'll need first person sprites of the rifle being swung though.
+//It seems that there's a bug where marines crouch behind windows with linedefs that block their line of fire. I should investigate and fix it if that's the case.
 
 Class SmartMarine : Actor
 {
@@ -69,6 +70,7 @@ Class SmartMarine : Actor
 		If (IsFrozen() || Health <= 0)
 			Return;
 		
+		If (CrouchDelay > 0) CrouchDelay--;
 		If (GrenadeDelay > 0) GrenadeDelay--;
 		If (DodgeDelay > 0) DodgeDelay--;
 		//Once the dodge delay is over, remove the point to the previous projectile.
@@ -162,6 +164,7 @@ Class SmartMarine : Actor
 	Int EscapeAttempts; //How many times the marine has attempted to run out of sight to reload.
 	Int GrenadeDelay; //Marines set this timer on each other after throwing grenades, to not all spam grenades at once when in groups.
 	Int DodgeDelay; //Once this reaches 0, the marine clears the PreviousProjectile pointer. Alowing him to dodge the same projectile again.
+	Int CrouchDelay; //The marine will not crouch as long as this variable isn't at 0 or below. Used by the no-crouch zone actors.
 	Int LookingUpDelay; //Used in the Crouch state, to make the marine look up sometimes while crouched. This is purely cosmetic.
 	Int CrouchAttackDelay; //Used when the marine decides to stop shooting for a bit while behind cover. Or after ducking to avoid a projectile.
 	Bool RemovedOldMag; //Keeps track of whether or not the marine removed their previous magazine during reloading.
@@ -294,7 +297,11 @@ Class SmartMarine : Actor
 					Return ResolveState ("Reload");
 				}
 				
-				If (CountInv ("PowerStrength") > 0) bAvoidMelee = False; Else bAvoidMelee = True; //Don't avoid melee combat if you have a berserk pack.
+				//Don't avoid melee combat if you have a berserk pack.
+				If (CountInv ("PowerStrength") > 0)
+					bAvoidMelee = False;
+				Else 
+					bAvoidMelee = True;
 				
 				If (SM_CanCrouch())
 					Return ResolveState ("Crouch");
@@ -813,7 +820,7 @@ Class SmartMarine : Actor
 			MARG B 4;
 			TNT1 A 0 A_JumpIf (Crouching,"Crouch");
 			Goto See;
-		Reload: //I really need some sprites of the crouched marine reloading, to the marines stay ducked to reload.
+		Reload: //I really need some sprites of the crouched marine reloading, so the marines stay ducked to reload.
 			TNT1 A 0 A_JumpIf ((QuickReload || Crouching),9);
 			PLAY AABBCCDD 2 //Run away a from your target for a bit longer after they are out of sight.
 			{

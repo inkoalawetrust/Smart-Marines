@@ -85,11 +85,23 @@ Extend Class SmartMarine
 			MARP K -1;
 			Stop;
 		XDeath: //Mega oof
+			TNT1 A 0 A_JumpIf ((Crouching && Height < Default.Height),"CrouchXDeath");
 			PLAY O 5;
 			PLAY P 5 A_StartSound("Marine/XDeath",CHAN_VOICE);
 			PLAY Q 5 A_NoBlocking();
 			PLAY RSTUV 5;
 			PLAY W -1;
+			Stop;
+		CrouchXDeath:
+			MARP L 5
+			{
+				Crouching = False;
+				Height = Default.Height;
+			}
+			MARP M 5 A_StartSound("Marine/XDeath",CHAN_VOICE);
+			MARP N 5 A_NoBlocking();
+			MARP OPQRS 5;
+			MARP T -1;
 			Stop;
 		Raise:
 			TNT1 A 0

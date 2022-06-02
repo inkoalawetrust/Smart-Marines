@@ -2,14 +2,15 @@ The credits for every asset used on this NPC, can be found inside credits.txt.
 
 SHOWCASE VIDEO AND DOCUMENTATION OF THE MARINES: https://www.youtube.com/watch?v=PlZSs5XyEdU
 
-If you have any issues with the marines or some other NPC made by me, you can ask me for help on Discord at inkoalawetrust#9783, or Twitter at @inkoalawetrust.
+If you have any issues with the marines or some other NPC made by me, you can ask me for help on Discord at inkoalawetrust#9783, or Twitter at @inkoalawetrust. Or put them on the issue tracker: https://github.com/inkoalawetrust/Smart-Marines/issues
 
 The marines have 120 health, somewhat higher than the players'. You can turn on the Friendly flag for them in the editor to use them as smart allies.
-In fact, I've sort of just made them with the intent of being used as allies, like the Allied Marines resource from Realm667. But they should work just as well as enemies.
+In fact, I've sort of just made them with the intent of being used as allies, like the Allied Marines resource from Realm667. But they work just as well as enemies.
 
 Their name in the editor is "AI Marine" and "AI Marine (Turret)", and they can be found under the Marines folder.
 Their class names are "SmartMarine", "TurretMarine"
 The turret's editor name is "Machine Gun Emplacement", and it can be found in the Weapons folder, its' class name is "SmartMarineMGTurret"
+The editor name of their No Crouch Zone map spots (More info below) is "No Crouch Zone (AI Marines)", and it can be found in the ZDoom folder, its' class name is SM_NoCrouchZone.
 
 ================|WHAT THEY CAN DO|================
 
@@ -127,6 +128,13 @@ Marines that have found cover will only get out of cover in the following sitati
 - A grenade is nearby and about to explode.
 - The area of the map they are taking cover at has changed, e.g the wall they were hiding behind lowered, or the actor they were behind moved or was destroyed.
 - Their target is gone, and they haven't found any other target for several seconds.
+
+NO CROUCH ZONE ACTOR:
+If you do not want the marines to crouch in certain areas, such as behind particular staircases, you can use the SM_NoCrouchZone actor.
+Which will prevent marines entering its' range from crouching at all. The actor can be found under the "ZDoom" folder.
+It also uses custom arguments (Not user variables) that allow you to specify its' range and for how long marines will not crouch once out of said range.
+The custom arguments can be accessed by selecting the no crouch zone actor(s( and going to the Action/Tag/Misc. tab.
+In addition to the custom arguments, you can also disable and enable the no crouch zone actors with Thing_Activate and Thing_Deactivate.
 
 MISCELLANEOUS:
 - Marines also avoid projectiles when behind cover. By ducking back in again. Friendly marines in cover will also avoid other friendly projectiles. Unless they are on the ignore list.
