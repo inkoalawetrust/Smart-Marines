@@ -22,7 +22,7 @@ Smart marines are NPCs for Doom that are far more intelligent than vanilla monst
 - When not set to friendly, they attack friendly NPCs on sight, unlike normal enemy NPCs/monsters, that don't attack friendly NPCs unless provoked by them first.
 - Alert other marines that are on their side of their current target, if the other marines have no target they are dealing with already. They can also hear the alerts of enemy marines.
 - Retreat and keep a distance away from very powerful or large enemies like Cyberdemons. Or enemy players and marines on turrets.
-- Marines friendly to the player can be ordered to stand still or wander around by pressing use on them. This only works if they aren't currently fighting.
+- Marines friendly to the player can be ordered to stand still, wander around, or follow the player by pressing use on them. This only works if they aren't currently fighting.
 - They work with ZDoom's built-in patrol system, so you can have them walk around set paths. To do stuff like guard areas.*
 - Has placeable machine gun turrets that both players and the marines can use, you can press the use key on a friendly marine to get him off of one.
 - Includes a separate marine that permanently stays on the turret until killed, who can also be colored like below. Pressing use on them will get them off, if they are friendly, and User_DisobeyCommands is off.
