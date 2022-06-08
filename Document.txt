@@ -142,6 +142,17 @@ MISCELLANEOUS:
 - When crouched, they use a different pain state, and will also play a crouched death animation if killed while in cover.
 - Marines behind cover are a bit more accurate with their shooting, and when they are crouched down they will take 20% less damage, and get pushed back by damage less easily.
 
+================|MARINE COMMANDS|================
+Friendly marines can be commanded to do different things.
+You can press use on them to cycle them through the following orders:
+
+Wander: The marine will randomly wander around without following the player, and sometimes stay in place to look around.
+Follow: The marine will follow the player that pressed use on him (If the player is friendly). Marines following a player are faster than when wandering, and will not stay in place.
+Stand Still: The marine will stay in place, like when first spawned. After they finish searching for enemies, they go back to standing still instead of wandering.
+Exit Turret: Only applicable for marines on turrets, makes the marine exit the turret.
+
+Pressing use on a hostile marine will cause him to alert other nearby hostile marines.
+
 ================|USER VARIABLES|================
 User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring to modify the source code of the actor in any way.
 If you don't know how to use and/or change the user variables of an actor, then click on this Imgur album to see how: https://imgur.com/a/IF9Ezo2
@@ -151,7 +162,7 @@ User_SearchTime: The amount of time the marine will try to look for his target b
 - Default is 300. -1 makes the marine never give up persuit while the target is alive. And immediately go back to wandering once the target is dead.
 User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower the number, the more likely he is to throw one.
 - Default is 240. -1 makes them always throw grenades, unless they would be caught in the blast. And 256 makes them never throw grenades.
-User_DisobeyCommands: Friendly marines will not wander, stay in place, or leave turrets when the player presses use on them.
+User_DisobeyCommands: Friendly marines will not wander, follow, stay in place, or leave turrets when the player presses use on them.
 User_NoReload: Marines do not need to ever reload their gun.
 User_NoCover: Marines do not take cover when attacking.
 User_NoRifleDrop: Marines will never drop their rifles when killed.

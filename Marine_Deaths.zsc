@@ -22,6 +22,7 @@ Extend Class SmartMarine
 		Super.OnDestroy();
 	}
 	
+	//The code related to the marine making the player die.
 	Override String GetObituary (Actor Victim, Actor Inflictor, Name MOD, Bool PlayerAttack)
 	{
 		If (MOD == "MarineHMG")

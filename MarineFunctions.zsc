@@ -161,7 +161,7 @@ Mixin Class MarineFunctions
 	Bool SM_CanBeTargeted (Actor Other)
 	{
 		If (!Other) Return False;
-		Return (Other && !Other.bNoTarget && !Other.bNeverTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
+		Return (!Other.bNoTarget && !Other.bNeverTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
 	}
 	
 	Bool GrenadeAttackDecision (Double BlastRadius = 192, Double ThrowDistance = 1024, Double DangerDistance = 224)
@@ -173,7 +173,7 @@ Mixin Class MarineFunctions
 		
 		If (Target)
 		{	
-			If (Distance3D (Target) <= DangerDistance || Distance3D(Target) > ThrowDistance) Return False; //If the target is close enough for you to get caught in the blast, or if the target is too far, don't throw.
+			If (Distance3DSquared (Target) <= DangerDistance*DangerDistance || Distance3DSquared(Target) > ThrowDistance*ThrowDistance) Return False; //If the target is close enough for you to get caught in the blast, or if the target is too far, don't throw.
 			
 			If (User_GrenadeThreshold == -1) Return True; //Always throw grenades.
 			
@@ -190,18 +190,38 @@ Mixin Class MarineFunctions
 				Mobj = FindTargets.Thing;
 				
 				//If the found actor is a monster or player, is not your current target, is at or closer than the specified blast radius, has health over 10, and is hostile and visible to you.
-				If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj != Target && Mobj.Distance3D (Target) <= BlastRadius && Mobj.Health >= 10 && IsHostile (Mobj) && IsVisible (Mobj,False))
+				If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj != Target && Mobj.Distance3DSquared (Target) <= BlastRadius*BlastRadius && Mobj.Health >= 10 && IsHostile (Mobj) && IsVisible (Mobj,False))
 				{
 					ThrowChance += 5; //Increment the chance variable.
-					//Additionally increment it by a different amounts based on how much health the found actor has.
-					If (Mobj.Health >= 10000) {ThrowChance += 300;} //If an actor with this much health is near the target, then DEFINITELY throw a grenade.
-					Else If (Mobj.Health >= 4000) {ThrowChance += 80;}
-					Else If (Mobj.Health >= 2500) {ThrowChance += 50;}
-					Else If (Mobj.Health >= 1000) {ThrowChance += 35;}
-					Else If (Mobj.Health >= 500) {ThrowChance += 25;}
-					Else If (Mobj.Health >= 150) {ThrowChance += 10;}
-					Else If (Mobj.Health >= 50) {ThrowChance += 5;}
 					
+					//Additionally increment it by a different amounts based on how much health the found actor has.
+					Switch (Mobj.Health)
+					{
+						Case 10000:
+							ThrowChance += 300; //If an actor with this much health is near the target, then DEFINITELY throw a grenade.
+							Break;
+						Case 4000:
+							ThrowChance += 80;
+							Break;
+						Case 2500:
+							ThrowChance += 50;
+							Break;
+						Case 1000:
+							ThrowChance += 35;
+							Break;
+						Case 500:
+							ThrowChance += 25;
+							Break;
+						Case 150:
+							ThrowChance += 10;
+							Break;
+						Case 50:
+							ThrowChance += 5;
+							Break;
+						Default:
+							Break;
+					}
+										
 					If (Mobj && (Mobj.Player && Mobj.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" || Mobj Is "SmartMarine" && SmartMarine(Mobj).OnTurret)) ThrowChance += 50;
 				}
 				Else If (Mobj.bIsMonster && !IsHostile(Mobj) && IsVisible (Mobj,False) && Mobj != Self) //If the actor that was found is friendly to you, and ISN'T you.
@@ -214,7 +234,7 @@ Mixin Class MarineFunctions
 				}
 			}
 						
-			If (ThrowChance >= User_GrenadeThreshold) //The number 240 should be replaced by a user variable that can modify their likelyhood of throwing a grenade.
+			If (ThrowChance >= User_GrenadeThreshold)
 			{
 				Return True;
 			}
@@ -232,7 +252,7 @@ Mixin Class MarineFunctions
 		While (FindOtherMarines.Next())
 		{
 			Mobj = FindOtherMarines.Thing;
-			If (Mobj != Self && Mobj Is "SmartMarine" && Mobj.Health > 0 && !IsHostile (Mobj) && IsVisible (Mobj,True) && Distance3D (Mobj) <= 256)
+			If (Mobj != Self && Mobj Is "SmartMarine" && Mobj.Health > 0 && !IsHostile (Mobj) && IsVisible (Mobj,True) && Distance3DSquared (Mobj) <= 256*256)
 			{
 				SmartMarine(Mobj).GrenadeDelay = Random (35/2,40);
 			}
@@ -396,13 +416,13 @@ Mixin Class MarineFunctions
 		If (User_FearDistance <= 0 || !Target) Return;
 		//The marine must not have the frightened flag on when going to a turret, to not also avoid the turret they are going to.
 		//If the target is nearby, visible, and hostile, and has over 2500 health.
-		If (IsHostile (Target) && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && Target.SpawnHealth() >= 2000 && IsVisible (Target,True) && !GoingToTurret
+		If (IsHostile (Target) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && Target.SpawnHealth() >= 2000 && IsVisible (Target,True) && !GoingToTurret
 		
 		//Or if it is big enough and visible and close enough.
-		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && IsVisible (Target,True) && !GoingToTurret
+		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret
 		
 		//Or it has any of these flags, along with being nearby and visible to you.
-		|| (Target.bReflective && Target.bAimReflect || Target.bInvulnerable) && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && IsVisible (Target,True) && !GoingToTurret
+		|| (Target.bReflective && Target.bAimReflect || Target.bInvulnerable) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret
 		
 		//Or if is completely indestructible or noclipping at all, regardless of sight or distance.
 		|| (Target.bNoDamage || Target.bNoclip))
@@ -414,9 +434,9 @@ Mixin Class MarineFunctions
 		//If your target is hostile, and is a player or marine that's on a turret. And they are in range and visible.
 		/*This Else If is here so marines scared of an enemy on a turret, won't be any more likely to get on one themselves.
 		Since protecting yourself from machine gun fire by getting to a stationary turret yourself is stupid, and MORE likely to get you killed.*/
-		Else If ((Target.Player && Target.Player.ReadyWeapon && Target.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && IsVisible (Target,True) && !GoingToTurret ||
-		Target Is "SmartMarine" && SmartMarine(Target).OnTurret && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && IsVisible (Target,True) && !GoingToTurret ||
-		Target Is "TurretMarine" && Distance3D (Target) <= User_FearDistance*FRandom (1.01,1.25) && IsVisible (Target,True) && !GoingToTurret))
+		Else If ((Target.Player && Target.Player.ReadyWeapon && Target.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret ||
+		Target Is "SmartMarine" && SmartMarine(Target).OnTurret && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret ||
+		Target Is "TurretMarine" && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret))
 		{
 			bFrightened = True; 
 			MinMissileChance = 50;
@@ -568,12 +588,12 @@ Mixin Class MarineFunctions
 			{
 				PotentialMarine = AlertNearbyMarines.Thing;
 				
-				If (!PotentialMarine.bDormant && PotentialMarine.GetClassName() == "SmartMarine" && Distance3D(PotentialMarine) <= Range && PotentialMarine.Health > 0 && !IsHostile (PotentialMarine) && !(PotentialMarine.Target)) //If the actor is not dormant, a marine, in range, is not hostile to you, and has no target already.
+				If (!PotentialMarine.bDormant && PotentialMarine.GetClassName() == "SmartMarine" && Distance3DSquared (PotentialMarine) <= Range*Range && PotentialMarine.Health > 0 && !IsHostile (PotentialMarine) && !(PotentialMarine.Target)) //If the actor is not dormant, a marine, in range, is not hostile to you, and has no target already.
 				{
 					//Make sure the marine isn't in its' RunAway state or crouching, that state must NEVER be broken by being changed or having the marines' target changed during it.
 					If (!SM_IsInState ("RunAway") && !Crouching)
 					{
-						PotentialMarine.Target = Target; //Have the marine share your target.
+						PotentialMarine.Target = PotentialMarine.LastHeard = Target; //Have the marine share your target.
 						FoundMarines = True; //A marine has been found.
 						If (!SM_IsInState ("See")) //If the marine isn't in its' see state already, to chase the target.
 						{
@@ -599,7 +619,7 @@ Mixin Class MarineFunctions
 		{
 			Mobj = GrenadeSearch.Thing;
 			//If the found actor is a grenade, that hasn't exploded already, but that will explode in about a second. And you are in the blast radius, and it's visible.
-			If (Mobj.GetClassName() == "SM_Grenade" && !(SM_Grenade(Mobj).Exploded) && Mobj.ReactionTime <= 40 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True))
+			If (Mobj.GetClassName() == "SM_Grenade" && !(SM_Grenade(Mobj).Exploded) && Mobj.ReactionTime <= 40 && Distance3DSquared (Mobj) <= SearchRadius*SearchRadius && IsVisible (Mobj,True))
 			{
 				OriginalTarget = Target; //Keep the original target of the marine stored.
 				Target = Mobj; //Then change the target to the grenade that was found.
@@ -710,7 +730,7 @@ Mixin Class MarineFunctions
 			While (ListenForEnemyMarines.Next())
 			{
 				Mobj = ListenForEnemyMarines.Thing;
-				If (Mobj.GetClassName() == "SmartMarine" && IsHostile (Mobj) && Distance3D (Mobj) <= HearingRadius && Mobj.IsActorPlayingSound (CHAN_VOICE,"Marine/AlertAllies") && Mobj.Health > 0)
+				If (Mobj.GetClassName() == "SmartMarine" && IsHostile (Mobj) && Distance3DSquared (Mobj) <= HearingRadius*HearingRadius && Mobj.IsActorPlayingSound (CHAN_VOICE,"Marine/AlertAllies") && Mobj.Health > 0)
 				{
 					Target = Mobj; //Target the enemy marine that alerted the others.
 					SetStateLabel ("AlertOtherMarines");
@@ -779,7 +799,7 @@ Mixin Class MarineFunctions
 		
 		While (FindTurrets.Next())
 		{
-			If (FindTurrets.Thing Is "SmartMarineMGTurret" && !(SmartMarineMGTurret(FindTurrets.Thing).Occupied) && IsVisible (FindTurrets.Thing,True) && Distance3D (FindTurrets.Thing) <= TurretRadius)
+			If (FindTurrets.Thing Is "SmartMarineMGTurret" && !(SmartMarineMGTurret(FindTurrets.Thing).Occupied) && IsVisible (FindTurrets.Thing,True) && Distance3DSquared (FindTurrets.Thing) <= TurretRadius*TurretRadius)
 			{
 				FoundTurret = FindTurrets.Thing;
 				//Break;
@@ -797,20 +817,44 @@ Mixin Class MarineFunctions
 			Mobj = FindEnemies.Thing;
 			
 			//If you found a monster or player, that is alive, hostile, close enough to you, and visible.
-			If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj.Health > 0 && IsHostile (Mobj) && Mobj.Distance3D (Target) <= EnemyRadius && IsVisible (Mobj,False,params:MarineSight))
+			If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj.Health > 0 && IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= EnemyRadius*EnemyRadius && IsVisible (Mobj,False,params:MarineSight))
 			{
-				If (Mobj.Health >= 2500) {UseChance += 100;}
-				Else If (Mobj.Player) {UseChance += 98+Random (0,2);}
-				Else If (Mobj.Health >= 1000) {UseChance += 35;}
-				Else If (Mobj.Health >= 500) {UseChance += 25;}
-				Else If (Mobj.Health >= 150 || Mobj Is "SmartMarine") {UseChance += 10;}
-				Else If (Mobj.Health >= 10) {UseChance += 5;}
-				Else If (Mobj.Health >= 1) {UseChance += 1;}
+				
+				Switch (Mobj.Health)
+				{
+					Case 2500:
+						UseChance += 100;
+						Break;
+					Case 1000:
+						UseChance += 35;
+						Break;
+					Case 500:
+						UseChance += 25;
+						Break;
+					Case 150:
+						UseChance += 10;
+						Break;
+					Case 10:
+						UseChance += 5;
+						Break;
+					Case 1:
+						UseChance += 1;
+						Break;
+					Default:
+						Break;
+				}
+				
+				//Players always trigger a very high chance of the marine using a nearby turret, since they are as powerful as the strongest bosses.
+				If (Mobj.Player)
+					UseChance += (User_TurretThreshold - 2 ) + Random (0,2);
+				//Additional use chance for other enemy marines that were found.
+				Else If (Mobj Is "SmartMarine")
+					UseChance += 10;
 			}
 			//Also increase the chance for every ally you found around you, that could support you while you are stationary and vulnerable.
 			If (bFriendly || !bFriendly && Target.Player)
 			{
-				If (Mobj.Health >= 10 && !IsHostile (Mobj) && Mobj.Distance3D (Target) <= EnemyRadius/2 && IsVisible (Mobj,True))
+				If (Mobj.Health >= 10 && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)) && IsVisible (Mobj,True))
 				{
 					If ((Mobj.bIsMonster && Mobj != Self)) {UseChance += 30; FoundAllies = True;}
 					Else If (Mobj.Player) {UseChance += 60; FoundAllies = True;}
@@ -819,7 +863,7 @@ Mixin Class MarineFunctions
 			//Since hostile monsters don't attack friendly ones on sight by default, hostile marines can't rely on other fellow hostile monsters, besides other marines.
 			Else
 			{
-				If (Mobj Is "SmartMarine" && !IsHostile (Mobj) && Mobj.Distance3D (Target) <= EnemyRadius/2 && IsVisible (Mobj,True))
+				If (Mobj Is "SmartMarine" && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)) && IsVisible (Mobj,True))
 				{
 					UseChance += 30;
 				}
@@ -872,7 +916,7 @@ Mixin Class MarineFunctions
 			Turret.A_ChangeLinkFlags (False,False);
 			SmartMarineMGTurret(Turret).Occupied = False;
 			Warp(Turret,-Turret.Radius*2,flags:WARPF_NOCHECKPOSITION); //Warp the marine at about the same position he is visibly at while on the turret.
-			Turret.Angle = Self.Angle;
+			Turret.Angle = Angle;
 			Turret = Null;
 			ReactionTime = Default.ReactionTime;
 			OnTurret = False;
@@ -880,95 +924,9 @@ Mixin Class MarineFunctions
 			bDontThrust = False;
 		}
 	}
-	
-	//This code was written by RaveYard, to allow hostile marines to see and attack friendly NPCs.
-	Actor FindFriendlyMonster(double distance = 8192)
-	{
-		BlockThingsIterator it = BlockThingsIterator.Create(self, distance);
-
-		while (it.Next())
-		{
-			if (!it.thing || it.thing == self || it.thing.bNotarget || it.thing.bNeverTarget || it.thing.bDormant || !it.thing.bShootable) { continue; }
-
-			if (!it.thing.bFriendly || it.thing.health <= 0 || (!it.thing.bIsMonster && !it.thing.player)) { continue; }
-
-			// Player specific things such as: notarget and voodoo dolls
-			if (it.thing.player && (it.thing.player.cheats & CF_NOTARGET || it.thing.player.mo != it.thing)) { continue; }
-
-			if (IsVisible (it.thing, false) && IsHostile (it.thing))
-			{
-				return it.thing;
-			}
-		}
-		return null;
-	}
-
-	private bool LookForFriendlyMonster()
-	{
-		let ptr = FindFriendlyMonster();
-		if(ptr)
-		{
-			target = ptr;
-			
-			if(SM_IsInState ("Idle") || SM_IsInState ("Spawn"))
-			{
-				SetStateLabel ("AlertOtherMarines"); // Goto see
-			}
-			else
-			{
-				SM_AlertNearbyMarines(User_AlertRange);
-			}
-			return true;
-		}
-		return false;
-	}
-
-	private bool IsAlerted()
-	{
-		return !(SM_IsInState ("Idle") || SM_IsInState ("Spawn"));
-	}
-
-	// A_LookEx + more
-	//		forceTryNewTarget - look for new target even if you already have one
-	void SM_LookForTarget(bool forceTryNewTarget = false)
-	{
-		bStandStill = True; //The flag is used between the A_LookEx call, so the marine doesn't get alerted because the player made a sound.
-
-		if(!target || forceTryNewTarget)
-		{
-			if(bFriendly)
-			{
-				A_LookEx (IsAlerted() ? LOF_NOJUMP | LOF_NOSEESOUND : 0, maxseedist:8192, 3072, 160, "AlertOtherMarines");
-			}
-			else
-			{
-				bool found = LookForFriendlyMonster();
-
-				if(!found || Random(0, 2))
-				{
-					// Try targeting the player instead
-					A_LookEx (IsAlerted() ? LOF_NOJUMP | LOF_NOSEESOUND : 0, maxseedist:8192, 3072, 160, "AlertOtherMarines");
-				}
-			}
-		}
-
-		bStandStill = False;
-	}
-
-	// Manually update the target	
-	void SM_UpdateTarget()
-	{
-		if(!target || target.health <= 0 || !CheckIfTargetInLOS(360))
-		{
-			SM_LookForTarget(true);
-		}
-	}
 }
 
-//I had to make the stationary turret marine inherit from Actor, instead of the main marine class, so all the user variables of the main class.
-//That are not needed for the turret marine, won't also appear for him in UDB and SLADE. But I still needed these functions below.
-//So I have to duplicate them in this mixin, to not get startup errors from the afformentioned vestigial user variables not existing on the turret marine.
-//No, you don't need to lecture me on how fucking repulsive this is.
+//Can't inherit from SmartMarine, because all the user variables from that actor would also appear on the turret marine, despite not doing anything.
 Mixin Class TurretMarineFunctions
 {
 	Bool STM_IsInState (StateLabel CheckFor = "Spawn")
@@ -1003,98 +961,18 @@ Mixin Class TurretMarineFunctions
 	//Searches for grenades that are about to explode near the marine.
 	Bool STM_FindNearbyGrenade (Double SearchRadius = 256)
 	{
-		If (!User_RunFromGrenades) Return False;
-		
+		If (bDormant || !User_RunFromGrenades) Return False;
 		Actor Mobj;
 		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
 		
 		While (GrenadeSearch.Next())
 		{
 			Mobj = GrenadeSearch.Thing;
-			If (Mobj.GetClassName() == "SM_Grenade" && Mobj.ReactionTime <= 6 && Distance3D (Mobj) <= SearchRadius && IsVisible (Mobj,True)) //If the found actor is a grenade, that will explode in about a second. And you are in the blast radius and it's visible.
+			If (Mobj.GetClassName() == "SM_Grenade" && !(SM_Grenade(Mobj).Exploded) && Mobj.ReactionTime <= 40 && Distance3DSquared (Mobj) <= SearchRadius*SearchRadius && IsVisible (Mobj,True))
 			{
 				Return True; //And return true.
 			}
 		}
 		Return False; //No grenades were found near the marine.
-	}
-	
-	//This code was written by RaveYard, to allow hostile marines to see and attack friendly NPCs. Deja vu.
-	Actor STM_FindFriendlyMonster(double distance = 8192)
-	{
-		BlockThingsIterator it = BlockThingsIterator.Create(self, distance);
-
-		while (it.Next())
-		{
-			if (!it.thing || it.thing == self || it.thing.bNotarget || it.thing.bNeverTarget || it.thing.bDormant || !it.thing.bShootable) { continue; }
-
-			if (!it.thing.bFriendly || it.thing.health <= 0 || (!it.thing.bIsMonster && !it.thing.player)) { continue; }
-
-			// Player specific things such as: notarget and voodoo dolls
-			if (it.thing.player && (it.thing.player.cheats & CF_NOTARGET || it.thing.player.mo != it.thing)) { continue; }
-
-			if (IsVisible (it.thing, false) && IsHostile (it.thing))
-			{
-				return it.thing;
-			}
-		}
-		return null;
-	}
-
-	private bool STM_LookForFriendlyMonster()
-	{
-		let ptr = STM_FindFriendlyMonster();
-		if(ptr)
-		{
-			target = ptr;
-
-			if(STM_IsInState ("Idle") || STM_IsInState ("Spawn"))
-			{
-				SetStateLabel ("See"); // Goto see
-			}
-			return true;
-		}
-		return false;
-	}
-
-	private bool IsAlerted()
-	{
-		return !(STM_IsInState ("Idle") || STM_IsInState ("Spawn"));
-	}
-
-	// A_LookEx + more
-	//		forceTryNewTarget - look for new target even if you already have one
-	void STM_LookForTarget(bool forceTryNewTarget = false)
-	{
-		bStandStill = True; //The flag is used between the A_LookEx call, so the marine doesn't get alerted because the player made a sound.
-
-		if(!target || forceTryNewTarget)
-		{
-			if(bFriendly)
-			{
-				A_LookEx (IsAlerted() ? LOF_NOJUMP | LOF_NOSEESOUND : 0, maxseedist:8192, 3072, 160, "See");
-			}
-			else
-			{
-				bool found = STM_LookForFriendlyMonster();
-
-				if(!found || Random(0, 2))
-				{
-					// Try targeting the player instead
-					A_LookEx (IsAlerted() ? LOF_NOJUMP | LOF_NOSEESOUND : 0, maxseedist:8192, 3072, 160, "See");
-				}
-			}
-		}
-
-		bStandStill = False;
-	}
-
-	// Manually update the target	
-	void STM_UpdateTarget()
-	{
-		if(!target || target.health <= 0 || !CheckIfTargetInLOS(360))
-		{
-			STM_LookForTarget(true);
-		}
 	}
 }

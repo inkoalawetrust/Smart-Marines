@@ -12,6 +12,9 @@ Marine/Reload "Sounds/RifleReload.ogg"
 Marine/Melee "Sounds/RifleHit.ogg"
 Marine/PowerMelee "Sounds/RifleHitHard.ogg"
 Marine/MeleeMiss "Sounds/RifleSwoosh.ogg"
+Marine/Missile/Launch "Sounds/MissileShot.ogg"
+Marine/Missile/Travel "Sounds/MissileMove.ogg"
+Marine/Missile/Explode "Sounds/MissileBoom.ogg"
 
 $Random Marine/Death
 {
@@ -61,6 +64,10 @@ $Limit Marine/Reload 0
 $Limit Marine/Melee 0
 $Limit Marine/PowerMelee 0
 $Limit Marine/MeleeMiss 0
+
+$Limit Marine/Missile/Launch 0
+$Limit Marine/Missile/Travel 0
+$Limit Marine/Missile/Explode 0
 
 $Limit VRifle/EmptyGun 0
 $Limit VRifle/Zoomed 0

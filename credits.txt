@@ -1,6 +1,5 @@
 Code written by inkoalawetrust.
 The code to make the turrets usable by players, and for the grenade throwing function of the marines was written by Lewisk3.
-The code to make hostile marines able to see and attack friendly NPCs on sight was written by RaveYard.
 The code that checks if grenades are inside a swimmable 3D floor was written by Boondorl.
 
 Playtesting done by RaveYard, TDRR, and inkoalawetrust
@@ -14,7 +13,9 @@ Rifle reloading sprites made by Tabijaky.
 Rifle melee sprites made by TG5.
 Grenade air blast sprites by Gorman Freebmane.
 Grenade sprites made by inkoalawetrust.
+Missile sprites made by inkoalawetrust.
 Grenade liquid explosion and small splash sprites are from Metal Slug.
+Missile ground explosion sprites made by Amuscaria.
 Alternate marine death sprites made by DavidG/ItsNatureToDie and DoomJedi.
 Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
 Marine jumping/dodging sprites made by Sergeant_Mark_IV. Jumping and shooting sprites made by Tabijaky.
@@ -28,13 +29,15 @@ First person turret sprites and muzzle flash made by Sergeant_Mark_IV. Overlay g
 Friendly marine command text made using the Doom Text Generator: https://c.eev.ee/doom-text-generator/
 
 ======|Sounds|======
-Reloading sound is from Half-Life.
+Reloading and rocket travelling sound is from Half-Life.
 Gun clicking sound made by knova https://freesound.org/people/knova/sounds/170272/
 Rifle melee sound made by newagesoup https://freesound.org/people/newagesoup/sounds/348244/
 Berserk rifle melee sound made by EFlexMusic https://freesound.org/people/EFlexMusic/sounds/369594/
 Rifle melee missing sound made by qubodup https://freesound.org/people/qubodup/sounds/60013/
 Grenade exploding sound is by Stefano Cremona, taken from the GDC Audio Library 2020
 Grenade water explosion sound was mixed from two sounds from the GDC Audio Library 2018 and 2020
+Missile exploding sound is from the GDC Audio Library 2018.
+Missile firing sound by morganpurkis https://freesound.org/people/morganpurkis/sounds/398214/
 Zoomed in rifle sound is a modified version of littlemachine.wav from Half-Life 1, edited by inkoalawetrust
 Machine gun firing and loading sounds are from Call of Duty 2
 Radio static sound by inkoalawetrust

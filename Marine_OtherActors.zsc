@@ -117,7 +117,6 @@ Class SmartMarineTurretMessage : SmartMarineStandingMessage
 	}
 }
 
-//This will be used in a future update, when GZDoom 4.8.0 comes out.
 Class SmartMarineFollowingMessage : SmartMarineStandingMessage
 {
 	States

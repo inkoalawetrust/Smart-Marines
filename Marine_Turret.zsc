@@ -8,12 +8,7 @@ Extend Class SmartMarine
 	{
 		TurretSee:
 			MTUR BBBBBBBBBBBBBBBBBBBBBBBB 1 //The duration is so low so that the marine switches targets as fast as possible.
-			{
-				if(!bFriendly)
-				{
-					SM_UpdateTarget();
-				}
-				
+			{				
 				If (JustGotOnTurret)
 				{
 					JustGotOnTurret = False;
@@ -45,12 +40,25 @@ Extend Class SmartMarine
 				
 				If (Target && Target.Health <= 0) Target = Null; //Remove dead targets.
 				
-				If (Target) A_Chase (Null,"TurretFire",CHF_DONTMOVE|CHF_NODIRECTIONTURN);
-				Else SM_LookForTarget();
+				//If the target is in your line of sight, attack it normally, if not, go back to looking.
+				If (CheckIfTargetInLOS(160,JLOSF_CLOSENOFOV|JLOSF_DEADNOJUMP,6144,128)) A_Chase (Null,"TurretFire",CHF_DONTMOVE|CHF_NODIRECTIONTURN);
+				Else A_LookEx (0,0,8192,4096,160,"TurretFire");
 				
 				Return State (Null);
 			}
-			MTUR B 0 {If (Random (0,256) > 230) {Angle += RandomPick(45,90,-45,-90);}}
+			MTUR B 0
+			{
+				//If you somehow have no turret pointer, meaning you aren't on a turret or that something is broken, then leave the turret.
+				If (!Turret)
+				{
+					LeaveTurret();
+					Return ResolveState ("Idle");
+				}
+				If (Random (0,256) > 230)
+					Angle = Turret.Angle + RandomPick(10,45,90,-10,-45,-90);
+				
+				Return State (Null);
+			}
 			Loop;
 		TurretFire:
 			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"LeaveAndRun");
@@ -87,7 +95,7 @@ Class TurretMarine : Actor
 		YScale 0.98;
 		Mass 100;
 		FastSpeed 14;
-		FriendlySeeBlocks 20;
+		FriendlySeeBlocks 48;
 		MaxTargetRange 8192;
 		MinMissileChance 100;
 		Tag "Marine NPC";
@@ -109,28 +117,30 @@ Class TurretMarine : Actor
 		+DontThrust;
 		+NoPain;
 		+AvoidHazards; //This ONLY works for crushing ceilings and NOTHING ELSE. So it's largely useless but I'm still adding it.
+		+SeeFriendlyMonsters;
 	}
 	
 	Override Void Tick()
 	{
 		Super.Tick();
 		
-		If (IsFrozen() || Health <= 0) {Return;} //Don't run the below code if frozen in time or dead.
+		//Don't run the below code if frozen in time or dead.
+		If (IsFrozen() || Health <= 0)
+			Return;
 		
 		If (!bFriendly)
-		{
 			Species = "HostileSmartMarine";
-		}
 		Else
-		{
 			Species = "SmartMarine";
-		}		
 	}
 	
 	Override Void OnDestroy ()
 	{
 		Super.OnDestroy();
-		If (bKilled) Return;
+		//If you were killed before being removed, don't spawn a turret.
+		If (bKilled)
+			Return;
+		
 		Actor Turret = Spawn ("SmartMarineMGTurret",Pos);
 		If (Turret) {Turret.Angle = Angle; Turret.Pitch = Pitch;}
 	}
@@ -151,6 +161,7 @@ Class TurretMarine : Actor
 	
 	Override Void PostBeginPlay()
 	{
+		SpawnAngle = Angle;
 		If (!User_Color || User_Color ~== "") {Return;} //Don't run the code if User_Color is empty.
 		
 		//Handles the random color choice that is performed if the color name given is "Random".
@@ -169,6 +180,7 @@ Class TurretMarine : Actor
 	Bool User_DisobeyCommands;
 	Bool User_NoRifleDrop;
 	String User_Color;
+	Double SpawnAngle;
 	States
 	{
 		Spawn:
@@ -179,7 +191,7 @@ Class TurretMarine : Actor
 					Return ResolveState ("LeaveTurret");
 				}
 
-				STM_LookForTarget();
+				A_LookEx (0,0,8192,4096,160,"AlertOtherMarines");
 				Return State (Null);
 			}
 			MTUR B 0 {If (Random (0,256) > 235) {Angle += RandomPick(45,90,-45,-90);}}
@@ -187,11 +199,6 @@ Class TurretMarine : Actor
 		See:
 			MTUR BBBBBBBBBBBBBBBBBBBBBBBB 1
 			{
-				if(!bFriendly)
-				{
-					STM_UpdateTarget();
-				}
-				
 				//Have the marine run away from grenades about to explode.
 				If (STM_FindNearbyGrenade())
 				{
@@ -200,12 +207,13 @@ Class TurretMarine : Actor
 				
 				If (Target && Target.Health <= 0) Target = Null; //Remove dead targets.
 				
-				If (Target) A_Chase (Null,"TurretFire",CHF_DONTMOVE|CHF_NODIRECTIONTURN);
-				Else STM_LookForTarget();
+				//If the target is in your line of sight, attack it normally, if not, go back to looking for another.
+				If (CheckIfTargetInLOS(360,JLOSF_CLOSENOFOV|JLOSF_DEADNOJUMP,6144,128)) A_Chase (Null,"TurretFire",CHF_DONTMOVE|CHF_NODIRECTIONTURN);
+				Else A_LookEx (LOF_NOJUMP,0,8192,4096,160);
 				
 				Return State (Null);
 			}
-			MTUR B 0 {If (Random (0,256) > 230) {Angle += RandomPick(45,90,-45,-90);}}
+			MTUR B 0 {If (Random (0,256) > 230) Angle = SpawnAngle + RandomPick(10,45,90,-10,-45,-90);}
 			Loop;
 		TurretFire:
 			TNT1 A 0 A_JumpIf (STM_FindNearbyGrenade(),"LeaveTurret");
@@ -306,7 +314,7 @@ Class SmartMarineMGTurret : Actor
 		//$Sprite MTURA1
 		Height 56;
 		ProjectilePassHeight 1; //Projectiles ignore the turret.
-		+INTERPOLATEANGLES;
+		+InterpolateAngles;
 		+Solid;
 		-Shootable;
 	}
@@ -335,7 +343,7 @@ Class SmartMarineMGTurret : Actor
 		
 		// Remove gun
 		Let Gun = SmartMarineMGWeapon(Operator.FindInventory("SmartMarineMGWeapon"));
-		If(Gun) Gun.Disable();
+		If (Gun) Gun.Disable();
 		
 		// Remove operator.
 		Operator = Null;
