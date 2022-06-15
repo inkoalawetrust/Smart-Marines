@@ -3,9 +3,11 @@ Marine/Death1 DSPLDETH
 Marine/Death2 DSPDIEHI
 Marine/XDeath  DSSLOP
 Marine/Gone "Sounds/Vanish.ogg" //Gone, reduced to atoms.
+Marine/GoneAlt "Sounds/AltVanish.ogg" //🏱︎☟︎⚐︎❄︎⚐︎☠︎ ☼︎☜︎✌︎👎︎✋︎☠︎☝︎💧︎ ☠︎☜︎☝︎✌︎❄︎✋︎✞︎☜︎
 Marine/Pain  DSPLPAIN
 Marine/AlertAllies "Sounds/Alert.ogg"
-Marine/Throw  DSNOWAY //https://www.youtube.com/watch?v=UhVHp1cFTTc
+Marine/AlertAlliesAlt "Sounds/AltAlert.ogg"
+Marine/Throw DSNOWAY //https://www.youtube.com/watch?v=UhVHp1cFTTc
 Marine/Wahoo "Sounds/AltJump.ogg" //Super Doomguy Bros
 Marine/Fire "Sounds/RifleFire.ogg"
 Marine/Reload "Sounds/RifleReload.ogg"

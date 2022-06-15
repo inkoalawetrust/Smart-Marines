@@ -23,6 +23,7 @@ The editor name of their No Crouch Zone map spots (More info below) is "No Crouc
 - Run away from the grenades they throw, if those grenades are about to explode.
 - Intelligently dodge enemy or extremely harmful projectiles heading their way. More information below.
 - Dynamically take cover behind sufficiently tall level geometry or shootable actors when attacking enemies. More information below.
+- Can be set up into squads in which they stick together and follow a designated leader. And can change leaders if the previous one died.
 - They have multiple death animations that can play randomly.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
@@ -44,6 +45,7 @@ The editor name of their No Crouch Zone map spots (More info below) is "No Crouc
   - Orange
   - Pink
   - Dark Green
+  - Dark Red
   - Random (Randomly pick a color.)
   - Default (Use the default shade of green. Similar to just leaving User_Color empty.)
 - Most of the marines' behaviour can be configured on a per actor basis using user variables.
@@ -147,11 +149,45 @@ Friendly marines can be commanded to do different things.
 You can press use on them to cycle them through the following orders:
 
 Wander: The marine will randomly wander around without following the player, and sometimes stay in place to look around.
-Follow: The marine will follow the player that pressed use on him (If the player is friendly). Marines following a player are faster than when wandering, and will not stay in place.
+Follow: The marine will follow the player that pressed use on him (If the player is friendly). Marines following a player move faster than when wandering, and will not stop to look around.
 Stand Still: The marine will stay in place, like when first spawned. After they finish searching for enemies, they go back to standing still instead of wandering.
 Exit Turret: Only applicable for marines on turrets, makes the marine exit the turret.
 
 Pressing use on a hostile marine will cause him to alert other nearby hostile marines.
+
+================|SQUAD BEHAVIOR|================
+Marines can be optionally put into squads, in which they will follow the squads' leader around.
+Marines in squads can also alert each other of enemies, this works similarly to how marines outside of squads alert each other, except there is no distance limit.
+
+HOW TO SET UP:
+To form a squad on your map, you need to give 2 or more marines a User_SquadName, this is the name of the squad the marines will be part of.
+Then you need to give the squad a leader for them to rally around, to do that, just pick or make a marine that shares the same squad name,
+and turn on the User_Leader variable, which will assign him as the squads' leader.
+
+NOTE: You cannot have a squad with more than one leader, you also cannot make two opposing squads, that both share the same name.
+
+LEADERSHIP CHANGES:
+Marine squads can change their leadership around if their leader is killed. If the squads' leader is killed or entirely removed from the game,
+then the squad will assign its' healthiest marine as their new leader.
+
+In addition, marines, including the former leader, are not actually removed from their squad when killed, as there is still a chance for them
+to be resurrected. However marines WILL be entirely removed from their squad if they are gibbed (Cannot be resurrected), or are entirely erased
+from existance. If all the members are gibbed or erased, the squad is dissipated entirely.
+
+NOTE: If an entire squad has been killed, and then one of the dead marines in it is resurrected. The surviving marine will set himself as the leader.
+
+SQUAD MOVEMENT & BEHAVIOR:
+When in a squad, marines will follow their leader around, and try to stay within range of him.
+Generally, marine squads stay the closest together when fighting, but squad members whose current target is very powerful, will keep more distance
+from their leader. To avoid all getting too close together and then being killed by whichever powerful enemy. When wandering around looking for enemies,
+squads are at their most lax, and squad members are allowed to be as far as 1024 map units away from their leader without needing to head back to him.
+
+Friendly marines that are part of a squad, but are not the squads' leader, will not follow the players' commands.
+Instead, to command the members of a squad you have to give commands to the leader, which the rest of the squad
+will then generally follow, such as making a squad stand still by ordering their leader to do so.
+
+Note: Friendly marines in squads have little icons that appear over their heads for distinction, the icon with 4 human figures indicates that the marine
+is a normal member. The star icon indicates that the marine is the squads' leader. Unfriendly marines do not have these icons over their heads.
 
 ================|USER VARIABLES|================
 User variables allow an actor to be configured by the mapper through the editor on a per-actor basis, without requiring to modify the source code of the actor in any way.
@@ -170,20 +206,20 @@ User_RetreatAttempts: The amount of times the marine tries to run out of sight o
 - Default is 10. -1 makes the marine reload in the open, without trying to get behind cover at all.
 User_AlertRange: The distance around which a marine will alert other marines on his side of a target.
 - Default is 384 map units. -1 disables alerting entirely for this marine, but still allows them to hear the alerts of other marines.
+User_Leader: If the marine also has a squad name specified, this tells the game that this marine should be the leader of that squad. Otherwise, it does nothing.
+User_SquadName: The name of the squad the marine is in, if the squad has a leader, the marine will follow him around.
 User_DodgeRange: The maximum range in which marines react to incoming projectiles.
 - Default is 384 map units. -1 disables dodging entirely for this marine.
 User_EnemyAlertHearingRange: The distance around which a marine can hear the alerts of other, enemy marines.
 - Default is 1024 map units. -1 disables hearing enemy alerts entirely, but the marine can still be alerted by other marines on his side.
-User_MeleeChance: The chance of the marine to try changing position after smacking something once.
-- Default is 96, a value of 255 means that the marine will only smack a target when he gets into melee once, then change position. This variable ONLY uses a number range from 0 to 255.
 User_TurretThreshold: How likely the marine is to use a turret near him. Marines are much more likely to use turrets, if they have friendly players and/or NPCs around to cover them.
 - Default is 100, -1 means that the marine will never use a turret. Lower values increase the use chance.
 User_FearDistance: The distance that the marine runs away to, if his target is scary enough.
 - Default is 2048 map units, a value of 0 or less makes them fearless. (Within reason, so they still avoid grenades for example.)
 User_Color: Can be used to give the marines different armor colors.
-- Default is no translation, the available colors are Default, Gray, Red, White, Black, Blue, Yellow, Orange, Pink, Dark Green, and Random, which randomly picks any of the afformentioned colors.
+- Default is no translation, the available colors are Default, Gray, Red, White, Black, Blue, Yellow, Orange, Pink, Dark Green, Dark Red, and Random, which randomly picks any of the afformentioned colors.
 User_RandomPersonality: When on, it randomizes several user variables that could be considered aspects of the marines' personality, such as:
-- User_SearchTime, User_GrenadeThreshold, User_TurretThreshold, User_RetreatAttempts, User_MeleeChance, User_FearDistance, and User_Color.
+- User_SearchTime, User_GrenadeThreshold, User_TurretThreshold, User_RetreatAttempts, User_FearDistance, and User_Color.
 - If any of those variables have any values besides their defaults, then they won't be randomized, so you can still for example have marines with random grenade and turret thresholds, but the same melee chance.
 - The variable can be set to true again in-game using SetUserVariable() in ACS, allowing you to randomize a marines' personality mid-game, if you want to do that for some reason.
 

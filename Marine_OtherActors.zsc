@@ -83,6 +83,7 @@ Class SmartMarineStandingMessage : Actor
 	{
 		Scale 0.25;
 		+NoInteraction;
+		+NotOnAutomap;
 		+NoGravity;
 		+Bright;
 	}
@@ -125,6 +126,53 @@ Class SmartMarineFollowingMessage : SmartMarineStandingMessage
 			MARC D 16;
 			MARC D 1 A_FadeOut (0.05);
 			Wait;
+	}
+}
+
+Class SmartMarineSquadIcon : Actor
+{
+	Default
+	{
+		Scale 0.75;
+		RenderStyle "Translucent";
+		+NoInteraction;
+		+NoGravity;
+		+NotOnAutomap;
+	}
+	States
+	{
+		Spawn:
+			MARC E 1 NoDelay
+			{
+				If (Master)
+					SetOrigin ((Master.Pos.X,Master.Pos.Y,Master.Pos.Z+Master.Height+4),True);
+				Else
+					Destroy();
+				
+				If (Master.Health <= 0)
+					Alpha = 0;
+			}
+			Loop;
+	}
+}
+
+Class SmartMarineLeaderIcon : SmartMarineSquadIcon
+{
+	Default{Scale 0.5;}
+	States
+	{
+		Spawn:
+			MARC F 1 NoDelay
+			{
+				If (Master)
+					SetOrigin ((Master.Pos.X,Master.Pos.Y,Master.Pos.Z+Master.Height+4),True);
+				Else
+					Destroy();
+				
+				If (Master.Health <= 0)
+					Alpha = 0;
+			}
+			Loop;
 	}
 }
 
@@ -354,8 +402,12 @@ Class SmartMarineErased : Actor
 	States
 	{
 		Spawn:
-			PLAY G 4 NoDelay A_StartSound ("Marine/Gone",CHAN_VOICE);
+			TNT1 A 0 NoDelay A_Jump (255/2,"Alt");
+			PLAY G 4 A_StartSound ("Marine/Gone",CHAN_VOICE);
 			TNT1 A 35;
+			Stop;
+		Alt:
+			TNT1 A 75 A_StartSound ("Marine/GoneAlt",CHAN_VOICE);
 			Stop;
 	}
 }

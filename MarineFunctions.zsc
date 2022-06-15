@@ -164,6 +164,12 @@ Mixin Class MarineFunctions
 		Return (!Other.bNoTarget && !Other.bNeverTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
 	}
 	
+	//Returns true if the marine is busy with something, mostly to prevent those stupid delicate state sequences from breaking by an abrupt state change.
+	Bool SM_IsBusy()
+	{
+		Return (GoingToTurret || OnTurret || RunningToReload || Evading || Crouching || SM_IsInState ("RunAway"));
+	}
+	
 	Bool GrenadeAttackDecision (Double BlastRadius = 192, Double ThrowDistance = 1024, Double DangerDistance = 224)
 	{
 		Int ThrowChance;
@@ -336,7 +342,7 @@ Mixin Class MarineFunctions
 		//Check the list of water textures.
 		For (Int I = 0; I < LiquidList.WaterTextures.Size(); I++)
 		{
-			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture match any of the ones on the list ?
 			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.WaterTextures[I]))
 			{
 				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
@@ -348,7 +354,7 @@ Mixin Class MarineFunctions
 		//Check the list of nukage textures.
 		For (Int I = 0; I < LiquidList.NukageTextures.Size(); I++)
 		{
-			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture match any of the ones on the list ?
 			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.NukageTextures[I]))
 			{
 				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
@@ -361,7 +367,7 @@ Mixin Class MarineFunctions
 		//Check the list of blood textures.
 		For (Int I = 0; I < LiquidList.BloodTextures.Size(); I++)
 		{
-			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture match any of the ones on the list ?
 			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.BloodTextures[I]))
 			{
 				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
@@ -374,7 +380,7 @@ Mixin Class MarineFunctions
 		//Check the list of slime textures.
 		For (Int I = 0; I < LiquidList.SlimeTextures.Size(); I++)
 		{
-			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture match any of the ones on the list ?
 			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.SlimeTextures[I]))
 			{
 				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
@@ -387,7 +393,7 @@ Mixin Class MarineFunctions
 		//Check the list of lava textures.
 		For (Int I = 0; I < LiquidList.LavaTextures.Size(); I++)
 		{
-			//Did we hit a solid sector or 3D floor, if yes, does its' texture much any of the ones on the list ?
+			//Did we hit a solid sector or 3D floor, if yes, does its' texture match any of the ones on the list ?
 			If (LiquidCheck.HitTexture == TexMan.CheckForTexture(LiquidList.LavaTextures[I]))
 			{
 				Splash = Spawn ("SM_BulletSplash",LiquidCheck.HitLocation);
@@ -569,7 +575,7 @@ Mixin Class MarineFunctions
 	{
 		return (((A - B) cross (C - B))).length() / (C - B).length();
 	}
-		
+	
 	//Alerts nearby marines friendly to the calling one of the callers' target.
 	Void SM_AlertNearbyMarines (Double Range = 256, Bool SkipCheck = False)
 	{
@@ -588,23 +594,34 @@ Mixin Class MarineFunctions
 			{
 				PotentialMarine = AlertNearbyMarines.Thing;
 				
-				If (!PotentialMarine.bDormant && PotentialMarine.GetClassName() == "SmartMarine" && Distance3DSquared (PotentialMarine) <= Range*Range && PotentialMarine.Health > 0 && !IsHostile (PotentialMarine) && !(PotentialMarine.Target)) //If the actor is not dormant, a marine, in range, is not hostile to you, and has no target already.
+				If (PotentialMarine != Self && !PotentialMarine.bDormant && PotentialMarine.GetClassName() == "SmartMarine" && Distance3DSquared (PotentialMarine) <= Range*Range && PotentialMarine.Health > 0 && !IsHostile (PotentialMarine)) //If the actor is not dormant, a marine, in range, is not hostile to you, and has no target already.
 				{
-					//Make sure the marine isn't in its' RunAway state or crouching, that state must NEVER be broken by being changed or having the marines' target changed during it.
-					If (!SM_IsInState ("RunAway") && !Crouching)
+					//If the marine isn't running away from a grenade and has no target currently.
+					If (!SmartMarine(PotentialMarine).SM_IsInState ("RunAway") && !PotentialMarine.Target)
 					{
-						PotentialMarine.Target = PotentialMarine.LastHeard = Target; //Have the marine share your target.
+						PotentialMarine.LastHeard = PotentialMarine.Target = Target; //Have the marine share your target.
 						FoundMarines = True; //A marine has been found.
-						If (!SM_IsInState ("See")) //If the marine isn't in its' see state already, to chase the target.
+						If (!SmartMarine(PotentialMarine).SM_IsInState ("See") && !SmartMarine(PotentialMarine).SM_IsBusy()) //Put the marine in his see state to begin chasing the target, if he isn't only it already and isn't busy.
 						{
 							PotentialMarine.SetStateLabel ("See"); //Then send them to it.
 						}
+					}
+					//If he IS running away from a grenade. But has no target that he was attacking before running away from the grenade.
+					Else If (SmartMarine(PotentialMarine).SM_IsInState ("RunAway") && !SmartMarine(PotentialMarine).OriginalTarget)
+					{
+						SmartMarine(PotentialMarine).OriginalTarget = PotentialMarine.LastHeard = Target; //Have the marine share your target.
+						FoundMarines = True; //A marine has been found.
 					}
 				}
 			}
 			
 			If (FoundMarines) //If at least one marine was found to alert.
-				A_StartSound ("Marine/AlertAllies",CHAN_VOICE,attenuation:0.75);
+			{
+				If (Random (0,256) == Random (0,256))
+					A_StartSound ("Marine/AlertAlliesAlt",CHAN_VOICE,attenuation:0.75);
+				Else
+					A_StartSound ("Marine/AlertAllies",CHAN_VOICE,attenuation:0.75);
+			}
 		}
 	}
 	

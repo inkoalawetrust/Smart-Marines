@@ -63,7 +63,7 @@ x===Worst case scenario I have to make them just keep facing the turret and walk
 =MAKE A MARINE WITH A ROCKET LAUNCHER.
 ==Make firing states for the rocket launcher with fire coming out.
 ==Don't forget to crop out and add his pain frames in the file, once I make the firing sprites though, and know what frame name to give to his pain sprites.
-==Make a custom rocket model, yes me, that's right, I'll try to learn Blender to make a rocket with different pitches.
+*==Make a custom rocket model, yes me, that's right, I'll try to learn Blender to make a rocket with different pitches.
 *==Figure out how to make the back facing sprites of the marine actually show the rocket launcher.| Done, TG5 redid all the sprites.
 ==Make the rocket launcher into a standalone sprite that can be picked up, and which rolls up in the air after the marine is killed.| Sprite made by me.
 

@@ -15,6 +15,7 @@ Smart marines are NPCs for Doom that are far more intelligent than vanilla monst
 - Run away from the grenades they throw, if those grenades are about to explode.
 - Intelligently dodge enemy or extremely harmful projectiles heading their way. More information can be found inside Document.txt
 - Dynamically take cover behind sufficiently tall level geometry or shootable actors when attacking enemies. More information can be found inside Document.txt
+- Can be set up into squads in which they stick together and follow a designated leader. And can change leaders if the previous one died. More information can be found inside Document.txt
 - They have multiple death animations that can play randomly.
 - Reload their rifles for every 20 rounds they fire in total.
   - They first try a few times to run away from their target until out of sight, to not reload while vulnerable.
@@ -36,6 +37,7 @@ Smart marines are NPCs for Doom that are far more intelligent than vanilla monst
   - Orange
   - Pink
   - Dark Green
+  - Dark Red
   - Random (Randomly pick a color.)
   - Default (Use the default shade of green. Similar to just leaving User_Color empty.)
 - Most of the marines' behaviour can be configured on a per actor basis using user variables.

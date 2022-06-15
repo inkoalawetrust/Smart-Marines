@@ -8,11 +8,35 @@ Extend Class SmartMarine
 	{
 		LeaveTurret();
 		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
+		If (Icon)
+			Icon.Alpha = 0.0;
+		//If you were a squad leader. Then stay on the list still in case you are resurrected, but assign a new leader.
+		If (Squad)
+		{
+			//Remove yourself from the member list if you were gibbed.
+			If (Health <= GetGibHealth())
+				Squad.LeaveSquad(Self);
+			
+			Squad.AssignNewSquadLeader(Self);
+		}
+		Else If (Master && SmartMarine(Master).Squad && Health <= GetGibHealth())
+			SmartMarine(Master).Squad.LeaveSquad (Self);
 	}
 	
 	Override Void OnDestroy() //I'd consider this to be a form of death.
 	{
 		LeaveTurret();
+		
+		//If you were a squad leader before erasure, remove your entry from the members array, so there are no null entries. And try assigning a new leader.
+		If (Squad)
+		{
+			Squad.Members.Delete(Squad.Members.Find(Self));
+			Squad.AssignNewSquadLeader(Self);
+		}
+		
+		//If you were in a squad, access the squad class from your leader to remove yourself from the member list.
+		If (Master && SmartMarine(Master).Squad)
+			SmartMarine(Master).Squad.Members.Delete(SmartMarine(Master).Squad.Members.Find(Self));
 		
 		If (!bDormant && Random (0,512) == Random (0,512))
 		{
@@ -107,19 +131,47 @@ Extend Class SmartMarine
 		Raise:
 			TNT1 A 0
 			{
+				If (Icon)
+					Icon.Alpha = 1.0;
+				Else If (!Icon && Master)
+				{
+					Icon = Spawn ("SmartMarineSquadIcon",(Pos.X,Pos.Y,Pos.Z+Height));
+					If (Icon)
+						Icon.Master = Self;
+				}
+				Else If (!Icon && Squad && Squad.Leader == Self)
+				{;
+					Icon = Spawn ("SmartMarineLeaderIcon",(Pos.X,Pos.Y,Pos.Z+Height));
+					If (Icon)
+						Icon.Master = Self;
+				}
+				
+				//Leave the squad if it is now hostile to you.
+				If (SmartMarine(Master) && SmartMarine(Master).Squad && IsHostile(Master))
+					SmartMarine(Master).Squad.LeaveSquad(Self);
+				
+				//Make yourself the squad leader if after being resurrected, you find out that you are the only living squad member.
+				If (SmartMarine(Master) && SmartMarine(Master).Squad && SmartMarine(Master).Squad.IsEveryoneDead(Self))
+					SmartMarine(Master).Squad.MakeSquadLeader (Self);
+				
 				//I could shorten this using String.Format(), if strings/names could even be converted to state labels that is.
-				If (DeathAnimPlayed == 0 || DeathAnimPlayed == 1)
-					Return ResolveState ("RaiseAnim1");
-				Else If (DeathAnimPlayed == 2)
-					Return ResolveState ("RaiseAnim2");
-				Else If (DeathAnimPlayed == 3)
-					Return ResolveState ("RaiseAnim3");
-				Else If (DeathAnimPlayed == 4)
-					Return ResolveState ("RaiseAnim4");
-				Else If (DeathAnimPlayed == 5)
-					Return ResolveState ("RaiseAnim5");
-				Else If (DeathAnimPlayed == 6)
-					Return ResolveState ("CrouchRaise");
+				Switch (DeathAnimPlayed)
+				{
+					Case 0:
+						Return ResolveState ("RaiseAnim1");
+					Case 1:
+						Return ResolveState ("RaiseAnim1");
+					Case 2:
+						Return ResolveState ("RaiseAnim2");
+					Case 3:
+						Return ResolveState ("RaiseAnim3");
+					Case 4:
+						Return ResolveState ("RaiseAnim4");
+					Case 5:
+						Return ResolveState ("RaiseAnim5");
+					Case 6:
+						Return ResolveState ("CrouchRaise");
+				}
 				
 				Return ResolveState (Null);
 			}
