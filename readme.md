@@ -41,7 +41,6 @@ Smart marines are NPCs for Doom that are far more intelligent than vanilla monst
   - Random (Randomly pick a color.)
   - Default (Use the default shade of green. Similar to just leaving User_Color empty.)
 - Most of the marines' behaviour can be configured on a per actor basis using user variables.
-- Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc. Adding a custom value to a user variable prevents it from being randomized.
 - They also have a rifle that they sometimes drop, which you can pick up and use yourself.
   - The rifle fires at full auto, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
   - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increases your accuracy as well.
