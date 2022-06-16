@@ -68,8 +68,6 @@ Class SmartMarine : Actor
 		Super.PostBeginPlay();
 		
 		InitializeSquad();
-		SetUserVariableDefaults();
-		HandleRandomPersonalityMidGame();
 		HandleMarineColoring();
 	}
 		
@@ -94,7 +92,6 @@ Class SmartMarine : Actor
 		//Once the dodge delay is over, remove the point to the previous projectile.
 		If (!DodgeDelay && PreviousProjectile) PreviousProjectile = Null;
 		
-		HandleRandomPersonalityMidGame(); //Allows switching on User_RandomPersonality mid-game, to randomize the marine in-game... if you want that for some reason.
 		If (!bFriendly)
 			Species = "HostileSmartMarine";
 		Else
