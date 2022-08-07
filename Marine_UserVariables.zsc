@@ -18,25 +18,45 @@ Extend Class SmartMarine
 		A_SetTranslation (String.Format("Marine_%s", User_Color));
 	}
 	
-	//$UserDefaultValue 500
+	Void SetUserVariableDefaults()
+	{
+		//The //$UserDefaultValue editor key is buggy, so this code still needs to be used.
+		If (User_SearchTime == 0) User_SearchTime = 500; //The amount of time the marine tries to chase it's target, after it has died or gone out of sight.
+		If (User_GrenadeThreshold == 0) User_GrenadeThreshold = 240; //Default threshold that needs to be reached or surpassed, for the marine to throw a grenade.
+		If (User_RetreatAttempts == 0) User_RetreatAttempts = 10; //Default amount of attempts the marine makes to run for cover to reload.
+		If (User_AlertRange == 0) User_AlertRange = 384; //Default range in which marines alert each other of enemies.
+		If (User_EnemyAlertHearingRange == 0) User_EnemyAlertHearingRange = 1024; //Default range in which marines can hear the alerts of enemy marines.
+		If (User_DodgeRange == 0) User_DodgeRange = 384; //Default range in which marines dodge projectiles.
+		If (User_TurretThreshold == 0) User_TurretThreshold = 100; //Default chance for the marine to use a turret.
+		If (User_FearDistance == 0) User_FearDistance = 2048; //The default distance the marines keeps from powerful enemies.
+	}
+
+	Void HandleRandomPersonalityMidGame()
+	{
+		If (User_RandomPersonality)
+		{
+			If (!User_SearchTime) User_SearchTime = 500*FRandom (-0.6,3.0);
+			If (!User_GrenadeThreshold) User_GrenadeThreshold = 240*FRandom (-0.75,2.0);
+			If (!User_RetreatAttempts) User_RetreatAttempts = Random (7,15);
+			If (!User_FearDistance) User_FearDistance = 2048*FRandom (0.75,2.0);
+			If (!User_TurretThreshold) User_TurretThreshold = 100*Frandom (0.5,1.5);
+			If (!User_Color || User_Color ~== "") User_Color = "Random";
+			User_RandomPersonality = False;
+		}
+	}
+	
 	Int User_SearchTime;
-	//$UserDefaultValue 240
 	Int User_GrenadeThreshold;
-	//$UserDefaultValue 10
 	Int User_RetreatAttempts;
-	//$UserDefaultValue 100
 	Int User_TurretThreshold;
-	//$UserDefaultValue 384
 	Double User_AlertRange;
-	//$UserDefaultValue 1024
 	Double User_EnemyAlertHearingRange;
-	//$UserDefaultValue 2048
 	Double User_FearDistance;
-	//$UserDefaultValue 384
 	Double User_DodgeRange;
 	Bool User_DisobeyCommands;
 	Bool User_NoReload;
 	Bool User_NoCover;
+	Bool User_RandomPersonality;
 	Bool User_NoRifleDrop;
 	String User_Color;
 	String User_SquadName;

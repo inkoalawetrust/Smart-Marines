@@ -17,7 +17,7 @@ The editor name of their No Crouch Zone map spots (More info below) is "No Crouc
 - Attack stuff by:
   - Bashing it with their rifle. But they normally avoid it if they can help it. (Melee)
 	- Can also use berserk packs, if one is somehow in their inventory, which triple their melee damage, and make them more likely to engage in melee.
-  - Shoot at it, with a random chance of changing position while doing so. (Ranged)
+  - Shooting at it, with a random chance of changing position or lying down while doing so. (Ranged)
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
 - Run away from the grenades they throw, if those grenades are about to explode.
@@ -49,6 +49,7 @@ The editor name of their No Crouch Zone map spots (More info below) is "No Crouc
   - Random (Randomly pick a color.)
   - Default (Use the default shade of green. Similar to just leaving User_Color empty.)
 - Most of the marines' behaviour can be configured on a per actor basis using user variables.
+- Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc. Adding a custom value to a user variable prevents it from being randomized.
 - They also have a rifle that they sometimes drop, which you can pick up and use yourself.
   - The rifle fires at full auto, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
   - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increases your accuracy as well.
@@ -134,7 +135,7 @@ NO CROUCH ZONE ACTOR:
 If you do not want the marines to crouch in certain areas, such as behind particular staircases, you can use the SM_NoCrouchZone actor.
 Which will prevent marines entering its' range from crouching at all. The actor can be found under the "ZDoom" folder.
 It also uses custom arguments (Not user variables) that allow you to specify its' range and for how long marines will not crouch once out of said range.
-The custom arguments can be accessed by selecting the no crouch zone actor(s( and going to the Action/Tag/Misc. tab.
+The custom arguments can be accessed by selecting the no crouch zone actor(s) and going to the Action/Tag/Misc. tab.
 In addition to the custom arguments, you can also disable and enable the no crouch zone actors with Thing_Activate and Thing_Deactivate.
 
 MISCELLANEOUS:
@@ -217,6 +218,10 @@ User_FearDistance: The distance that the marine runs away to, if his target is s
 - Default is 2048 map units, a value of 0 or less makes them fearless. (Within reason, so they still avoid grenades for example.)
 User_Color: Can be used to give the marines different armor colors.
 - Default is no translation, the available colors are Default, Gray, Red, White, Black, Blue, Yellow, Orange, Pink, Dark Green, Dark Red, and Random, which randomly picks any of the afformentioned colors.
+User_RandomPersonality: When on, it randomizes several user variables that could be considered aspects of the marines' personality, such as:
+- User_SearchTime, User_GrenadeThreshold, User_TurretThreshold, User_RetreatAttempts, User_FearDistance, and User_Color.
+- If any of those variables have any values besides their defaults, then they won't be randomized, so you can still for example have marines with random grenade and turret thresholds, but the same melee chance.
+- The variable can be set to true again in-game using SetUserVariable() in ACS, allowing you to randomize a marines' personality mid-game, if you want to do that for some reason.
 
 STATIONARY TURRET MARINE VARIABLES:
 - User_RunFromGrenades: When turned on, the stationary marine will leave his turret to run from any grenades about to explode, like the marines normally do.

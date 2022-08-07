@@ -13,7 +13,7 @@ Class SM_NoCrouchZone : Actor
 		//$Arg0Tooltip The range in which the crouch zone will prevent marines from crouching.
 		//$Arg0Default 128
 		//$Arg1 Crouch Delay
-		//$Arg1Tooltip How long this zone should prevent marines from crouching after they leave it.
+		//$Arg1Tooltip How long (In tics) this zone should prevent marines from crouching after they leave it.
 		//$Arg1Default 35
 		//$NotAngled
 		Radius 16;
@@ -62,7 +62,7 @@ Class SmartMarinePuff : BulletPuff
 {
 	Default
 	{
-		Species "SmartMarine";
+		Species "Military";
 		DamageType "MarineRifle";
 		Decal "BulletChip";
 		+MThruSpecies;
@@ -73,7 +73,7 @@ Class SmartMarinePuff : BulletPuff
 		Super.PostBeginPlay();
 		
 		If (Target && !Target.bFriendly)
-			Species = "HostileSmartMarine";
+			Species = "MilitaryHostile";
 	}
 }
 

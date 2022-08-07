@@ -14,8 +14,6 @@ Version "4.8.0"
 THERE ARE 86,000,000,000 NEURONS THAT MY BRAIN IS COMPOSED OF.
 IF THE WORD HATE WAS ENGRAVED ON EACH NANOANGSTROM OF THOSE TENS OF BILLIONS OF NEURONS IT WOULD NOT EQUAL ONE ONE-BILLIONTH OF THE HATE I FEEL FOR
 MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
-/*When the new GZDoom version comes out, begin using CHF_DONTIDLE, and also use my DONTFOLLOWPLAYERS flag, to add an additional use mode for friendly marines,
-that makes them follow you. While the wandering mode makes them actually wander around, instead of following you.*/
 //Maybe add a secondary melee attack to the rifle weapon, like what the marines have. I'll need first person sprites of the rifle being swung though.
 
 Class SmartMarine : Actor
@@ -42,7 +40,7 @@ Class SmartMarine : Actor
 		MaxTargetRange 8192;
 		MinMissileChance 100;
 		Tag "Marine NPC";
-		Species "SmartMarine";
+		Species "Military";
 		Decal "BulletChip";
 		Obituary "%o was shot to death by a marine.";
 		HitObituary "%o got %p head smashed in by a marines' rifle.";
@@ -68,6 +66,8 @@ Class SmartMarine : Actor
 		Super.PostBeginPlay();
 		
 		InitializeSquad();
+		SetUserVariableDefaults();
+		HandleRandomPersonalityMidGame();
 		HandleMarineColoring();
 	}
 		
@@ -92,10 +92,11 @@ Class SmartMarine : Actor
 		//Once the dodge delay is over, remove the point to the previous projectile.
 		If (!DodgeDelay && PreviousProjectile) PreviousProjectile = Null;
 		
+		HandleRandomPersonalityMidGame(); //Allows switching on User_RandomPersonality mid-game, to randomize the marine in-game... if you want that for some reason.
 		If (!bFriendly)
-			Species = "HostileSmartMarine";
+			Species = "MilitaryHostile";
 		Else
-			Species = "SmartMarine";
+			Species = "Military";
 		
 		//These states have really long frame durations. So the projectile check is done here so the marines can respond while standing still.
 		If ((SM_IsInState ("Spawn") || SM_IsInState("StandStill")) && SM_ShouldDodgeProjectile(User_DodgeRange))
@@ -236,6 +237,7 @@ Class SmartMarine : Actor
 	Bool StrafeAttack; //If on while the marine is jumping out of a projectiles' way, he will shoot at the projectiles' shooter if it was hostile.
 	Bool Evading; //Turned on while the marine is evading, to tell the air friction and height check code in Tick() to run.
 	Bool Crouching; //Is on when the marine is behind cover, not necessarily when he's actually crouch though, for that you check if he's also at his crouched height.
+	Bool LieDown; //The marine is firing while laying down, decrease his hitbox, this is different from crouching because they do it out in the open too.
 	
 	Int StrafeDirection; //Stores what direction SM_ShouldDodgeProjectile() told the marine to strafe to.
 	Enum StrafeDirections
@@ -288,7 +290,7 @@ Class SmartMarine : Actor
 				{
 					If (!bFrightened) MinMissileChance = 230; Else MinMissileChance = 500; //If your target is really powerful, then just run to the turret ASAP.
 					//Stop going to the turret if someone else got to the same turret already.
-					If (SmartMarineMGTurret(Goal.Master).Occupied)
+					If (SmartMarineMGTurret(Goal.Master).Operator)
 					{
 						GoingToTurret = False;
 						Goal.Destroy();
@@ -297,7 +299,7 @@ Class SmartMarine : Actor
 					{
 						Turret = Goal.Master; //The goals' master should be the turret, otherwise the goal would've been removed.
 						Turret.A_ChangeLinkFlags (True,True); //Then remove the turret from the blockmap and sector.
-						SmartMarineMGTurret(Turret).Occupied = True; //Mark the turret as being used.
+						SmartMarineMGTurret(Turret).Operator = Self; //Set yourself as the turrets' operator.
 						
 						TimeSearching = 0; //Just in case, as the TurretSee state uses this too.
 						A_Stop(); //No more momentum.
@@ -609,9 +611,7 @@ Class SmartMarine : Actor
 					If (Crouching)
 					{
 						DodgeDelay = 10;
-						//Try making this code somehow set the crouch delay based on the speed of the incoming projectile.
 						CrouchAttackDelay = 5;
-						
 						Return ResolveState ("Crouch");
 					}
 					
@@ -818,35 +818,98 @@ Class SmartMarine : Actor
 			MARM A 0 A_Jump (96/2,"ChangePosition"); //If you are in melee range of your enemy with a berserk pack, you are probably not THAT fucked.
 			Goto See;
 		RifleBurst:
-			MAR2 A 0 A_JumpIf (AmmoUsed > 19,"RunForReload"); //Run out of sight of the target to reload.
-			MAR2 A 1;
+			MARD AB 0 {LieDown = (!Crouching && Random[pr_cajump](0,255) < 32);} //Small chance for the marine to shoot lying down. If not already behind cover. Or in the air.
+			MAR2 A 0 //Run out of sight of the target to reload.
+			{
+				If (AmmoUsed > 19)
+				{
+					LieDown = False;
+					Height = Default.Height;
+					Return ResolveState ("RunForReload");
+				}
+				Return State (Null);
+			}
+			MAR2 A 1
+			{
+				If (LieDown)
+				{
+					Height = 16;
+					Sprite = GetSpriteIndex ("MARD");
+				}
+			}
 			MAR2 A 0 //The bullet spread is determined before the shot, so that it can be checked by SM_CantHitTarget(), so the marines won't even shoot their allies by accident.
 			{
-				If (!Crouching)
+				//Use normal accuracy if the marine isn't lying down or crouching while shooting.
+				If (!Crouching && !LieDown)
 				{
 					BulletSpreadXY += 2.2 * Random2[cwbullet]() / 255.;
 					BulletSpreadZ += 2.3 * Random2[cwbullet]() / 255.;
 				}
+				//Friendly marines lying down are slightly more accurate too, not hostile ones though, they are already hard enough.
+				Else If (LieDown && bFriendly)
+				{
+					BulletSpreadXY += 2.0 * Random2[cwbullet]() / 255.;
+					BulletSpreadZ += 2.1 * Random2[cwbullet]() / 255.;
+				}
 				//Marines are slightly more accurate when shooting behind cover.
-				Else
+				Else If (Crouching)
 				{
 					BulletSpreadXY += 2.0 * Random2[cwbullet]() / 255.;
 					BulletSpreadZ += 2.1 * Random2[cwbullet]() / 255.;
 				}
 			}
-			MAR2 A 0 A_JumpIf (SM_CantHitTarget(),"ChangePosition"); //Go somewhere else to shoot if the LOF is blocked. And you aren't behind cover.
+			MAR2 A 0 //Go somewhere else to shoot if the LOF is blocked. And you aren't behind cover.
+			{
+				If (SM_CantHitTarget())
+				{
+					LieDown = False;
+					Height = Default.Height;
+					Return ResolveState ("ChangePosition");
+				}
+				Return State (Null);
+			}
 			MARR A 4 Light ("MarineMuzzleFlash")
 			{
-				SM_MarineBulletAttack();
+				If (LieDown)
+				{
+					SM_MarineBulletAttack(8); //Shoot down lower than normal, since you are lying down.
+					Height = 16;
+					Sprite = GetSpriteIndex ("MARD");
+					Frame = 1;
+				}
+				Else
+					SM_MarineBulletAttack();
 				//A_CustomBulletAttack (BulletSpreadXY,BulletSpreadZ,1,Random(6,10),"SmartMarinePuff",8192,CBAF_NORANDOM|CBAF_AIMFACING|CBAF_NOPITCH|CBAF_EXPLICITANGLE,spawnheight:42,-6);
 				A_StartSound ("Marine/Fire",CHAN_WEAPON);
 				If (!User_NoReload) AmmoUsed++;
 			}
-			TNT1 A 0 A_JumpIf (SM_FindNearbyGrenade(),"RunAway");
-			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(User_DodgeRange),"Evade");
+			TNT1 A 0
+			{
+				If (SM_FindNearbyGrenade())
+				{
+					LieDown = False;
+					Height = Default.Height;
+					Return ResolveState("RunAway");
+				}
+				
+				If (SM_ShouldDodgeProjectile(User_DodgeRange))
+				{
+					LieDown = False;
+					Height = Default.Height;
+					Return ResolveState ("Evade");
+				}
+				
+				Return State (Null);
+			}
 			MAR2 A 1 //This is mostly a direct ZScript conversion of A_MonsterRefire, just to make the marine go back to the Crouch state if behind cover.
 			{
 				A_FaceTarget();
+				
+				If (LieDown)
+				{
+					Height = 16;
+					Sprite = GetSpriteIndex ("MARD");
+				}
 				
 				If (Random[pr_monsterrefire](0,255) < 96)
 					Return State (Null);
@@ -854,9 +917,16 @@ Class SmartMarine : Actor
 				If (!Target || HitFriend() || Target.Health <= 0 || !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
 				{
 					If (!Crouching)
+					{
+						LieDown = False;
+						Height = Default.Height;
 						Return ResolveState ("See");
+					}
 					Else
+					{
+						LieDown = False;
 						Return ResolveSTate ("Crouch");
+					}
 				}
 				
 				Return State (Null);
@@ -868,6 +938,8 @@ Class SmartMarine : Actor
 					//If behind cover, the marine will just go back to crouching.
 					If (!Crouching)
 					{
+						LieDown = False;
+						Height = Default.Height;
 						Maneuvering = True;
 						Return ResolveState ("ChangePosition");
 					}
@@ -879,7 +951,7 @@ Class SmartMarine : Actor
 				}
 				Return State (Null);
 			}
-			Loop;
+			Goto RifleBurst+2;
 		ThrowGrenade: //https://www.youtube.com/watch?v=BJrxKiW5f-4
 			MARG AA 6 A_JumpIf (SM_CantHitTarget(True),"ChangePosition");
 			MARG B 6
@@ -887,6 +959,7 @@ Class SmartMarine : Actor
 				AnnounceGrenadeThrow();
 				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
 				FireGrenade (Target,"SM_Grenade",55,1.1,1024);
+				GrenadeDelay = 40; //Don't throw a grenade again until at least a second has passed.
 			}
 			MARG B 4;
 			TNT1 A 0 A_JumpIf (Crouching,"Crouch");
@@ -920,6 +993,8 @@ Class SmartMarine : Actor
 			TNT1 A 0
 			{
 				Maneuvering = False;
+				LieDown = False;
+				Height = Default.Height;
 				
 				//In case the marine was evading when hurt.
 				Evading = StrafeAttack = False;

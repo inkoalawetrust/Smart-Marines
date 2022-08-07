@@ -41,7 +41,7 @@ Extend Class SmartMarine
 				If (Target && Target.Health <= 0) Target = Null; //Remove dead targets.
 				
 				//If the target is in your line of sight, attack it normally, if not, go back to looking.
-				If (CheckIfTargetInLOS(160,JLOSF_CLOSENOFOV|JLOSF_DEADNOJUMP,6144,128)) A_Chase (Null,"TurretFire",CHF_DONTMOVE|CHF_NODIRECTIONTURN);
+				If (CheckIfTargetInLOS(160,JLOSF_CLOSENOFOV|JLOSF_DEADNOJUMP,6144*2,128)) A_Chase (Null,"TurretFire",CHF_DONTMOVE|CHF_NODIRECTIONTURN);
 				Else A_LookEx (0,0,8192,4096,160,"TurretFire");
 				
 				Return State (Null);
@@ -99,7 +99,7 @@ Class TurretMarine : Actor
 		MaxTargetRange 8192;
 		MinMissileChance 100;
 		Tag "Marine NPC";
-		Species "SmartMarine";
+		Species "Military";
 		Obituary "%o was turned into swiss cheese by a marines' turret !";
 		DropItem "Clip";
 		DropItem "Clip", 128, 2;
@@ -129,9 +129,9 @@ Class TurretMarine : Actor
 			Return;
 		
 		If (!bFriendly)
-			Species = "HostileSmartMarine";
+			Species = "MilitaryHostile";
 		Else
-			Species = "SmartMarine";
+			Species = "Military";
 	}
 	
 	Override Void OnDestroy ()
@@ -303,7 +303,6 @@ Class SmartMarineMGTurret : Actor
 {
 	Actor operator;
 	uint active_frame; // Switches between not active, active and firing.
-	Bool Occupied; //Only really used when players are using it.
 	Bool curbarrel; //Makes the gun visibly change firing sprites, yes, it's out of sync from the first person weapon. No, I will not try to sync it.
 
 	Default
@@ -329,7 +328,6 @@ Class SmartMarineMGTurret : Actor
 		A_StartSound ("Turret/Ready",CHAN_WEAPON); //Because playing the sound from the gun doesn't work.
 		Translation = Operator.Translation; //So the color of the player on and out of the gun are the same, instead of only the default green.
 		bSolid = False;
-		Occupied = True; //Mark the gun as being used.
 		
 		SmartMarineMGWeapon.Enable(User);
 	}
@@ -348,19 +346,15 @@ Class SmartMarineMGTurret : Actor
 		// Remove operator.
 		Operator = Null;
 		bSolid = True; //Become solid again.
-		Occupied = False; //Unmark it as being used.
 		Translation = Default.Translation; //Reset the translation.
 	}
 	
 	Override Bool Used(Actor User)
 	{
-		//If (!Occupied || operator.player.ReadyWeapon Is "SmartMarineMGWeapon")
-		//{
-			If(!Operator)
-				TakeOperator(User);
-			Else If (User == Operator) // Only allow the operator to exit themselves.
-				RemoveOperator(User);
-		//}
+		If(!Operator)
+			TakeOperator(User);
+		Else If (User == Operator) // Only allow the operator to exit themselves.
+			RemoveOperator(User);
 		
 		Return False;
 	}

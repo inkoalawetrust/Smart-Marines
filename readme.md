@@ -9,7 +9,7 @@ Smart marines are NPCs for Doom that are far more intelligent than vanilla monst
 - Attack stuff by:
   - Bashing it with their rifle. But they normally avoid it if they can help it. (Melee)
 	- Can also use berserk packs, if one is somehow in their inventory, which triple their melee damage, and make them more likely to engage in melee.
-  - Shoot at it, with a random chance of changing position while doing so. (Ranged)
+  - Shooting at it, with a random chance of changing position or lying down while doing so. (Ranged)
   - Throw a grenade at it, more likely to throw it at crowds of enemies. (Area of effect)
 - They avoid firing their rifles, grenades, or turrets if their line of fire to the target is blocked by obstacles or allies.
 - Run away from the grenades they throw, if those grenades are about to explode.
@@ -41,6 +41,7 @@ Smart marines are NPCs for Doom that are far more intelligent than vanilla monst
   - Random (Randomly pick a color.)
   - Default (Use the default shade of green. Similar to just leaving User_Color empty.)
 - Most of the marines' behaviour can be configured on a per actor basis using user variables.
+- Can have a randomized personality, that gives the marine a random armor color, different attention spans and chances to throw a grenade etc. Adding a custom value to a user variable prevents it from being randomized.
 - They also have a rifle that they sometimes drop, which you can pick up and use yourself.
   - The rifle fires at full auto, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
   - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increases your accuracy as well.

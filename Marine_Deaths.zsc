@@ -7,6 +7,8 @@ Extend Class SmartMarine
 	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
 	{
 		LeaveTurret();
+		LieDown = False;
+		Height = Default.Height;
 		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
 		If (Icon)
 			Icon.Alpha = 0.0;

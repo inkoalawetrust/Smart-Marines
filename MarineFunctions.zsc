@@ -1,3 +1,5 @@
+Class SM_SmartMarines : Service {} //This service can be searched for by other mods to check if the marine NPC is loaded.
+
 Class SM_ProjectileHandler : EventHandler
 {
 	//Much faster alternative to just using a ThinkerIterator.
@@ -186,6 +188,7 @@ Mixin Class MarineFunctions
 			ThrowChance = Random (0,256);
 			BlockThingsIterator FindTargets = BlockThingsIterator.Create (Target,BlastRadius);
 			
+			If (Crouching) ThrowChance += 20; //Marines behind cover are a bit more likely to throw grenades.
 			If (Target.Health >= 10000) ThrowChance += 230;
 			Else If (Target.Health >= 4000) ThrowChance += 80;
 			Else If (Target.Player) ThrowChance += 20;
@@ -333,7 +336,7 @@ Mixin Class MarineFunctions
 		//Bullet impact splash handling.
 		//The splashes only work with solid surfaces because I tried getting them to work with swimmable 3D floors for 2 days straight to no avail.
 		//Also, the rifle the marines drop doesn't produce splashes because calling this exact same code from the player produces pitch differences
-		//between where the line trace is fired, and where the actual hitscan attack is fired because reason I guess.
+		//between where the line trace is fired, and where the actual hitscan attack is fired because reasons I guess.
 		FLineTraceData LiquidCheck;
 		Actor Splash;
 		Let LiquidList = SM_LiquidTextureNameList(EventHandler.Find("SM_LiquidTextureNameList"));	
@@ -540,7 +543,7 @@ Mixin Class MarineFunctions
 				
 				If (EpicFail) Continue;
 				
-				//Hostile marines and any marines currently in cover will ignore all projectiles, except for ones on the Ignored Projectiles list.
+				//Hostile marines and any marines currently in cover will dodge all projectiles, except for ones on the Ignored Projectiles list.
 				If (!bFriendly || Crouching) SkipAllyCheck = True;
 				
 				//If the projectile heading towards you will do way too much damage, then avoid it even if it was shot by a friend. This has to account for Doom's absurd damage variation.
@@ -765,8 +768,14 @@ Mixin Class MarineFunctions
 		FLineTraceData LOFCheck;
 		
 		A_FaceTarget(0,0,flags:FAF_MIDDLE);
-
-		LineTrace (Angle+BulletSpreadXY,8192+2,Pitch+BulletSpreadZ,0,42,0,-6,LOFCheck);
+		
+		//Not lying down, fire the raycast at normal eye height.
+		If (!LieDown)
+			LineTrace (Angle+BulletSpreadXY,8192+2,Pitch+BulletSpreadZ,0,42,0,-6,LOFCheck);
+		//Lying down, lower the raycast spawn height
+		Else
+			LineTrace (Angle+BulletSpreadXY,8192+2,Pitch+BulletSpreadZ,0,8,0,-6,LOFCheck);
+		
 		Mobj = LOFCheck.HitActor;
 		HitLine = LOFCheck.HitLine;
 		If (Mobj) //Only run this if an actor was hit by the raycast.
@@ -816,7 +825,7 @@ Mixin Class MarineFunctions
 		
 		While (FindTurrets.Next())
 		{
-			If (FindTurrets.Thing Is "SmartMarineMGTurret" && !(SmartMarineMGTurret(FindTurrets.Thing).Occupied) && IsVisible (FindTurrets.Thing,True) && Distance3DSquared (FindTurrets.Thing) <= TurretRadius*TurretRadius)
+			If (FindTurrets.Thing Is "SmartMarineMGTurret" && !(SmartMarineMGTurret(FindTurrets.Thing).Operator) && IsVisible (FindTurrets.Thing,True) && Distance3DSquared (FindTurrets.Thing) <= TurretRadius*TurretRadius)
 			{
 				FoundTurret = FindTurrets.Thing;
 				//Break;
@@ -869,7 +878,7 @@ Mixin Class MarineFunctions
 					UseChance += 10;
 			}
 			//Also increase the chance for every ally you found around you, that could support you while you are stationary and vulnerable.
-			If (bFriendly || !bFriendly && Target.Player)
+			If (bFriendly)
 			{
 				If (Mobj.Health >= 10 && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)) && IsVisible (Mobj,True))
 				{
@@ -877,10 +886,10 @@ Mixin Class MarineFunctions
 					Else If (Mobj.Player) {UseChance += 60; FoundAllies = True;}
 				}
 			}
-			//Since hostile monsters don't attack friendly ones on sight by default, hostile marines can't rely on other fellow hostile monsters, besides other marines.
-			Else
+			//Since hostile monsters don't attack friendly ones on sight by default, hostile marines can't rely on other fellow hostile monsters, unless they have the SEEFRIENDLYMONSTERS flag enabled.
+			Else If (!bFriendly && (Target.Player || Target.bFriendly))
 			{
-				If (Mobj Is "SmartMarine" && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)) && IsVisible (Mobj,True))
+				If (Mobj.bSeeFriendlyMonsters && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)) && IsVisible (Mobj,True))
 				{
 					UseChance += 30;
 				}
@@ -931,7 +940,7 @@ Mixin Class MarineFunctions
 		If (Turret && OnTurret)
 		{
 			Turret.A_ChangeLinkFlags (False,False);
-			SmartMarineMGTurret(Turret).Occupied = False;
+			SmartMarineMGTurret(Turret).Operator = Null;
 			Warp(Turret,-Turret.Radius*2,flags:WARPF_NOCHECKPOSITION); //Warp the marine at about the same position he is visibly at while on the turret.
 			Turret.Angle = Angle;
 			Turret = Null;
