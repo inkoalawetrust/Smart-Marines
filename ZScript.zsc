@@ -117,7 +117,7 @@ Class SmartMarine : Actor
 		Super.Used (User);
 		
 		//Don't follow any player commands if in a squad. Unless you are the leader.
-		If (Master && SmartMarine(Master).Squad)
+		If (Master && Master Is "SmartMarine" && SmartMarine(Master).Squad)
 			Return False;
 		
 		//Trying to command an enemy marine just makes them attack you.
@@ -131,7 +131,7 @@ Class SmartMarine : Actor
 			Return True;
 		}
 		
-		If (User_DisobeyCommands || Goal || Master) Return False; //Ignore all this when patrolling, if it is disabled. Or if you are in a squad.
+		If (User_DisobeyCommands || Goal) Return False; //Ignore all this when patrolling, if it is disabled. Or if you are in a squad.
 		
 		If (OnTurret && IsFriend (User) && !Target) //If you are on a turret, your user was friendly, and you have no target currently.
 		{
@@ -266,10 +266,10 @@ Class SmartMarine : Actor
 					Return ResolveState ("RunAway");
 				
 				//If you are in a squad, and your leader is too far away from you, start following him.
-				If (Master && SmartMarine(Master).Squad && Distance3DSquared (Master) >= 512*512 && CurrentMarineOrder != ORDER_STANDSTILL)
+				If (Master && Master Is "SmartMarine" && SmartMarine(Master).Squad && Distance3DSquared (Master) >= 512*512 && CurrentMarineOrder != ORDER_STANDSTILL)
 					Return ResolveState ("Idle");
 				
-				If (Master && SmartMarine(Master).Squad && SmartMarine(Master).CurrentMarineOrder != ORDER_STANDSTILL)
+				If (Master && Master Is "SmartMarine" && SmartMarine(Master).Squad && SmartMarine(Master).CurrentMarineOrder != ORDER_STANDSTILL)
 					CurrentMarineOrder = ORDER_NONE;
 				
 				bStandStill = True; //Prevents friendly marines from moving because they heard a friendly player.
@@ -283,7 +283,7 @@ Class SmartMarine : Actor
 			MAR2 AAAABBBBCCCCDDDD 2
 			{
 				If((Target && Target Is 'PatrolPoint') && ((Goal && Target != Goal) || !Goal)) Target = Null; //Don't target patrol points you aren't heading to.
-								
+				
 				//If your goal is a marker to a turret for you to enter.
 				//======================================================
 				If (Goal && Goal.GetClassName() == "SM_TurretLocationMarker")
@@ -494,7 +494,11 @@ Class SmartMarine : Actor
 					
 					//May shoot at the shooter of the projectile he is dodging while in mid air, if the marine has ammo left.
 					StrafeAttack = (AmmoUsed < 19 && Random (0,255) < 180);
-						
+					
+					//what? you think i'm just gonna stand there and take it?
+					If (Random (0,255) == Random (0,255))
+						Spawn ("SmartMarineSuperDuperSecretUndertaleReference",(Pos.X,Pos.Y,Pos.Z+Height+4));
+					
 					If (!(Random (0,255) == Random (0,255)))
 						A_StartSound ("Marine/Throw",CHAN_VOICE); //Umf
 					Else
@@ -738,7 +742,8 @@ Class SmartMarine : Actor
 			TNT1 A 0
 			{
 				A_SetSpeed (Default.Speed*1.5);
-				RunningToReload = True;
+				RunningToReload = bNoPain = True;
+				bNoPain = True;
 			}
 			PLAY AABBCCDD 2
 			{
@@ -748,13 +753,13 @@ Class SmartMarine : Actor
 				If (User_RetreatAttempts == -1 || bChaseGoal && Goal || Crouching)
 				{
 					Speed = Default.Speed;
-					RunningToReload = False;
+					RunningToReload = bNoPain = False;
 					QuickReload = True;
 					Return ResolveState ("Reload");
 				}
-				bFrightened = True; bNoPain = True;
+				bFrightened = True;
 				A_Chase (Null,Null); //Just run away from your target.
-				bNoPain = False; bFrightened = False;
+				bFrightened = False;
 				Return State (Null);
 			}
 			PLAY A 0
@@ -762,7 +767,7 @@ Class SmartMarine : Actor
 				EscapeAttempts++;
 				If (EscapeAttempts >= User_RetreatAttempts || Target && (!IsVisible (Target,True) || Target.Health <= 0))
 				{
-					RunningToReload = False;
+					RunningToReload = bNoPain = False;
 					EscapeAttempts = 0;
 					Speed = Default.Speed;
 					Return ResolveState ("Reload");
@@ -797,7 +802,7 @@ Class SmartMarine : Actor
 				bFrightened = False;
 				bChaseGoal = WasChaseGoalOn;
 				WasChaseGoalOn = False;
-				Speed = Default.Speed;
+				Speed = Default.Speed;a_log ("i have finished running");
 			}
 			Goto See; //Go back to the see state.
 		DecideAttack: //Decide if you should use a turret, throw a grenade, or just shoot.

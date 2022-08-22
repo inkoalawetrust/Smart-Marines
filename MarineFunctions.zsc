@@ -1,4 +1,15 @@
-Class SM_SmartMarines : Service {} //This service can be searched for by other mods to check if the marine NPC is loaded.
+//This service can be searched for by other mods to check if the marine NPC is loaded.
+Class SM_SmartMarines : Service
+{
+	Override Int GetInt (String Request, string stringArg, int intArg, double doubleArg, Object objectArg)
+	{
+		Let Marine = SmartMarine(ObjectArg);
+		If (!Marine)
+			Return -1;
+		
+		Return Marine.OnTurret;
+	}
+}
 
 Class SM_ProjectileHandler : EventHandler
 {
@@ -42,11 +53,11 @@ Class SM_LiquidTextureNameList : EventHandler
 	The lists already contain some names of liquid flats that don't exist in the vanilla game, for built-in mod compatibility.
 	Such as by having waterfall textures that don't exist like WFALL# and NFALL#.
 	===============================================================*/
-	Static Const String WaterTextures[] ={"FWATER1", "FWATER2", "FWATER3", "FWATER4", "WFALL1", "WFALL2", "WFALL3", "WFALL4"};
-	Static Const String NukageTextures[] ={"NUKAGE1", "NUKAGE2", "NUKAGE3", "NFALL1", "NFALL2", "NFALL3", "NFALL4"};
-	Static Const String BloodTextures[] ={"BLOOD1", "BLOOD2", "BLOOD3", "BFALL1", "BFALL2", "BFALL3", "BFALL4"};
-	Static Const String LavaTextures[] ={"LAVA1","LAVA2", "LAVA3", "LAVA4", "DBRAIN1", "DBRAIN2", "DBRAIN3", "DBRAIN4", "LFALL1", "LFALL2", "LFALL3", "LFALL4"};
-	Static Const String SlimeTextures[] ={"SLIME01","SLIME02", "SLIME03", "SLIME04", "SLIME05","SLIME06", "SLIME07", "SLIME08", "SFALL1", "SFALL2", "SFALL3", "SFALL4"};
+	Static Const String WaterTextures[] = {"FWATER1", "FWATER2", "FWATER3", "FWATER4", "WFALL1", "WFALL2", "WFALL3", "WFALL4"};
+	Static Const String NukageTextures[] = {"NUKAGE1", "NUKAGE2", "NUKAGE3", "NFALL1", "NFALL2", "NFALL3", "NFALL4"};
+	Static Const String BloodTextures[] = {"BLOOD1", "BLOOD2", "BLOOD3", "BFALL1", "BFALL2", "BFALL3", "BFALL4"};
+	Static Const String LavaTextures[] = {"LAVA1","LAVA2", "LAVA3", "LAVA4", "DBRAIN1", "DBRAIN2", "DBRAIN3", "DBRAIN4", "LFALL1", "LFALL2", "LFALL3", "LFALL4"};
+	Static Const String SlimeTextures[] = {"SLIME01","SLIME02", "SLIME03", "SLIME04", "SLIME05","SLIME06", "SLIME07", "SLIME08", "SFALL1", "SFALL2", "SFALL3", "SFALL4"};
 
 }
 
@@ -631,7 +642,22 @@ Mixin Class MarineFunctions
 	//Searches for grenades that are about to explode near the marine.
 	Bool SM_FindNearbyGrenade (Double SearchRadius = 256)
 	{
+		Inventory Token;
 		If (bDormant) Return False;
+		
+		Token = FindInventory ("SM_ImInDanger");
+		
+		If (Token && Token.Master)
+		{a_log ("*chuckles*, im in danger");
+			OriginalTarget = Target; //Keep the original target of the marine stored.
+			Target = Token.Master; //Then change the target to the actor that droped the token.
+			TakeInventory ("SM_ImInDanger",1); //Remove the token now, if the marine still needs to run, the warning source should give another token for the next function call.
+			Return True; //And return true.
+		}
+		//The token is in the inventory, but has no master e.g it was given by a danger source, but the source was removed while the marine was already running away.
+		Else If (Token && !Token.Master)
+		{	TakeInventory ("SM_ImInDanger",1); a_log ("i got 99 problems and a token aint one");} //Just remove the token.
+		
 		Actor Mobj;
 		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
 		

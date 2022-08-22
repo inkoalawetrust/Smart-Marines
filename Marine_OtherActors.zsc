@@ -129,6 +129,17 @@ Class SmartMarineFollowingMessage : SmartMarineStandingMessage
 	}
 }
 
+Class SmartMarineSuperDuperSecretUndertaleReference : SmartMarineStandingMessage
+{
+	States
+	{
+		Spawn:
+			MARC G 16 NoDelay A_StartSound ("Marine/AltDodge");
+			MARC G 1 A_FadeOut (0.05);
+			Wait;
+	}
+}
+
 Class SmartMarineSquadIcon : Actor
 {
 	Default
@@ -438,5 +449,23 @@ Class SM_TurretLocationMarker : PatrolPoint
 		If (IsFrozen()) Return;
 		
 		Warp (Master); //If the turret moves horizontally somehow, then move too, to update the location the marine has to go to.
+	}
+}
+
+//Le DECORATE hack to allow other mods to alert marines by giving them this token, because Services apparently only allow cross mod communication, not interaction.
+//When marines call SM_FindNearbyGrenade, they will trigger their running away state if they have this in their inventory. But to do that, you must
+//set the actor they should run away from as the tokens' master. So that they will make it into the actor to actually run away from.
+Class SM_ImInDanger : Inventory
+{
+	Default
+	{
+		Inventory.MaxAmount 1;
+		Inventory.Amount 1;
+		+Inventory.Undroppable;
+		+Inventory.Unclearable;
+		+Inventory.HubPower;
+		+Inventory.PersistentPower;
+		+Inventory.Untossable;
+		+Inventory.NoScreenFlash;
 	}
 }

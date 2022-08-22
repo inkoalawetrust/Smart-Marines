@@ -46,6 +46,7 @@ Smart marines are NPCs for Doom that are far more intelligent than vanilla monst
   - The rifle fires at full auto, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
   - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increases your accuracy as well.
   - The rifle can be entirely disabled from dropping from dead marines, by enabling User_NoRifleDrop on the marine.
+- Has easter eggs.
 
 More information, such as info on what all the user variables available on the marines are, and what they do. Can be found inside Document.txt
 

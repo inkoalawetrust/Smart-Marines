@@ -21,7 +21,7 @@ Extend Class SmartMarine
 			
 			Squad.AssignNewSquadLeader(Self);
 		}
-		Else If (Master && SmartMarine(Master).Squad && Health <= GetGibHealth())
+		Else If (Master && Master Is "SmartMarine" && SmartMarine(Master).Squad && Health <= GetGibHealth())
 			SmartMarine(Master).Squad.LeaveSquad (Self);
 	}
 	
@@ -37,7 +37,7 @@ Extend Class SmartMarine
 		}
 		
 		//If you were in a squad, access the squad class from your leader to remove yourself from the member list.
-		If (Master && SmartMarine(Master).Squad)
+		If (Master && Master Is "SmartMarine" && SmartMarine(Master).Squad)
 			SmartMarine(Master).Squad.Members.Delete(SmartMarine(Master).Squad.Members.Find(Self));
 		
 		If (!bDormant && Random (0,512) == Random (0,512))

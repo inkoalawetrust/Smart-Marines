@@ -86,6 +86,9 @@ Extend Class SmartMarine
 	//Makes marines in squads and their leaders alert the rest of their squad of an enemy.
 	Void SM_AlertSquadmates ()
 	{
+		If (!(Master Is "SmartMarine"))
+			Return;
+		
 		If (Master && SmartMarine(Master).Squad)
 			SmartMarine(Master).Squad.AlertSquad(Self);
 		Else If (Squad && Squad.Leader == Self)
@@ -99,7 +102,7 @@ Extend Class SmartMarine
 		FollowPlayers = bDontFollowPlayers;
 		
 		//Don't run this if the marine doesn't have a squad leader, or has a patrol point.
-		If (Master && SmartMarine(Master).Squad && !Goal)
+		If (Master && Master Is "SmartMarine" && SmartMarine(Master).Squad && !Goal)
 		{
 			bDontFollowPlayers = True; //Don't follow the player when in a squad, only your leader.
 			//If you have a target, then follow your leader if he is further than 640 map units, but don't get too close.
@@ -153,7 +156,7 @@ Extend Class SmartMarine
 		Bool FollowPlayers;
 		FollowPlayers = bDontFollowPlayers;
 		//If you are in a squad.
-		If (Master && SmartMarine(Master).Squad)
+		If (Master && Master Is "SmartMarine" && SmartMarine(Master).Squad)
 		{
 			bDontFollowPlayers = True;
 			//Move towards your squad leader if you are too far away from him.
@@ -242,7 +245,6 @@ Class SM_MarineSquad Play
 		//If the above search didn't return a single marine who hasn't been gibbed already. Then remove the squad.
 		If (!NextLeader)
 		{
-			
 			If (Caller.Squad)
 				SquadList.RemoveSquad (Caller.Squad);
 			Caller.Squad = Null;

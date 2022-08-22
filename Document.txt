@@ -1,6 +1,7 @@
 The credits for every asset used on this NPC, can be found inside credits.txt.
 
 SHOWCASE VIDEO AND DOCUMENTATION OF THE MARINES: https://www.youtube.com/watch?v=PlZSs5XyEdU
+UPDATE VIDEO: https://youtu.be/unfIzwMtQJ4
 
 If you have any issues with the marines or some other NPC made by me, you can ask me for help on Discord at inkoalawetrust#9783, or Twitter at @inkoalawetrust. Or put them on the issue tracker: https://github.com/inkoalawetrust/Smart-Marines/issues
 
@@ -54,6 +55,7 @@ The editor name of their No Crouch Zone map spots (More info below) is "No Crouc
   - The rifle fires at full auto, and needs reloading after firing 20 rounds, just like when the marines use them. You can reload before the magazine fully runs out too.
   - It also features animated digital sights complete with an animation for looking in and out of them, using the sights increases your accuracy as well.
   - The rifle can be entirely disabled from dropping from dead marines, by enabling User_NoRifleDrop on the marine.
+- Has easter eggs.
 
 ================|PROJECTILE DODGING|================
 Marines are also able to dodge projectiles that are heading in their direction, the text below will explain how the dodging behavior works exactly.
