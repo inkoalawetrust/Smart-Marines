@@ -185,6 +185,7 @@ Mixin Class MarineFunctions
 	
 	Bool GrenadeAttackDecision (Double BlastRadius = 192, Double ThrowDistance = 1024, Double DangerDistance = 224)
 	{
+		Name VehicleBase = "MVP_BaseVehicle";
 		Int ThrowChance;
 		Actor Mobj;
 		
@@ -204,6 +205,7 @@ Mixin Class MarineFunctions
 			Else If (Target.Health >= 4000) ThrowChance += 80;
 			Else If (Target.Player) ThrowChance += 20;
 			Else If ((Target.Player && Target.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" || Target Is "SmartMarine" && SmartMarine(Target).OnTurret)) ThrowChance += 50;
+			Else If (Target Is VehicleBase) ThrowChance += 50; //More likely to attack vehicles.
 			
 			While (FindTargets.Next())
 			{
@@ -241,23 +243,19 @@ Mixin Class MarineFunctions
 						Default:
 							Break;
 					}
-										
+					//More likely to throw grenades if an enemy that would be caught in the blast is a marine or player on a turret.
 					If (Mobj && (Mobj.Player && Mobj.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" || Mobj Is "SmartMarine" && SmartMarine(Mobj).OnTurret)) ThrowChance += 50;
+					//also more likely to throw one if an enemy vehicle is in the blast radius.
+					Else If (Mobj Is VehicleBase) ThrowChance += 60;
 				}
 				Else If (Mobj.bIsMonster && !IsHostile(Mobj) && IsVisible (Mobj,False) && Mobj != Self) //If the actor that was found is friendly to you, and ISN'T you.
-				{
 					ThrowChance -= 15; //Then decrease the chance of throwing a grenade.
-				}
 				Else If (Mobj.Player && !IsHostile (Mobj)) //If the actor found is a player friendly to you.
-				{
 					ThrowChance -= 70; //Then be A LOT less likely to throw a grenade.
-				}
 			}
 						
 			If (ThrowChance >= User_GrenadeThreshold)
-			{
 				Return True;
-			}
 		}
 		
 		Return False;
@@ -273,9 +271,7 @@ Mixin Class MarineFunctions
 		{
 			Mobj = FindOtherMarines.Thing;
 			If (Mobj != Self && Mobj Is "SmartMarine" && Mobj.Health > 0 && !IsHostile (Mobj) && IsVisible (Mobj,True) && Distance3DSquared (Mobj) <= 256*256)
-			{
 				SmartMarine(Mobj).GrenadeDelay = Random (35/2,40);
-			}
 		}
 	}
 	
@@ -434,15 +430,22 @@ Mixin Class MarineFunctions
 	Void SM_ShouldBeScared()
 	{
 		If (User_FearDistance <= 0 || !Target) Return;
+		
 		//The marine must not have the frightened flag on when going to a turret, to not also avoid the turret they are going to.
+		If (GoingToTurret)
+		{
+			bFrightened = False;
+			Return;
+		}
+		
 		//If the target is nearby, visible, and hostile, and has over 2500 health.
-		If (IsHostile (Target) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && Target.SpawnHealth() >= 2000 && IsVisible (Target,True) && !GoingToTurret
+		If (IsHostile (Target) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && Target.SpawnHealth() >= 2000 && IsVisible (Target,True)
 		
 		//Or if it is big enough and visible and close enough.
-		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret
+		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True)
 		
 		//Or it has any of these flags, along with being nearby and visible to you.
-		|| (Target.bReflective && Target.bAimReflect || Target.bInvulnerable) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret
+		|| (Target.bReflective && Target.bAimReflect || Target.bInvulnerable) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True)
 		
 		//Or if is completely indestructible or noclipping at all, regardless of sight or distance.
 		|| (Target.bNoDamage || Target.bNoclip))
@@ -454,9 +457,9 @@ Mixin Class MarineFunctions
 		//If your target is hostile, and is a player or marine that's on a turret. And they are in range and visible.
 		/*This Else If is here so marines scared of an enemy on a turret, won't be any more likely to get on one themselves.
 		Since protecting yourself from machine gun fire by getting to a stationary turret yourself is stupid, and MORE likely to get you killed.*/
-		Else If ((Target.Player && Target.Player.ReadyWeapon && Target.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret ||
-		Target Is "SmartMarine" && SmartMarine(Target).OnTurret && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret ||
-		Target Is "TurretMarine" && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True) && !GoingToTurret))
+		Else If ((Target.Player && Target.Player.ReadyWeapon && Target.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True)||
+		Target Is "SmartMarine" && SmartMarine(Target).OnTurret && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True)||
+		Target Is "TurretMarine" && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True)))
 		{
 			bFrightened = True; 
 			MinMissileChance = 50;
@@ -648,7 +651,7 @@ Mixin Class MarineFunctions
 		Token = FindInventory ("SM_ImInDanger");
 		
 		If (Token && Token.Master)
-		{a_log ("*chuckles*, im in danger");
+		{
 			OriginalTarget = Target; //Keep the original target of the marine stored.
 			Target = Token.Master; //Then change the target to the actor that droped the token.
 			TakeInventory ("SM_ImInDanger",1); //Remove the token now, if the marine still needs to run, the warning source should give another token for the next function call.
@@ -656,7 +659,7 @@ Mixin Class MarineFunctions
 		}
 		//The token is in the inventory, but has no master e.g it was given by a danger source, but the source was removed while the marine was already running away.
 		Else If (Token && !Token.Master)
-		{	TakeInventory ("SM_ImInDanger",1); a_log ("i got 99 problems and a token aint one");} //Just remove the token.
+			TakeInventory ("SM_ImInDanger",1); //Just remove the token.
 		
 		Actor Mobj;
 		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
@@ -840,6 +843,7 @@ Mixin Class MarineFunctions
 		Actor Mobj;
 		Int UseChance;
 		Bool FoundAllies;
+		Name VehicleBase = 'MVP_BaseVehicle';
 		
 		LookExParams MarineSight;
 		MarineSight.FOV = 180;
@@ -871,7 +875,6 @@ Mixin Class MarineFunctions
 			//If you found a monster or player, that is alive, hostile, close enough to you, and visible.
 			If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj.Health > 0 && IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= EnemyRadius*EnemyRadius && IsVisible (Mobj,False,params:MarineSight))
 			{
-				
 				Switch (Mobj.Health)
 				{
 					Case 2500:
@@ -898,15 +901,19 @@ Mixin Class MarineFunctions
 				
 				//Players always trigger a very high chance of the marine using a nearby turret, since they are as powerful as the strongest bosses.
 				If (Mobj.Player)
-					UseChance += (User_TurretThreshold - 2 ) + Random (0,2);
+					UseChance += (User_TurretThreshold - 2) + Random (0,2);
 				//Additional use chance for other enemy marines that were found.
 				Else If (Mobj Is "SmartMarine")
 					UseChance += 10;
+				//Even higher additional use chance for enemy vehicles.
+				Else If (Mobj Is VehicleBase)
+					UseChance += 30;
 			}
+			
 			//Also increase the chance for every ally you found around you, that could support you while you are stationary and vulnerable.
 			If (bFriendly)
 			{
-				If (Mobj.Health >= 10 && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)) && IsVisible (Mobj,True))
+				If (Mobj.Health >= 10 && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)))
 				{
 					If ((Mobj.bIsMonster && Mobj != Self)) {UseChance += 30; FoundAllies = True;}
 					Else If (Mobj.Player) {UseChance += 60; FoundAllies = True;}
@@ -915,15 +922,13 @@ Mixin Class MarineFunctions
 			//Since hostile monsters don't attack friendly ones on sight by default, hostile marines can't rely on other fellow hostile monsters, unless they have the SEEFRIENDLYMONSTERS flag enabled.
 			Else If (!bFriendly && (Target.Player || Target.bFriendly))
 			{
-				If (Mobj.bSeeFriendlyMonsters && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)) && IsVisible (Mobj,True))
-				{
-					UseChance += 30;
-				}
+				If (Mobj.bSeeFriendlyMonsters && !IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= ((EnemyRadius/2)*(EnemyRadius/2)))
+					{UseChance += 30; FoundAllies = True;}
 			}
 		}
 		
-		If (Health <= Default.Health/3) {UseChance += 40;} //High chance to use the turret if you are already close to dying.
-		If (!FoundAllies) UseChance -= 60; //More unwilling to use turrets if no allies are around, maybe this could be turned off by the User_Fearless variable ?
+		If (Health <= Default.Health/3) UseChance += 40; //High chance to use the turret if you are already close to dying.
+		If (!FoundAllies) UseChance -= 60; //More unwilling to use turrets if no allies are around.
 		If (UseChance >= User_TurretThreshold && FoundTurret)
 		{
 			SM_AlertNearbyMarines (User_AlertRange*2,True);
