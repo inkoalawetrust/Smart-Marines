@@ -15,6 +15,7 @@ THERE ARE 86,000,000,000 NEURONS THAT MY BRAIN IS COMPOSED OF.
 IF THE WORD HATE WAS ENGRAVED ON EACH NANOANGSTROM OF THOSE TENS OF BILLIONS OF NEURONS IT WOULD NOT EQUAL ONE ONE-BILLIONTH OF THE HATE I FEEL FOR
 MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
 //Maybe add a secondary melee attack to the rifle weapon, like what the marines have. I'll need first person sprites of the rifle being swung though.
+//Possibly make an actual API that mods can use, such as multiple services that can return if variables like OnTurret and Crouching are on.
 
 Class SmartMarine : Actor
 {
@@ -802,7 +803,7 @@ Class SmartMarine : Actor
 				bFrightened = False;
 				bChaseGoal = WasChaseGoalOn;
 				WasChaseGoalOn = False;
-				Speed = Default.Speed;a_log ("i have finished running");
+				Speed = Default.Speed;
 			}
 			Goto See; //Go back to the see state.
 		DecideAttack: //Decide if you should use a turret, throw a grenade, or just shoot.

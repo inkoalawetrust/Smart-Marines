@@ -1015,10 +1015,23 @@ Mixin Class TurretMarineFunctions
 		Return False;
 	}
 	
-	//Searches for grenades that are about to explode near the marine.
+	//Searches for grenades that are about to explode near the marine. Or for generic danger tokens.
 	Bool STM_FindNearbyGrenade (Double SearchRadius = 256)
 	{
+		Inventory Token;
 		If (bDormant || !User_RunFromGrenades) Return False;
+		
+		Token = FindInventory ("SM_ImInDanger");
+		
+		If (Token && Token.Master)
+		{
+			TakeInventory ("SM_ImInDanger",1); //Remove the token now, if the marine still needs to run, the warning source should give another token for the next function call.
+			Return True; //And return true.
+		}
+		//The token is in the inventory, but has no master e.g it was given by a danger source, but the source was removed while the marine was already running away.
+		Else If (Token && !Token.Master)
+			TakeInventory ("SM_ImInDanger",1); //Just remove the token.
+		
 		Actor Mobj;
 		BlockThingsIterator GrenadeSearch = BlockThingsIterator.Create (Self,SearchRadius);
 		
@@ -1026,9 +1039,7 @@ Mixin Class TurretMarineFunctions
 		{
 			Mobj = GrenadeSearch.Thing;
 			If (Mobj.GetClassName() == "SM_Grenade" && !(SM_Grenade(Mobj).Exploded) && Mobj.ReactionTime <= 40 && Distance3DSquared (Mobj) <= SearchRadius*SearchRadius && IsVisible (Mobj,True))
-			{
 				Return True; //And return true.
-			}
 		}
 		Return False; //No grenades were found near the marine.
 	}
