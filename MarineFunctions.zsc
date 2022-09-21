@@ -338,7 +338,7 @@ Mixin Class MarineFunctions
 		
 		XY_Spread = Angle + BulletSpreadXY;
 		
-		Actor Puff = LineAttack (XY_Spread,8192,SlopeBullshit,Random (6,10),"HitScan","SmartMarinePuff",LAF_OVERRIDEZ,offsetz:SpawnHeight,0,-6);
+		Actor Puff = LineAttack (XY_Spread,8192,SlopeBullshit,Random[GunShot] (6,10),"HitScan","SmartMarinePuff",LAF_OVERRIDEZ,offsetz:SpawnHeight,0,-6);
 		
 		//Bullet impact splash handling.
 		//The splashes only work with solid surfaces because I tried getting them to work with swimmable 3D floors for 2 days straight to no avail.

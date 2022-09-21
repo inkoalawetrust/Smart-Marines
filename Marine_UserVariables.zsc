@@ -29,6 +29,45 @@ Extend Class SmartMarine
 		If (User_DodgeRange == 0) User_DodgeRange = 384; //Default range in which marines dodge projectiles.
 		If (User_TurretThreshold == 0) User_TurretThreshold = 100; //Default chance for the marine to use a turret.
 		If (User_FearDistance == 0) User_FearDistance = 2048; //The default distance the marines keeps from powerful enemies.
+		
+		If (!bFriendly) Return; //The rest is only relevant to player allies.
+		
+		Array <PlayerPawn> VisibleFriends;
+		//Friendly marine with no default order specified.
+		If (!User_DefaultOrder || User_DefaultOrder ~== "")
+		{
+			//This tries to pick a random visible player for the marine to follow, if no friendly players are in sight, the marine will wander instead.
+			//Find all visible players friendly to you.
+			For (Int I = 0; I < MAXPLAYERS; I++)
+			{
+				If (!PlayerInGame[I]) Continue;
+				
+				If (IsFriend (Players[I].Mo) && CheckSight (Players[I].Mo, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
+					VisibleFriends.Push (Players[I].Mo);
+			}
+			
+			//Found at least one visible friendly player to follow.
+			If (VisibleFriends.Size() - 1 >= 0)
+			{a_log ("friend found");
+				SetFriendPlayer (VisibleFriends[Random (0, VisibleFriends.Size() - 1)].Player); //Randomly pick a visible friend to follow.
+				CurrentMarineOrder = ORDER_FOLLOW;
+			}
+			//No friendplayer, or they are out of sight
+			Else If (!FriendPlayer || FriendPlayer && !CheckSight (Players[FriendPlayer].Mo, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
+			{if (!FriendPlayer) a_log ("no friend in sight");
+				CurrentMarineOrder = ORDER_WANDER;
+				bDontFollowPlayers = True;
+			}
+		}
+		Else If (User_DefaultOrder ~== "Follow")
+		{
+			CurrentMarineOrder = ORDER_FOLLOW;
+		}
+		Else If (User_DefaultOrder ~== "Wander")
+		{
+			CurrentMarineOrder = ORDER_WANDER;
+			bDontFollowPlayers = True;
+		}
 	}
 
 	Void HandleRandomPersonalityMidGame()
@@ -61,4 +100,5 @@ Extend Class SmartMarine
 	String User_Color;
 	String User_SquadName;
 	Bool User_Leader;
+	String User_DefaultOrder;
 } 

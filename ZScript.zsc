@@ -24,7 +24,7 @@ Class SmartMarine : Actor
 		//$Title AI Marine
 		//$Category Marines
 		//$Sprite MARIC1
-		Health 120;
+		Health 100;
 		GibHealth 20;
 		Height 56;
 		DeathHeight 12;
@@ -66,6 +66,7 @@ Class SmartMarine : Actor
 	{
 		Super.PostBeginPlay();
 		
+		GiveInventory ("GreenArmor",1); //Yep, the marines wear actual armor.
 		InitializeSquad();
 		SetUserVariableDefaults();
 		HandleRandomPersonalityMidGame();
@@ -434,9 +435,8 @@ Class SmartMarine : Actor
 			{
 				//Uses the same RNG as A_Jump's random jump chance, but also only jumps if the marine has no goal. And is ordered to wander around aimlessly.
 				If (CurrentMarineOrder == ORDER_WANDER && !Goal && Random[pr_cajump](0,256) < 12)
-				{
 					Return ResolveState ("StandStill");
-				}
+				
 				Return State (Null);
 			}
 			Loop;
@@ -816,15 +816,15 @@ Class SmartMarine : Actor
 			TNT1 A 0 A_JumpIf (SM_ShouldDodgeProjectile(User_DodgeRange),"Evade");
 			MARM A 3;
 			TNT1 A 0 A_JumpIf (CountInv("PowerStrength") > 0,3);
-			MARM B 8 A_CustomMeleeAttack (Random(4,8),"Marine/Melee","Marine/MeleeMiss",'Melee',False); //Blunt force attack, so no blood.
+			MARM B 8 A_CustomMeleeAttack (Random[Punch](4,8),"Marine/Melee","Marine/MeleeMiss",'Melee',False); //Blunt force attack, so no blood.
 			MARM A 0 A_Jump (96,"ChangePosition"); //If you are in melee range of your enemy, you are probably fucked.
 			Goto See;
 			
-			MARM B 6 A_CustomMeleeAttack (Random(16,32),"Marine/PowerMelee","Marine/MeleeMiss",'Melee'); //Powerful blunt force attack, so YES blood.
+			MARM B 6 A_CustomMeleeAttack (Random[Punch](40,80),"Marine/PowerMelee","Marine/MeleeMiss",'Melee'); //Powerful blunt force attack, so YES blood.
 			MARM A 0 A_Jump (96/2,"ChangePosition"); //If you are in melee range of your enemy with a berserk pack, you are probably not THAT fucked.
 			Goto See;
 		RifleBurst:
-			MARD AB 0 {LieDown = (!Crouching && Random[pr_cajump](0,255) < 32);} //Small chance for the marine to shoot lying down. If not already behind cover. Or in the air.
+			MAR3 AB 0 {LieDown = (!Crouching && Random[pr_cajump](0,255) < 32);} //Small chance for the marine to shoot lying down. If not already behind cover. Or in the air.
 			MAR2 A 0 //Run out of sight of the target to reload.
 			{
 				If (AmmoUsed > 19)
@@ -840,7 +840,7 @@ Class SmartMarine : Actor
 				If (LieDown)
 				{
 					Height = 16;
-					Sprite = GetSpriteIndex ("MARD");
+					Sprite = GetSpriteIndex ("MAR3");
 				}
 			}
 			MAR2 A 0 //The bullet spread is determined before the shot, so that it can be checked by SM_CantHitTarget(), so the marines won't even shoot their allies by accident.
@@ -880,7 +880,7 @@ Class SmartMarine : Actor
 				{
 					SM_MarineBulletAttack(8); //Shoot down lower than normal, since you are lying down.
 					Height = 16;
-					Sprite = GetSpriteIndex ("MARD");
+					Sprite = GetSpriteIndex ("MAR3");
 					Frame = 1;
 				}
 				Else
@@ -914,7 +914,7 @@ Class SmartMarine : Actor
 				If (LieDown)
 				{
 					Height = 16;
-					Sprite = GetSpriteIndex ("MARD");
+					Sprite = GetSpriteIndex ("MAR3");
 				}
 				
 				If (Random[pr_monsterrefire](0,255) < 96)

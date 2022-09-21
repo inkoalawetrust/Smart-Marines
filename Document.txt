@@ -220,6 +220,9 @@ User_FearDistance: The distance that the marine runs away to, if his target is s
 - Default is 2048 map units, a value of 0 or less makes them fearless. (Within reason, so they still avoid grenades for example.)
 User_Color: Can be used to give the marines different armor colors.
 - Default is no translation, the available colors are Default, Gray, Red, White, Black, Blue, Yellow, Orange, Pink, Dark Green, Dark Red, and Random, which randomly picks any of the afformentioned colors.
+User_DefaultOrder: Specifies if the marine should follow the player or wander around by default.
+- By default, the marine looks for any friendly players in its' line of sight, if there are none, he will wonder by default, if there is one, he will follow them by default.
+- The other two options are "follow" and "wander", which are fairly self explanatory.
 User_RandomPersonality: When on, it randomizes several user variables that could be considered aspects of the marines' personality, such as:
 - User_SearchTime, User_GrenadeThreshold, User_TurretThreshold, User_RetreatAttempts, User_FearDistance, and User_Color.
 - If any of those variables have any values besides their defaults, then they won't be randomized, so you can still for example have marines with random grenade and turret thresholds, but the same melee chance.
