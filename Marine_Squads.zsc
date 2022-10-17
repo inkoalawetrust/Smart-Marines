@@ -263,7 +263,7 @@ Class SM_MarineSquad Play
 		Return (Marine == Leader || Members.Find(Marine) != Members.Size());
 	}
 	
-	//Checks if everyone in the squad is dead, returns false if at least one marine is alove.
+	//Checks if everyone in the squad is dead, returns false if at least one marine is alive.
 	//The exception parameter is for resurrected marines to assign themselves as leader if everyone besides them is dead.
 	Bool IsEveryoneDead (SmartMarine Exception = Null)
 	{

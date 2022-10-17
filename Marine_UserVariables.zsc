@@ -48,13 +48,13 @@ Extend Class SmartMarine
 			
 			//Found at least one visible friendly player to follow.
 			If (VisibleFriends.Size() - 1 >= 0)
-			{a_log ("friend found");
+			{
 				SetFriendPlayer (VisibleFriends[Random (0, VisibleFriends.Size() - 1)].Player); //Randomly pick a visible friend to follow.
 				CurrentMarineOrder = ORDER_FOLLOW;
 			}
 			//No friendplayer, or they are out of sight
 			Else If (!FriendPlayer || FriendPlayer && !CheckSight (Players[FriendPlayer].Mo, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
-			{if (!FriendPlayer) a_log ("no friend in sight");
+			{
 				CurrentMarineOrder = ORDER_WANDER;
 				bDontFollowPlayers = True;
 			}
@@ -95,6 +95,7 @@ Extend Class SmartMarine
 	Bool User_DisobeyCommands;
 	Bool User_NoReload;
 	Bool User_NoCover;
+	Bool User_ClipPlayers;
 	Bool User_RandomPersonality;
 	Bool User_NoRifleDrop;
 	String User_Color;

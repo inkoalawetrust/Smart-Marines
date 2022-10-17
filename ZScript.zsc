@@ -14,6 +14,7 @@ Version "4.8.0"
 THERE ARE 86,000,000,000 NEURONS THAT MY BRAIN IS COMPOSED OF.
 IF THE WORD HATE WAS ENGRAVED ON EACH NANOANGSTROM OF THOSE TENS OF BILLIONS OF NEURONS IT WOULD NOT EQUAL ONE ONE-BILLIONTH OF THE HATE I FEEL FOR
 MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
+//I want to make more marines in the future, but to do that properly, I'll have to rewrite the code base for the 7th time, for my response to that, please refer to the above to do entry.
 //Maybe add a secondary melee attack to the rifle weapon, like what the marines have. I'll need first person sprites of the rifle being swung though.
 //Possibly make an actual API that mods can use, such as multiple services that can return if variables like OnTurret and Crouching are on.
 
@@ -152,7 +153,7 @@ Class SmartMarine : Actor
 			//Increment the different orders by one. And loop around to standing still if it exceeds the maximum number of possible orders.
 			CurrentMarineOrder += 1;
 			If (CurrentMarineOrder > 3)
-				CurrentMarineOrder = 0;		
+				CurrentMarineOrder = 0;
 			
 			//Ordered to wander around randomly.
 			If (CurrentMarineOrder == ORDER_WANDER)
@@ -215,6 +216,13 @@ Class SmartMarine : Actor
 		Return Super.OkayToSwitchTarget(Other);
 	}
 	
+	Override Bool CanCollideWith (Actor Other, Bool Passive)
+	{
+		If (User_ClipPlayers && Other && Other.Player && IsFriend (Other)) Return False;
+		
+		Return Super.CanCollideWith(Other, Passive);
+	}
+	
 	Mixin MarineFunctions;
 	SM_MarineSquad Squad; //A reference to the squad the marine is in.
 	Actor Icon; //The icon that appears above the marine when he is in a squad.
@@ -253,10 +261,10 @@ Class SmartMarine : Actor
 	Int CurrentMarineOrder;
 	Enum MarineOrders
 	{
-		ORDER_NONE,
-		ORDER_FOLLOW,
-		ORDER_WANDER,
-		ORDER_STANDSTILL
+		ORDER_NONE = 0,
+		ORDER_FOLLOW = 1,
+		ORDER_WANDER = 2,
+		ORDER_STANDSTILL = 3
 	};
 	
 	States
@@ -381,6 +389,10 @@ Class SmartMarine : Actor
 					Return ResolveState ("Crouch");
 				
 				SM_ShouldBeScared();
+				
+				//Stops the marines from ever walking in place, or I sure hope it does anyway.
+				//It does seem to do that, as long as I don't try putting it in SM_Chase, since that's somehow different from putting it here, makes sense, right ?
+				bStandStill = False;
 				SM_Chase();
 				
 				Return State (Null);

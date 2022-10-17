@@ -7,7 +7,18 @@ Class SM_SmartMarines : Service
 		If (!Marine)
 			Return -1;
 		
-		Return Marine.OnTurret;
+		If (Request ~== "IsOnTurret")
+			Return Marine.OnTurret;
+		Else If (Request ~== "FollowsOrders")
+			If (!Marine.User_DisobeyCommands || !(Marine.Master && SmartMarine(Marine.Master).Squad))
+				Return True;
+		Else If (Request ~== "CurrentMarineOrder")
+			Return Marine.CurrentMarineOrder;
+		
+		If (Request ~== "SetCurrentMarineOrder")
+			SmartMarine(ObjectArg).CurrentMarineOrder = IntArg;
+		
+		Return -1;
 	}
 }
 

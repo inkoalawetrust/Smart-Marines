@@ -127,7 +127,7 @@ This ensures that they will only take cover behind obstacles that can protect th
 Do note that they will not take cover when patrolling or heading to a turret.
 
 WHEN THEY GET OUT:
-Marines that have found cover will only get out of cover in the following sitations:
+Marines that have found cover will only get out of cover in the following situations:
 - Their target has gone over or around their cover, or is within melee range.
 - A grenade is nearby and about to explode.
 - The area of the map they are taking cover at has changed, e.g the wall they were hiding behind lowered, or the actor they were behind moved or was destroyed.
@@ -203,6 +203,7 @@ User_GrenadeThreshold: How likely the marine is to throw a grenade, the lower th
 User_DisobeyCommands: Friendly marines will not wander, follow, stay in place, or leave turrets when the player presses use on them.
 User_NoReload: Marines do not need to ever reload their gun.
 User_NoCover: Marines do not take cover when attacking.
+User_ClipPlayers: Marines and players on the same side phase through each other.
 User_NoRifleDrop: Marines will never drop their rifles when killed.
 User_RetreatAttempts: The amount of times the marine tries to run out of sight of his target, when he needs to reload.
 - Default is 10. -1 makes the marine reload in the open, without trying to get behind cover at all.
