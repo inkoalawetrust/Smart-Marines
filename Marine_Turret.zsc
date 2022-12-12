@@ -463,7 +463,7 @@ class SmartMarineMGWeapon : Weapon
 	
 	Override Void AttachToOwner (Actor Other)
 	{
-		If (!Legit) {Console.Printf ("%s",CheatMessages[Random(0,3)]);}
+		If (!Legit) Console.Printf ("%s",CheatMessages[Random(0,3)]);
 		Super.AttachToOwner (Other);
 	}
 	
@@ -556,7 +556,8 @@ Class SmartMarineMGBullet : FastProjectile
 		Radius 4;
 		Height 8;
 		Speed 200;
-		Scale 0.2;
+		XScale 0.2;
+		YScale 0.166667; //0.2 / 1.2
 		DamageFunction (Random (40,50)/10); //A ripper damages an actor with a total radius of 64 MU, 10 times, hence dividing the random damage output by 10.
 		ProjectileKickback 8;
 		RipperLevel 3;

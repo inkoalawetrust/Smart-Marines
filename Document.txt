@@ -208,7 +208,7 @@ User_NoRifleDrop: Marines will never drop their rifles when killed.
 User_RetreatAttempts: The amount of times the marine tries to run out of sight of his target, when he needs to reload.
 - Default is 10. -1 makes the marine reload in the open, without trying to get behind cover at all.
 User_AlertRange: The distance around which a marine will alert other marines on his side of a target.
-- Default is 384 map units. -1 disables alerting entirely for this marine, but still allows them to hear the alerts of other marines.
+- Default is 512 map units. -1 disables alerting entirely for this marine, but still allows them to hear the alerts of other marines.
 User_Leader: If the marine also has a squad name specified, this tells the game that this marine should be the leader of that squad. Otherwise, it does nothing.
 User_SquadName: The name of the squad the marine is in, if the squad has a leader, the marine will follow him around.
 User_DodgeRange: The maximum range in which marines react to incoming projectiles.
@@ -223,7 +223,7 @@ User_Color: Can be used to give the marines different armor colors.
 - Default is no translation, the available colors are Default, Gray, Red, White, Black, Blue, Yellow, Orange, Pink, Dark Green, Dark Red, and Random, which randomly picks any of the afformentioned colors.
 User_DefaultOrder: Specifies if the marine should follow the player or wander around by default.
 - By default, the marine looks for any friendly players in its' line of sight, if there are none, he will wonder by default, if there is one, he will follow them by default.
-- The other two options are "follow" and "wander", which are fairly self explanatory.
+- The other three options are "follow", "wander", and "stay", which are fairly self explanatory.
 User_RandomPersonality: When on, it randomizes several user variables that could be considered aspects of the marines' personality, such as:
 - User_SearchTime, User_GrenadeThreshold, User_TurretThreshold, User_RetreatAttempts, User_FearDistance, and User_Color.
 - If any of those variables have any values besides their defaults, then they won't be randomized, so you can still for example have marines with random grenade and turret thresholds, but the same melee chance.

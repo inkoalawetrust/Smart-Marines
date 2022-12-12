@@ -223,7 +223,7 @@ Mixin Class MarineFunctions
 				Mobj = FindTargets.Thing;
 				
 				//If the found actor is a monster or player, is not your current target, is at or closer than the specified blast radius, has health over 10, and is hostile and visible to you.
-				If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj != Target && Mobj.Distance3DSquared (Target) <= BlastRadius*BlastRadius && Mobj.Health >= 10 && IsHostile (Mobj) && IsVisible (Mobj,False))
+				If ((Mobj.bIsMonster || Mobj.Player) && Mobj != Target && Mobj.Distance3DSquared (Target) <= BlastRadius*BlastRadius && Mobj.Health >= 10 && IsHostile (Mobj) && IsVisible (Mobj,False))
 				{
 					ThrowChance += 5; //Increment the chance variable.
 					
@@ -449,8 +449,11 @@ Mixin Class MarineFunctions
 			Return;
 		}
 		
-		//If the target is nearby, visible, and hostile, and has over 2500 health.
-		If (IsHostile (Target) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && Target.SpawnHealth() >= 2000 && IsVisible (Target,True)
+		//If the target is marked as needing to be feared automatically.
+		If (Target.CountInv ("SM_IAmTheDanger") > 0
+		
+		//Or the target is nearby, visible, and hostile, and has over 2500 health.
+		|| IsHostile (Target) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && Target.SpawnHealth() >= 2000 && IsVisible (Target,True)
 		
 		//Or if it is big enough and visible and close enough.
 		|| (Target.Height >= 80 && Target.Radius >= 72) && Distance3DSquared (Target) <= ((User_FearDistance*FRandom (1.01,1.25))*(User_FearDistance*FRandom (1.01,1.25))) && IsVisible (Target,True)
@@ -610,6 +613,8 @@ Mixin Class MarineFunctions
 		If (User_AlertRange == -1) Return;
 		
 		If ((Target && Goal && Target == Goal) && !GoingToTurret) Return; //Don't fuck things up by making other marines try and attack a patrol point. Or stoping them from going to a turret.
+		
+		If (Target && Target.CountInv ("SM_DontWarnOthers") > 0) Return; //Don't warn other marines if the target has this token.
 		
 		Actor PotentialMarine;
 		Bool FoundMarines;
@@ -782,7 +787,7 @@ Mixin Class MarineFunctions
 	{
 		If (User_EnemyAlertHearingRange == -1) Return; //Don't run this if the feature is turned off.
 		
-		If (!Target)
+		If (!Target || Target && Target.CountInv ("SM_DontWarnOthers") <= 0)
 		{
 			Actor Mobj;
 			BlockThingsIterator ListenForEnemyMarines = BlockThingsIterator.Create (Self,HearingRadius);
@@ -884,7 +889,7 @@ Mixin Class MarineFunctions
 			Mobj = FindEnemies.Thing;
 			
 			//If you found a monster or player, that is alive, hostile, close enough to you, and visible.
-			If ((Mobj.bIsMonster || Mobj Is "PlayerPawn") && Mobj.Health > 0 && IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= EnemyRadius*EnemyRadius && IsVisible (Mobj,False,params:MarineSight))
+			If ((Mobj.bIsMonster || Mobj.Player) && Mobj.Health > 0 && IsHostile (Mobj) && Mobj.Distance3DSquared (Target) <= EnemyRadius*EnemyRadius && IsVisible (Mobj,False,params:MarineSight))
 			{
 				Switch (Mobj.Health)
 				{

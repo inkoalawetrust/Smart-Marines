@@ -17,6 +17,7 @@ MARINES AT THIS MICRO-INSTANT FOR YOU. HATE. HATE.*/
 //I want to make more marines in the future, but to do that properly, I'll have to rewrite the code base for the 7th time, for my response to that, please refer to the above to do entry.
 //Maybe add a secondary melee attack to the rifle weapon, like what the marines have. I'll need first person sprites of the rifle being swung though.
 //Possibly make an actual API that mods can use, such as multiple services that can return if variables like OnTurret and Crouching are on.
+//Fix a bug that makes marines take cover even behind hitscan and projectile blocking linedefs.
 
 Class SmartMarine : Actor
 {
@@ -63,11 +64,20 @@ Class SmartMarine : Actor
 		+SeeFriendlyMonsters; //No more ZScript code hacks.
 	}
 	
+	Override Void BeginPlay()
+	{
+		Super.BeginPlay();
+		
+		GiveInventory ("GreenArmor",1); //Yep, the marines wear actual armor.
+		//The marine does not have a "Missile" and "Melee" state label, so these are needed for internal code such as the AvoidMelee flag to know that the marines DO have melee and ranged attacks.
+		MissileState = FindState ("DecideAttack"); //Would probably be better to conditionally change this based on what attack the marine is currently doing, with DecideAttack as a fallback, or something.
+		MeleeState = FindState ("RifleSmack");
+	}
+	
 	Override Void PostBeginPlay()
 	{
 		Super.PostBeginPlay();
 		
-		GiveInventory ("GreenArmor",1); //Yep, the marines wear actual armor.
 		InitializeSquad();
 		SetUserVariableDefaults();
 		HandleRandomPersonalityMidGame();

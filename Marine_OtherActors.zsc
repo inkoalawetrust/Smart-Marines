@@ -469,3 +469,9 @@ Class SM_ImInDanger : Inventory
 		+Inventory.NoScreenFlash;
 	}
 }
+
+//Given to actors to mark them as needing to be feared by marines automatically, regardless of their size or health.
+Class SM_IAmTheDanger : SM_ImInDanger{}
+
+//Tells marines to not warn other marines if the actor has this token. Used to precent stuff such as the Military Vehicle Packs' SmartMarineWarningZone being targetted by marines.
+Class SM_DontWarnOthers : SM_ImInDanger{}

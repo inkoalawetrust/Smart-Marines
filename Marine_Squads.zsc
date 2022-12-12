@@ -89,6 +89,8 @@ Extend Class SmartMarine
 		If (!(Master Is "SmartMarine"))
 			Return;
 		
+		If (Target.CountInv ("SM_DontWarnOthers") > 0) Return; //Don't warn other marines if the target has this token.
+		
 		If (Master && SmartMarine(Master).Squad)
 			SmartMarine(Master).Squad.AlertSquad(Self);
 		Else If (Squad && Squad.Leader == Self)
