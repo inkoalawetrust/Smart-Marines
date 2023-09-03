@@ -102,6 +102,7 @@ Class SmartMarine : Actor
 		If (CrouchDelay > 0) CrouchDelay--;
 		If (GrenadeDelay > 0) GrenadeDelay--;
 		If (DodgeDelay > 0) DodgeDelay--;
+		If (AlertDelay > 0) AlertDelay--;
 		//Once the dodge delay is over, remove the point to the previous projectile.
 		If (!DodgeDelay && PreviousProjectile) PreviousProjectile = Null;
 		
@@ -248,6 +249,7 @@ Class SmartMarine : Actor
 	Int CrouchDelay; //The marine will not crouch as long as this variable isn't at 0 or below. Used by the no-crouch zone actors.
 	Int LookingUpDelay; //Used in the Crouch state, to make the marine look up sometimes while crouched. This is purely cosmetic.
 	Int CrouchAttackDelay; //Used when the marine decides to stop shooting for a bit while behind cover. Or after ducking to avoid a projectile.
+	Int AlertDelay; //A delay before the marine can alert others again, used to fix a super rare infinite recursion where 2 or more marines alert each other in the same tick.
 	Bool RemovedOldMag; //Keeps track of whether or not the marine removed their previous magazine during reloading.
 	Bool ReactionTimeFixed; //When the marines' reaction time is fixed, after being interrupted on a delayed patrol point, this is used to only apply the fix once. To not further break the reaction time.
 	Bool QuickReload; //Used to make the marines reload in the open. If they have no enemies around, or to quickly reload if they have Don't Chase Targets on, and are patrolling.

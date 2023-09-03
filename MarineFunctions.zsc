@@ -10,8 +10,10 @@ Class SM_SmartMarines : Service
 		If (Request ~== "IsOnTurret")
 			Return Marine.OnTurret;
 		Else If (Request ~== "FollowsOrders")
+		{
 			If (!Marine.User_DisobeyCommands || !(Marine.Master && SmartMarine(Marine.Master).Squad))
 				Return True;
+		}
 		Else If (Request ~== "CurrentMarineOrder")
 			Return Marine.CurrentMarineOrder;
 		
@@ -30,7 +32,7 @@ Class SM_ProjectileHandler : EventHandler
 	Override Void WorldThingSpawned(WorldEvent E)
 	{
 		//Add every spawned projectile to a big list.
-		If (E.Thing && E.Thing.bMissile && E.Thing.Damage > 0)
+		If (E.Thing && E.Thing.bMissile && E.Thing.GetMissileDamage (1,7) > 0)
 		{
 			ProjectileList.Push(E.Thing);
 		}
@@ -39,18 +41,20 @@ Class SM_ProjectileHandler : EventHandler
 	Override Void WorldThingDied (WorldEvent E)
 	{
 		//Delete any destroyed projectiles from the list.
-		If (E.Thing)
+		Let Proj = ProjectileList.Find(E.Thing);
+		If (Proj < ProjectileList.Size())
 		{
-			ProjectileList.Delete(ProjectileList.Find(E.Thing));
+			ProjectileList.Delete(Proj);
 		}
 	}
 	
 	Override Void WorldThingDestroyed (WorldEvent E)
 	{
 		//Delete any removed projectiles from the list.
-		If (E.Thing)
+		Let Proj = ProjectileList.Find(E.Thing);
+		If (Proj < ProjectileList.Size())
 		{
-			ProjectileList.Delete(ProjectileList.Find(E.Thing));
+			ProjectileList.Delete(Proj);
 		}
 	}
 }
@@ -255,7 +259,7 @@ Mixin Class MarineFunctions
 							Break;
 					}
 					//More likely to throw grenades if an enemy that would be caught in the blast is a marine or player on a turret.
-					If (Mobj && (Mobj.Player && Mobj.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" || Mobj Is "SmartMarine" && SmartMarine(Mobj).OnTurret)) ThrowChance += 50;
+					If (Mobj && (Mobj.Player && Mobj.Player.ReadyWeapon && Mobj.Player.ReadyWeapon.GetClassName() == "SmartMarineMGWeapon" || Mobj Is "SmartMarine" && SmartMarine(Mobj).OnTurret)) ThrowChance += 50;
 					//also more likely to throw one if an enemy vehicle is in the blast radius.
 					Else If (Mobj Is VehicleBase) ThrowChance += 60;
 				}
@@ -610,7 +614,7 @@ Mixin Class MarineFunctions
 	//Alerts nearby marines friendly to the calling one of the callers' target.
 	Void SM_AlertNearbyMarines (Double Range = 256, Bool SkipCheck = False)
 	{
-		If (User_AlertRange == -1) Return;
+		If (User_AlertRange == -1 || AlertDelay) Return;
 		
 		If ((Target && Goal && Target == Goal) && !GoingToTurret) Return; //Don't fuck things up by making other marines try and attack a patrol point. Or stoping them from going to a turret.
 		
@@ -636,6 +640,7 @@ Mixin Class MarineFunctions
 						FoundMarines = True; //A marine has been found.
 						If (!SmartMarine(PotentialMarine).SM_IsInState ("See") && !SmartMarine(PotentialMarine).SM_IsBusy()) //Put the marine in his see state to begin chasing the target, if he isn't only it already and isn't busy.
 						{
+							AlertDelay = Random (10,50);
 							PotentialMarine.SetStateLabel ("See"); //Then send them to it.
 						}
 					}

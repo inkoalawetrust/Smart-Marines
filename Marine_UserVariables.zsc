@@ -14,8 +14,11 @@ Extend Class SmartMarine
 			
 			User_Color = ColorArray[Random(0,ColorArray.Size()-1)]; //Randomly picks a color string.
 		}
-
-		A_SetTranslation (String.Format("Marine_%s", User_Color));
+		
+		If (!(User_Color ~== "Default"))
+			A_SetTranslation (String.Format("Marine_%s", User_Color));
+		Else
+			A_SetTranslation ('');
 	}
 	
 	Void SetUserVariableDefaults()

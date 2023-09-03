@@ -5,7 +5,7 @@ UPDATE VIDEO: https://youtu.be/unfIzwMtQJ4
 
 If you have any issues with the marines or some other NPC made by me, you can ask me for help on Discord at inkoalawetrust#9783, or Twitter at @inkoalawetrust. Or put them on the issue tracker: https://github.com/inkoalawetrust/Smart-Marines/issues
 
-The marines have 120 health, somewhat higher than the players'. You can turn on the Friendly flag for them in the editor to use them as smart allies.
+The marines have 100 health, they also spawn with the vanilla Green Armor equipped. You can turn on the Friendly flag for them in the editor to use them as smart allies.
 In fact, I've sort of just made them with the intent of being used as allies, like the Allied Marines resource from Realm667. But they work just as well as enemies.
 
 Their name in the editor is "AI Marine" and "AI Marine (Turret)", and they can be found under the Marines folder.
