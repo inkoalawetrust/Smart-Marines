@@ -1,67 +1,10 @@
 Version "4.10"
 
-#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
+//The standard marine.
+	#Include "ZScript/Marine/Marine.zsc"
+	#Include "ZScript/Marine/Marine_Deaths.zsc"
+//Miscellaneous
+	#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
 
 //TODO:
 //Absolutely everything, the KAI library doesn't even have a basic chase function yet, only the vehicle chase method. I'll probably make a custom one here.
-
-//IDEA:
-//Give marines a dropkick melee, especially when a light enough non-flying enemy is over a ledge, and especially if fall damage is on.
-//Give them 3 different grenade types depending on the situation, HE-FRAG, Smoke, and Flashbang.
-//Give marines the ability to scale ledges that are almost their height ? Since there's sprites for that in Project Brutality I could use, like the kicks.
-//Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
-
-Class SmartMarine : KAI_Humanoid
-{
-	Default
-	{
-		//$Title AI Marine
-		//$Category Marines
-		//$Sprite MARIC1
-		Health 100;
-		GibHealth 20;
-		Height 56;
-		DeathHeight 12;
-		CameraHeight 50;
-		Radius 16;
-		YScale 0.98;
-		Mass 100;
-		Speed 10;
-		FastSpeed 14;
-		PainChance 96;
-		PainThreshold 5;
-		FriendlySeeBlocks 48;
-		MaxDropOffHeight 48;
-		MaxTargetRange 8192;
-		MinMissileChance 100;
-		Tag "Marine NPC";
-		Species "Military";
-		Decal "BulletChip";
-		Obituary "%o was shot to death by a marine.";
-		HitObituary "%o got %p head smashed in by a marines' rifle.";
-		DropItem "Clip";
-		DropItem "Clip", 128, 2;
-		DropItem "ClipBox", 64;
-		PainSound "Marine/Pain";
-		DeathSound "Marine/Death";
-		Monster;
-		+JumpDown;
-		+MissileMore;
-		+MissileEvenMore;
-		+Telestomp;
-		+NoInfightSpecies;
-		+FloorClip;
-		+AvoidMelee;
-		+AvoidHazards; //This ONLY works for crushing ceilings and NOTHING ELSE. So it's largely useless but I'm still adding it.
-		+SeeFriendlyMonsters; //No more ZScript code hacks.
-	}
-	States
-	{//Test to see if the standalone sprites work.
-		Spawn:
-			MARI DEFG 12;
-			MARI ABCDABCDABCD 4;
-			MARI H 70;
-			MARA E 6 A_Pain();
-			Loop;
-	}
-}

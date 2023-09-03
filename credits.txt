@@ -11,9 +11,7 @@ Rifle reloading sprites made by Tabijaky.
 Rifle melee sprites made by TG5.
 Grenade air blast sprites by Gorman Freebmane.
 Grenade sprites made by inkoalawetrust.
-Missile sprites made by inkoalawetrust.
 Grenade liquid explosion and small splash sprites are from Metal Slug.
-Missile ground explosion sprites made by Amuscaria.
 Alternate marine death sprites made by DavidG/ItsNatureToDie and DoomJedi.
 Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
 Marine jumping/dodging sprites made by Sergeant_Mark_IV. Jumping and shooting sprites made by Tabijaky.
