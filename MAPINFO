@@ -1,13 +1,10 @@
 DoomEdNums
 {
 	8573 = SmartMarine
-	8574 = TurretMarine
 	8575 = VanillaRifle
-	8576 = SmartMarineMGTurret
-	8577 = SM_NoCrouchZone
 }
 
 GameInfo
 {
-	AddEventHandlers = "SM_ProjectileHandler", "SM_LiquidTextureNameList", "SM_SquadHandler"
+	//AddEventHandlers = "SM_ProjectileHandler", "SM_LiquidTextureNameList", "SM_SquadHandler"
 }

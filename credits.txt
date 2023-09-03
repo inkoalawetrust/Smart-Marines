@@ -1,6 +1,4 @@
 Code written by inkoalawetrust.
-The code to make the turrets usable by players, and for the grenade throwing function of the marines was written by Lewisk3.
-The code that checks if grenades are inside a swimmable 3D floor was written by Boondorl.
 
 Playtesting done by RaveYard, TDRR, and inkoalawetrust
 
