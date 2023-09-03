@@ -1,8 +1,17 @@
-Version "4.11"
+Version "4.10"
 
 #Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
 
-Class SmartMarine : Actor
+//TODO:
+//Absolutely everything, the KAI library doesn't even have a basic chase function yet, only the vehicle chase method. I'll probably make a custom one here.
+
+//IDEA:
+//Give marines a dropkick melee, especially when a light enough non-flying enemy is over a ledge, and especially if fall damage is on.
+//Give them 3 different grenade types depending on the situation, HE-FRAG, Smoke, and Flashbang.
+//Give marines the ability to scale ledges that are almost their height ? Since there's sprites for that in Project Brutality I could use, like the kicks.
+//Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
+
+Class SmartMarine : KAI_Humanoid
 {
 	Default
 	{
@@ -21,7 +30,7 @@ Class SmartMarine : Actor
 		FastSpeed 14;
 		PainChance 96;
 		PainThreshold 5;
-		FriendlySeeBlocks 48; //As part of my new SeeFriendlyMonsters native flag, this is used both by friendly and hostile monsters.
+		FriendlySeeBlocks 48;
 		MaxDropOffHeight 48;
 		MaxTargetRange 8192;
 		MinMissileChance 100;
@@ -45,5 +54,14 @@ Class SmartMarine : Actor
 		+AvoidMelee;
 		+AvoidHazards; //This ONLY works for crushing ceilings and NOTHING ELSE. So it's largely useless but I'm still adding it.
 		+SeeFriendlyMonsters; //No more ZScript code hacks.
+	}
+	States
+	{//Test to see if the standalone sprites work.
+		Spawn:
+			MARI DEFG 12;
+			MARI ABCDABCDABCD 4;
+			MARI H 70;
+			MARA E 6 A_Pain();
+			Loop;
 	}
 }
