@@ -4,6 +4,7 @@ Playtesting done by RaveYard, TDRR, and inkoalawetrust
 
 ======|Actor sprites|======
 Marine aiming rifle sprites made by Sergeant_Mark_IV, aiming and firing sprites made by Tabijaky.
+Alternate marine hip-firing sprites made by Sergeant_Mark_IV.
 Standing idle sprites made by Das M.
 Standing alert sprites made by Superdave938.
 Grenade throwing sprites by Mryayayify

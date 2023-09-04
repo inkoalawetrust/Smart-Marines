@@ -1,0 +1,78 @@
+Extend Class SM_Marine
+{
+	//TODO: Call ShouldAttack(), to handle, you know, attacking shit.
+	//Unlike in the original Smart Marines, this is VERY MUCH a custom function.
+	Void SM_Chase (StateLabel WaitState = Null, StateLabel RetreatState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 25)
+	{
+		//ZScript exports of different segments of GZDooms' native AI code. This is the stuff not needed for movement.
+		KAI_Chase_PreChecks(ChaseFlags);
+		KAI_Chase_FriendsAttackPlayerEnemies(ChaseFlags);
+		KAI_Chase_Retarget(ChaseFlags,True); //Friendly marines go idle with no target too.
+		KAI_Chase_HandleActiveSound(ChaseFlags); //MAYDO: Remove this ?
+		
+		Bool MovedAlready;
+		Double MajorThreatRange = 1536*1536;//(RetreatRange*4)*(RetreatRange*4);
+		
+		//Run away from major threats.
+		If (bNoFear && Target && !(Goal && bChaseGoal))
+		{
+			If (!(ChaseFlags & CHF_DONTMOVE))
+			{
+				//If you can't attack (But not because you are in a NOATTACK sector), run. Also run if the other actor is frightening or you're frightened.
+				If ((!CanAttack() && !(CurSector.Flags & Sector.SECF_NOATTACK)) || bFrightened || IsFrightening (Target) ||
+				//If the targets' threat level is over the threshold, and it's visible and nearby, GTFO.
+				ThreatLevelThreshold != THREAT_ASSESS && AssessThreatLevel(Target, True) >= ThreatLevelThreshold && (Distance3DSquared(Target) < MajorThreatRange))
+				{
+					//And at last, check if the target is still visible.
+					If (CheckSight (Target, SF_IGNOREWATERBOUNDARY))
+					{
+						If (!RetreatState)
+							KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
+						Else
+							SetStateLabel (RetreatState);
+						MovedAlready = True;
+						Return;
+					}
+				}
+			}
+		}
+		
+		//If you can move and haven't done so already.
+		If (!(ChaseFlags & CHF_DONTMOVE))
+		{
+			//Only update the nearest enemy to run from when not focused on a route.
+			If (bAvoidMelee && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //TODO: Unhardcode the retreat range probably.
+			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby.
+			If (bAvoidMelee && NearestEnemy)
+			{
+				If (!RetreatState)
+					KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
+				Else
+					SetStateLabel (RetreatState);
+				MovedAlready = True;
+				Return;
+			}
+			//Actual movement handling.
+			Else
+			{
+				Bool B;
+				KAI_Chase_HandleStrafing (Target,ChaseFlags);
+				[B,MovedAlready] = KAI_Chase_PatrolHandling(WaitState, 0.2, anglelimit:TurnRadius, chaseflags:ChaseFlags);
+				
+				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
+				If (Target && !MovedAlready)
+					KAI_MoveTowards (Target.Pos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|KMT_ZIGZAG);
+			}
+		}
+	}
+	
+	//DECORATE-esque function for use in states.
+	Void SM_SetMarineState (Int Add, Int Remove, Bool RemoveAll = False/*, Int Action = 0*/)
+	{
+		MarineState |= Add;
+		If (!RemoveAll)
+			MarineState &= ~Remove;
+		Else
+			MarineState = 0;
+	}
+}

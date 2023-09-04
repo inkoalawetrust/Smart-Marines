@@ -4,6 +4,7 @@ Version "4.10"
 	#Include "ZScript/Marine/Marine.zsc"
 	#Include "ZScript/Marine/Marine_Deaths.zsc"
 //Miscellaneous
+	#Include "ZScript/MarineFunctions.zsc" //Functions shared by all marine types.
 	#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
 
 //TODO:

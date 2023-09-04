@@ -5,6 +5,7 @@
 //Give marines a dropkick melee, especially when a light enough non-flying enemy is over a ledge, and especially if fall damage is on.
 //Give them 3 different grenade types depending on the situation, HE-FRAG, Smoke, and Flashbang.
 //Give marines the ability to scale ledges that are almost their height ? Since there's sprites for that in Project Brutality I could use, like the kicks.
+//Make marines able to jump over certain obstacles if they can ?
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
 
 Class SM_Marine : KAI_Humanoid
@@ -22,8 +23,8 @@ Class SM_Marine : KAI_Humanoid
 		Radius 16;
 		YScale 0.98;
 		Mass 100;
-		Speed 10;
-		FastSpeed 14;
+		Speed 8;
+		FastSpeed 10;
 		PainChance 96;
 		PainThreshold 5;
 		FriendlySeeBlocks 48;
@@ -40,6 +41,8 @@ Class SM_Marine : KAI_Humanoid
 		DropItem "ClipBox", 64;
 		PainSound "Marine/Pain";
 		DeathSound "Marine/Death";
+		KAI_Actor.ThreatLevel THREAT_ABOVENORMAL;
+		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS; //Marines are only really scared of super dangerous enemies like bosses and enemy vehicles.
 		Monster;
 		+JumpDown;
 		+MissileMore;
@@ -56,6 +59,24 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.PostBeginPlay();
 		MarineState = MARINE_IDLING;
+	}
+	
+	Override Void UserVariableDefaults()
+	{
+		Super.UserVariableDefaults();
+		If (!(User_Armor ~== "None" || User_Armor ~== "Nothing")) //If the marine doesn't explicitly spawn unarmored.
+		{
+			If (!User_Armor || User_Armor ~== "" || User_Armor ~== " ") //Default armor.
+				GiveInventory ("GreenArmor",1);
+			Else
+				GiveInventory (User_Armor,1); //Try giving whatever armor available in the current session that the mapper wants.
+		}
+	}
+	
+	//Marines have identical criteria for if an actor is hostile as my MVP vehicles do.
+	Override Bool IsActorHostile (Actor Other)
+	{
+		Return (Other && (IsHostile (Other) || IsTargetingAllies (Self, Other)));
 	}
 	
 	//Actions the marine is performing, can be stacked on each other like flags.
@@ -97,21 +118,36 @@ Class SM_Marine : KAI_Humanoid
 	Const MARINE_FOV = 120;
 	Int MarineState; //What the marine doin'.
 	//Int MarineSubState; //Besides the current state, what else is the marine doing in this state exactly ? e.g if they retreat, are they running to reload ?
+	Actor NearestEnemy; //The marines' closest enemy, used to stay away from enemies.
 	
-	//DECORATE-esque function for use in states.
-	Void SM_SetMarineState (Int Add, Int Remove, Bool RemoveAll = False/*, Int Action = 0*/)
-	{
-		MarineState |= Add;
-		If (!RemoveAll)
-			MarineState &= ~Remove;
-		Else
-			MarineState = 0;
-	}
+	String User_Armor; //The name of the armor the marine should be equipped with upon spawning. Default is the vanilla green armor.
 	
 	States
 	{
-		Spawn: //MAYDO: Actually change the sight angle from animation frame to frame ?
-			MARI EEEEFFFFGGGGHHHH 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+		//When the marine is looking around with this animation, he actually changes his sight angle.
+		Spawn:
+			MARI EEEEEEEE 3 //Look 80 degrees to your left.
+			{
+				Angle += 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle -= 80;
+				If (Target) SetStateLabel ("See");
+			}
+			MARI FFFFFFFF 3 //Look 20 degrees to your right.
+			{
+				Angle -= 20;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 20;
+				If (Target) SetStateLabel ("See");
+			}
+			MARI GGGGGGGG 3 //Look 80 degrees to your right.
+			{
+				Angle -= 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 80;
+				If (Target) SetStateLabel ("See");
+			}
+			MARI HHHHHHHH 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
 			Loop;
 		//Idle:
 		//Idle.Stay: //Staying around idle. Basically like in the spawn state.
@@ -119,11 +155,11 @@ Class SM_Marine : KAI_Humanoid
 		//Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
 		See:
 			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True); //NOTE: Might cause problems if I implement the patrolling state ?
-			MARF ABCD 5;
+			MARF AABBCCDD 2 SM_Chase ();
 			Goto See+1;
 		Pain:
 			MARA E Random (7,14) A_Pain();
-			MARA E 0 SM_SetMarineState (0,MARINE_IDLING);
+			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_WANDER); //Being hurt interrupts staying idle, wandering, and throwing grenades.
 			//MARA E 0 A_JumpIf ((MarineState & MARINE_RELOAD),"Reload"); //Go back to reloading if you were doing that already. IDEA: Or run away a bit ?
 			//MARA E 0 A_JumpIf ((MarineState & MARINE_RETREAT),"Retreat"); //Or running.
 			Goto See;
