@@ -18,13 +18,15 @@ Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
 Marine jumping/dodging sprites made by Sergeant_Mark_IV. Jumping and shooting sprites made by Tabijaky.
 Crouched marine sprites made by TG5. Crouched gib death sprites made by Ghastly_Dragon.
 Lying down marine sprites made by TG5.
+Projectile sprites by inkoalawetrust.
 
 ======|Other graphics|======
 Alternate marine colors by inkoalawetrust, partially based on the ones made by DBJ87 for the Allied Marines Realm667 resource.
 Vanilla assault rifle sprites by Mik12. Slightly edited by inkoalawetrust https://forum.zdoom.org/viewtopic.php?f=37&t=29708&p=564526
-Digital sights scanlines and crosshairs made by inkoalawetrust
+Digital sight scanlines and crosshairs made by inkoalawetrust
 First person turret sprites and muzzle flash made by Sergeant_Mark_IV. Overlay glow and light graphics made by inkoalawetrust
 Friendly marine command text made using the Doom Text Generator: https://c.eev.ee/doom-text-generator/
+Bullet tracers made by inkoalawetrust
 
 ======|Sounds|======
 Reloading and rocket travelling sound is from Half-Life.
@@ -41,3 +43,5 @@ Machine gun firing and loading sounds are from Call of Duty 2
 Radio static sound by inkoalawetrust
 Machine gun and rifle impact sound are from the GDC Audio Library 2018 and 2020 respectively.
 Bullet liquid impact sounds are from Call Of Duty 2.
+Bullet ricochet sounds are from Call of Duty United Offensive.
+Casing drop sounds (CaseFall1-5.ogg) is from the GDC 2018 sound library, "Watson Wu - Battle Rifles & Pistols"

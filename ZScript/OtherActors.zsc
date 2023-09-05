@@ -1,0 +1,186 @@
+//TODO:
+//Change the tracer code from many sprite pieces to a single custom model tracer.
+//Add custom splashes for the bullets.
+//Make a MVP_RifleBullet child class in the MVP that replaces these bullets upon spawning.
+
+Class SM_Bullet : KAI_BaseProjectile
+{
+	Default
+	{
+		Radius 4;
+		Height 6;
+		Speed 170;
+		FastSpeed 200;
+		DamageFunction (Random (7,10));
+		XScale 0.075;
+		YScale 0.0625; //0.075 / 1.2
+		ProjectileKickback 10;
+		Decal "BulletChip";
+		DamageType "SmallRifleBullet";
+		Obituary "%o found out that rifle rounds are more dangerous than in the movies";
+		BounceSound "VRifle/BulletRicochet";
+		KAI_BaseProjectile.TrailActor "SM_Tracer"; //Since there's a lot more marine bullets flying than vehicle ones, use a singular model instead.
+		KAI_BaseProjectile.MaxTrails 1;
+		KAI_BaseProjectile.TrailLineSpacing 1;
+	}
+	Bool HitLiquid;
+	
+	Void DoSplash (Int LiquidType, Bool UpsideDown = False)
+	{
+		If (LiquidType == LIQUID_NONE) Return;
+		HitLiquid = True;
+		Actor Splash = Spawn ("SM_BulletSplash",Pos);
+		
+		Switch (LiquidType)
+		{
+			Case LIQUID_NUKAGE:
+				Splash.A_SetTranslation ('SM_Splash_Nukage');
+				Break;
+			Case LIQUID_LAVA:
+				Splash.A_SetTranslation ('SM_Splash_Lava');
+				Break;
+			Case LIQUID_BLOOD:
+				Splash.A_SetTranslation ('SM_Splash_Blood');
+				Break;
+			Case LIQUID_SLIME:
+				Splash.A_SetTranslation ('SM_Splash_Slime');
+				Break;
+			Default:
+				Break;
+		}
+		Double Size = FRandom (0.4,0.6);
+		Splash.Scale.X = Splash.Scale.Y = (UpsideDown ? -Size : Size);
+		Splash.bXFlip = Random (False,True);
+	}
+	
+	Override Void TrailSpawn (Actor Trail)
+	{
+		Super.TrailSpawn (Trail);
+		
+		KAI_Tracer(Trail).WarpOffsets = (-20,0,0);
+	}
+	
+	Override Int SpecialMissileHit (Actor Victim)
+	{
+		If (Super.SpecialMissileHit(Victim) == 1) Return 1;
+		
+		//Always bounce off players with god mode. Or player pawns and monsters with Invulnerable or NoDamage.
+		If ((HasGodMode(Victim) || IsIndestructible(Victim) && !IsInanimateObject(Victim)) && DeflectProjectile (Victim,0,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10),(10,-10))) Return 1;
+		//Be at least somewhat likely to bounce off if hitting an APC.
+		Else If ((Victim Is "MVP_APC" || Victim Is "MVP_APCProp") && DeflectProjectile (Victim,192,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10),(10,-10))) Return 1;
+		//Almost always bounce off the main battle tank.
+		Else If (DeflectOffTank(Victim) && DeflectProjectile (Victim,254,FRandom(0.5,0.8),FRandom (1.,0.7),(20,-20),(20,-20))) Return 1;
+		//Be very likely to bounce off a non-bleeding actor with a lot of health.
+		Else If (Victim.bNoBlood && !IsIndestructible (Victim) && Victim.SpawnHealth() >= 2000 && DeflectProjectile (Victim,64,FRandom(0.5,0.7),FRandom (1.,0.8),(6,-6),(6,-6),attenuation:0.75)) Return 1;
+		
+		
+		Return -1;
+	}
+	
+	Bool DeflectOffTank (Actor Other)
+	{
+		//Bounce off MBT turrets.
+		If (Other Is "MVP_MBTTurret" || Other Is "MVP_MBTTurretProp"
+		/*|| Other Is "MVP_MBTMissileTurret"*/ || Other Is "MVP_MBTMissileTurretProp"
+		|| Other Is "MVP_BMPTTurret" || Other Is "MVP_MBTTerminatorTurretProp"
+		|| Other Is "MVP_SPAAGTurret" || Other Is "MVP_MBTSPAAGTurretProp")
+			Return True;
+		//Deflect off the tank hulls too of course.
+		Else If (Other Is "MVP_MBT" || Other Is "MVP_MBTProp")
+			Return True;
+		Return False;
+	}
+	
+	Mixin SM_SplashFunctions;
+	
+	States
+	{
+		Spawn:
+			BUL1 A 0;
+			BUL1 # 1 Light ("MarineBulletLight")
+			{
+				Frame = UpdateProjectileElevation (2,2,0,1,1); //C, C, A, B, B
+			}
+			Loop;
+		Death: //Bullet hit level geometry.
+			TNT1 A 1
+			{
+				//The floor was hit.
+				If (Pos.Z <= FloorZ)
+					DoSplash(CheckLiquid(FloorPic));
+				//The ceiling was hit.
+				Else If (Pos.Z + Height >= CeilingZ)
+					DoSplash(CheckLiquid(CeilingPic),True);
+				
+				If (HitLiquid) Destroy(); //Splash was spawned, so just delete yourself.
+				Else A_StartSound ("VRifle/Impact");
+			}
+			Stop;
+		XDeath: //Bullet hit a bleeding actor.
+			TNT1 A 1; //Don't play the impact sound on bleeding actors.
+			Stop;
+		Crash: //Bullet hit a non bleeding actor.
+			TNT1 A 1 A_StartSound ("VRifle/Impact");
+			Stop;
+	}
+}
+
+//So much of this is ripped from the MVP.
+Class SM_BulletCasing : Actor
+{
+	Default
+	{
+		Radius 4;
+		Height 8;
+		XScale 0.1;
+		YScale 0.08333; //0.1 / 1.2
+		+NoBlockmap;
+		//+NoInteraction;
+	}
+	States
+	{
+		Spawn:
+			BUL1 DEFG Random (2,4) A_CheckFloor ("Death");
+			Loop;
+		//Stay for 4 seconds, then fade over the course of 4 seconds.
+		Death:
+			BUL1 H 0 A_StartSound ("VRifle/CasingImpact",volume:0.75,2.5);
+			BUL1 H 140;
+			BUL1 H 4 A_FadeOut (0.0142);
+			Wait;
+	}
+}
+
+//Ripped from the old code since it works.
+Class SM_BulletSplash : Actor
+{
+	Default
+	{
+		Scale 0.5;
+		+NoInteraction;
+		+MoveWithSector;
+	}
+	States
+	{
+		Spawn:
+			TNT1 A 0 NoDelay A_StartSound("VRifle/WaterHit",CHAN_VOICE,attenuation:ATTN_STATIC);
+			HSPL ABCDEFGHI 1;
+			Stop;
+	}
+}
+
+Class SM_Tracer : KAI_Tracer
+{
+	Default
+	{
+		//Alpha 0.95;
+		RenderStyle "Add";
+		+NeverRespawn;
+	}
+	States
+	{
+		Spawn:
+			POSS A -1;
+			Stop;
+	}
+}

@@ -33,6 +33,33 @@ VRifle/WaterImpact1 "Sounds/RifleImpactWater1.ogg"
 VRifle/WaterImpact2 "Sounds/RifleImpactWater2.ogg"
 VRifle/WaterImpact3 "Sounds/RifleImpactWater3.ogg"
 VRifle/WaterImpact4 "Sounds/RifleImpactWater4.ogg"
+VRifle/BulletRicochet1 "Sounds/BulletRicochet1.ogg"
+VRifle/BulletRicochet2 "Sounds/BulletRicochet2.ogg"
+VRifle/BulletRicochet3 "Sounds/BulletRicochet3.ogg"
+VRifle/BulletRicochet4 "Sounds/BulletRicochet4.ogg"
+VRifle/CaseFall1 "Sounds/CaseFall1.ogg"
+VRifle/CaseFall2 "Sounds/CaseFall2.ogg"
+VRifle/CaseFall3 "Sounds/CaseFall3.ogg"
+VRifle/CaseFall4 "Sounds/CaseFall4.ogg"
+VRifle/CaseFall5 "Sounds/CaseFall5.ogg"
+
+$Random VRifle/BulletRicochet
+{
+	VRifle/BulletRicochet1
+	VRifle/BulletRicochet2
+	VRifle/BulletRicochet3
+	VRifle/BulletRicochet4
+	//SFX/BulletRicochet5
+}
+
+$Random VRifle/CasingImpact
+{
+	VRifle/CaseFall1
+	VRifle/CaseFall2
+	VRifle/CaseFall3
+	VRifle/CaseFall4
+	VRifle/CaseFall5
+}
 
 $Random VRifle/WaterHit
 {
@@ -74,11 +101,11 @@ $Limit Marine/Missile/Explode 0
 
 $Limit VRifle/EmptyGun 0
 $Limit VRifle/Zoomed 0
-$Limit VRifle/Impact 2 512
-$Limit VRifle/WaterImpact1 2 512
-$Limit VRifle/WaterImpact2 2 512
-$Limit VRifle/WaterImpact3 2 512
-$Limit VRifle/WaterImpact4 2 512
+$Limit VRifle/Impact 8 512
+$Limit VRifle/WaterImpact1 8 512
+$Limit VRifle/WaterImpact2 8 512
+$Limit VRifle/WaterImpact3 8 512
+$Limit VRifle/WaterImpact4 8 512
 
 $Limit Turret/Fire 0
 $Limit Turret/Ready 0

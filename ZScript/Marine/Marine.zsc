@@ -1,5 +1,8 @@
 //TODO:
-//Give marines a user_armor variable, that specifies what armor class they spawn with. Default will be the green armor.
+//Go to different gunfire states from ShouldAttack():
+	//3 round aimed bursts for weak enemies or at a decent distance
+	//Maybe even single (Very accurate) shots for large distances
+	//Full auto for close quarters or powerful enemies
 
 //IDEA:
 //Give marines a dropkick melee, especially when a light enough non-flying enemy is over a ledge, and especially if fall damage is on.
@@ -59,6 +62,7 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.PostBeginPlay();
 		MarineState = MARINE_IDLING;
+		AmmoCount = 30;
 	}
 	
 	Override Void UserVariableDefaults()
@@ -92,33 +96,15 @@ Class SM_Marine : KAI_Humanoid
 		//MARINE_PATROL	= 1 << 7, //Patrolling
 	}
 	
-	//Sub-actions the marines are performing. Essentially, what they are doing EXACTLY. If the base state itself doesn't cover it. Can only have one.
-	Enum MarineSubStates
-	{
-		//MARINE_RETREAT
-		ACTION_FROMDANGER	= 0, //Default retreat reason, running from a threat.
-		ACTION_WANTSRELOAD	= 1, //Retreating to reload
-		
-		//MARINE_FIRING
-		ACTION_STANDINGUP	= 0, //The marine is firing upright, this is the default.
-		//ACTION_AIMUP		= 1, //The marine is aiming up.
-		//ACTION_AIMDOWN	= 2, //The marine is aiming down.
-		ACTION_LYINGDOWN	= 3, //The marine is lying down.
-		//ACTION_KNEELSTRAIGHT= 4, //The marine is shooting ahead and kneeling.
-		//ACTION_KNEELUP	= 5, //The marine is kneeling and aiming up.
-		//ACTION_KNEELDOWN	= 6, //The marine is kneeling and aiming down.
-		
-		//MARINE_THROWING
-		ACTION_FRAG			= 0, //The marine is throwing a frag grenade, this is the default.
-		ACTION_SMOKE		= 1, //The marine is throwing a smoke grenade to conceal himself and allies.
-		ACTION_FLASHBANG	= 2, //The marine is throwing a flashbang to stun enemies and players.
-	}
-	
 	Const MARINE_HEARDIST = 4096;
 	Const MARINE_FOV = 120;
+	Const MAGAZINE_SIZE = 30;
+	
+	Mixin SM_SplashFunctions;
 	Int MarineState; //What the marine doin'.
-	//Int MarineSubState; //Besides the current state, what else is the marine doing in this state exactly ? e.g if they retreat, are they running to reload ?
 	Actor NearestEnemy; //The marines' closest enemy, used to stay away from enemies.
+	Int AmmoCount; //How much ammo the marine has.
+	Int RetreatLoops; //How many times the retreat state is called.
 	
 	String User_Armor; //The name of the armor the marine should be equipped with upon spawning. Default is the vanilla green armor.
 	
@@ -155,8 +141,30 @@ Class SM_Marine : KAI_Humanoid
 		//Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
 		See:
 			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True); //NOTE: Might cause problems if I implement the patrolling state ?
-			MARF AABBCCDD 2 SM_Chase ();
+			MARF JJKKLLMM 3 SM_Chase ();
 			Goto See+1;
+		Fire:
+			MARF JJJAA 2; //Aim up.
+			MARF A 0 SM_SetMarineState (MARINE_FIRING,MARINE_IDLING|MARINE_THROWING|MARINE_WANDER); //Set marine actions.
+			MARF A 2 //Delay
+			{
+				A_FaceTarget (8,8);
+				If (AmmoCount <= 0) //Out of ammo.
+				{
+					A_StartSound ("VRifle/EmptyGun",CHAN_WEAPON,attenuation:ATTN_STATIC);
+					RetreatLoops = Random (6,12);
+					Return FindState ("Retreat.Reload"); //Run either far enough or out of sight, to reload.
+				}
+				
+				Return State (Null);
+			}
+			MARF E 4 Light ("MarineMuzzleFlash") SM_FireBullet();
+			MARF A 0
+			{
+				
+				//Run line of fire checks.
+			}
+			Loop;
 		Pain:
 			MARA E Random (7,14) A_Pain();
 			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_WANDER); //Being hurt interrupts staying idle, wandering, and throwing grenades.

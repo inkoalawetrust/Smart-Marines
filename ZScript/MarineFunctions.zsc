@@ -64,6 +64,8 @@ Extend Class SM_Marine
 					KAI_MoveTowards (Target.Pos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|KMT_ZIGZAG);
 			}
 		}
+		
+		ShouldAttack(); //Run attack decision code.
 	}
 	
 	//DECORATE-esque function for use in states.
@@ -74,5 +76,59 @@ Extend Class SM_Marine
 			MarineState &= ~Remove;
 		Else
 			MarineState = 0;
+	}
+	
+	Void SM_FireBullet ()
+	{
+		A_SpawnProjectile ("SM_Bullet",42,-6,flags:CMF_AIMDIRECTION,Pitch);
+		A_SpawnItemEx ("SM_BulletCasing",0,-6,42,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
+		AmmoCount--;
+	}
+}
+
+//KLUDGE: Copied from the MVPs' UniversalFunctions mixin. Because they are supposed to work independent of each other.
+Mixin Class SM_SplashFunctions
+{
+	Enum LiquidTypes
+	{
+		LIQUID_NONE = 0,
+		LIQUID_WATER = 1,
+		LIQUID_NUKAGE = 2,
+		LIQUID_BLOOD = 3,
+		LIQUID_LAVA = 4,
+		LIQUID_SLIME = 5
+	};
+	
+	Int CheckLiquid (TextureID Texture)
+	{
+		/*===============================================================
+		This class stores the names of the different textures used for each type of liquid.
+		These lists can be expanded as seen fit for your project, in case it has additional custom water/nukage/blood/lava/slime textures.
+		The lists already contain some names of liquid flats that don't exist in the vanilla game, for built-in mod compatibility.
+		Such as by having waterfall textures that don't exist like WFALL# and NFALL#.
+		===============================================================*/
+		Static Const String WaterTextures[] = {"FWATER1", "FWATER2", "FWATER3", "FWATER4", "WFALL1", "WFALL2", "WFALL3", "WFALL4"};
+		Static Const String NukageTextures[] = {"NUKAGE1", "NUKAGE2", "NUKAGE3", "NFALL1", "NFALL2", "NFALL3", "NFALL4"};
+		Static Const String BloodTextures[] = {"BLOOD1", "BLOOD2", "BLOOD3", "BFALL1", "BFALL2", "BFALL3", "BFALL4"};
+		Static Const String LavaTextures[] = {"LAVA1","LAVA2", "LAVA3", "LAVA4", "DBRAIN1", "DBRAIN2", "DBRAIN3", "DBRAIN4", "LFALL1", "LFALL2", "LFALL3", "LFALL4"};
+		Static Const String SlimeTextures[] = {"SLIME01","SLIME02", "SLIME03", "SLIME04", "SLIME05","SLIME06", "SLIME07", "SLIME08", "SFALL1", "SFALL2", "SFALL3", "SFALL4"};
+		
+		For (Int I = 0; I < WaterTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (WaterTextures[I]) == Texture)
+				Return LIQUID_WATER;
+		For (Int I = 0; I < NukageTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (NukageTextures[I]) == Texture)
+				Return LIQUID_NUKAGE;
+		For (Int I = 0; I < BloodTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (BloodTextures[I]) == Texture)
+				Return LIQUID_BLOOD;
+		For (Int I = 0; I < LavaTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (LavaTextures[I]) == Texture)
+				Return LIQUID_LAVA;
+		For (Int I = 0; I < SlimeTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (SlimeTextures[I]) == Texture)
+				Return LIQUID_SLIME;
+		
+		Return LIQUID_NONE;
 	}
 }

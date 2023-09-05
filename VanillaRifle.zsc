@@ -17,7 +17,7 @@ Class VanillaRifle : Weapon
 		Weapon.BobRangeY 0.7;
 		Weapon.SlotNumber 4;
 		Weapon.SlotPriority 100.0;
-		AttackSound "Marine/Fire";
+		//AttackSound "Marine/Fire"; Doesn't work anymore because
 		Inventory.PickupMessage "You picked up the rifle !";
 		Obituary "%o was gunned down by %k's assault rifle";
 		+Weapon.Ammo_Optional;
@@ -83,7 +83,6 @@ Class VanillaRifle : Weapon
 					A_Overlay (PSP_IMPOSTOR,"Null");
 					A_Overlay (PSP_FADE,"Null");
 					A_OverlayAlpha (PSP_WEAPON,1.0);
-					
 				}
 				Return State (Null);
 			}
@@ -97,8 +96,14 @@ Class VanillaRifle : Weapon
 			{
 				
 				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
-				If (!Invoker.AlreadyZoomed) A_FireBullets (2.2,2.3,-1,Random(6,12),"BulletPuff"/*"SmartMarinePuff"*/,FBF_NORANDOM|FBF_USEAMMO,8192+2);
-				Else A_FireBullets (1.4,1.5,-1,Random(6,10),"BulletPuff"/*"SmartMarinePuff"*/,FBF_NORANDOM|FBF_USEAMMO,8192+2);
+				
+				If (!Invoker.AlreadyZoomed)
+					A_FireProjectile ("SM_Bullet",FRandom(2.2,-2.2),pitch:FRandom(2.3,-2.3));
+				Else
+					A_FireProjectile ("SM_Bullet",FRandom(1,-1),pitch:FRandom(1.1,-1.1));
+				A_SpawnItemEx ("SM_BulletCasing",32,-6,38,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
+				A_StartSound ("Marine/Fire"); //TODO: Pass the same parameters as the marines' attack.
+				
 				A_GunFlash();
 			}
 			VRIF D 2 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);

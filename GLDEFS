@@ -1,3 +1,11 @@
+PointLight MarineBulletLight
+{
+	Color 1.00 0.30 0.00
+	Size 16
+	Offset -256 0 0
+	Attenuate 1
+}
+
 PointLight MarineMuzzleFlash
 {
 	Color 1.00 0.99 0.45
