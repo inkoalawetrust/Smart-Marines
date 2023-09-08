@@ -7,6 +7,3 @@ Version "4.10"
 	#Include "ZScript/MarineFunctions.zsc" //Functions shared by all marine types.
 	#Include "ZScript/OtherActors.zsc" //Misc actors used by the marines.
 	#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
-
-//TODO:
-//Absolutely everything, the KAI library doesn't even have a basic chase function yet, only the vehicle chase method. I'll probably make a custom one here.

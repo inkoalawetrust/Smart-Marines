@@ -127,8 +127,8 @@ Class VanillaRifle : Weapon
 					Return ResolveState ("EmptyClick");
 				}
 				
-				//If there are 20 or more rounds in the gun, or there's no ammo left, then do not reload.
-				If (Invoker.Ammo1.Amount >= 20 || Invoker.Ammo2.Amount == 0)
+				//If there are 30 or more rounds in the gun, or there's no ammo left, then do not reload.
+				If (Invoker.Ammo1.Amount >= 30 || Invoker.Ammo2.Amount == 0)
 				{
 					Return ResolveState ("Ready");
 				}
@@ -261,10 +261,10 @@ Class VanillaRifleMagazine : Ammo
 	Default
 	{
 		Inventory.Amount 1;
-		Inventory.MaxAmount 20;
+		Inventory.MaxAmount 30;
 		+Inventory.IgnoreSkill;
 		Ammo.BackpackAmount 0;
-		Ammo.BackpackMaxAmount 20;
+		Ammo.BackpackMaxAmount 30;
 		Inventory.Icon "CLIPA0";
 	}
 }

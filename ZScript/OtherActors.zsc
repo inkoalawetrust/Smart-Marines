@@ -12,8 +12,8 @@ Class SM_Bullet : KAI_BaseProjectile
 		Speed 170;
 		FastSpeed 200;
 		DamageFunction (Random (7,10));
-		XScale 0.075;
-		YScale 0.0625; //0.075 / 1.2
+		XScale 0.125;
+		YScale 0.104166; //0.125 / 1.2
 		ProjectileKickback 10;
 		Decal "BulletChip";
 		DamageType "SmallRifleBullet";
@@ -57,7 +57,7 @@ Class SM_Bullet : KAI_BaseProjectile
 	{
 		Super.TrailSpawn (Trail);
 		
-		KAI_Tracer(Trail).WarpOffsets = (-20,0,0);
+		KAI_Tracer(Trail).WarpOffsets = (-28,0,0);
 	}
 	
 	Override Int SpecialMissileHit (Actor Victim)
@@ -97,7 +97,7 @@ Class SM_Bullet : KAI_BaseProjectile
 	{
 		Spawn:
 			BUL1 A 0;
-			BUL1 # 1 Light ("MarineBulletLight")
+			BUL1 # 1// Light ("MarineBulletLight")
 			{
 				Frame = UpdateProjectileElevation (2,2,0,1,1); //C, C, A, B, B
 			}
@@ -113,14 +113,27 @@ Class SM_Bullet : KAI_BaseProjectile
 					DoSplash(CheckLiquid(CeilingPic),True);
 				
 				If (HitLiquid) Destroy(); //Splash was spawned, so just delete yourself.
-				Else A_StartSound ("VRifle/Impact");
+				Else
+				{
+					A_StartSound ("VRifle/Impact");
+					SpawnPuff ("BulletPuff",Pos,AngleTo(Target),AngleTo(Target),2);
+				}
 			}
 			Stop;
 		XDeath: //Bullet hit a bleeding actor.
-			TNT1 A 1; //Don't play the impact sound on bleeding actors.
+			TNT1 A 1
+			{
+				A_StartSound ("Marine/PowerMelee");
+				TraceBleed (GetMissileDamage(1,7),Self);
+				SpawnBlood (Pos,AngleTo(Target),GetMissileDamage(1,7));
+			}
 			Stop;
 		Crash: //Bullet hit a non bleeding actor.
-			TNT1 A 1 A_StartSound ("VRifle/Impact");
+			TNT1 A 1
+			{
+				A_StartSound ("VRifle/Impact");
+				SpawnPuff ("BulletPuff",Pos,AngleTo(Target),AngleTo(Target),2);
+			}
 			Stop;
 	}
 }
@@ -156,7 +169,7 @@ Class SM_BulletSplash : Actor
 {
 	Default
 	{
-		Scale 0.5;
+		//Scale 0.5;
 		+NoInteraction;
 		+MoveWithSector;
 	}
@@ -176,11 +189,19 @@ Class SM_Tracer : KAI_Tracer
 		//Alpha 0.95;
 		RenderStyle "Add";
 		+NeverRespawn;
+		+Bright;
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		If (!IsFrozen() && GetAge() % 2 == 0)
+			A_FaceMovementDirection();
 	}
 	States
 	{
 		Spawn:
-			POSS A -1;
+			POSS A -1 Light ("MarineBulletLight");
 			Stop;
 	}
 }

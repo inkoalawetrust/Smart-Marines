@@ -1,9 +1,12 @@
 Extend Class SM_Marine
 {
-	//TODO: Call ShouldAttack(), to handle, you know, attacking shit.
+	//TODO: Add a chase timer that decrements as long as the target is not visible or dead, and once it reaches the threshold, jump to the Idle state.
 	//Unlike in the original Smart Marines, this is VERY MUCH a custom function.
 	Void SM_Chase (StateLabel WaitState = Null, StateLabel RetreatState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 25)
 	{
+		//Very marine specific things
+		If (BurstCounter) BurstCounter = 0; //Reset the burst fire countdown when not firing. Like if the marine is hurt mid-burst.
+		
 		//ZScript exports of different segments of GZDooms' native AI code. This is the stuff not needed for movement.
 		KAI_Chase_PreChecks(ChaseFlags);
 		KAI_Chase_FriendsAttackPlayerEnemies(ChaseFlags);
@@ -80,9 +83,242 @@ Extend Class SM_Marine
 	
 	Void SM_FireBullet ()
 	{
-		A_SpawnProjectile ("SM_Bullet",42,-6,flags:CMF_AIMDIRECTION,Pitch);
+		A_StartSound ("Marine/Fire",CHAN_WEAPON);
+		Actor Bullet = A_SpawnProjectile ("SM_Bullet",42,-6,flags:CMF_AIMDIRECTION,Pitch);
+		Double AccuracyBuff = SittingDown ? 0.5 : 1.0; //Double the accuracy if the marine is sitting down and firing.
+		Switch (AttackType) //TODO: Add slight recoil for full auto.
+		{
+			Case FIRE_BURST:
+				AddProjectileSpread (Bullet,(2.2,-2.2)*AccuracyBuff,(2.2,-2.2)*AccuracyBuff);
+				Break;
+			Case FIRE_SINGLE:
+				AddProjectileSpread (Bullet,(1.1,-1.1)*AccuracyBuff,(1.1,-1.1)*AccuracyBuff);
+				Break;
+			Case FIRE_FULLAUTO:
+				AddProjectileSpread (Bullet,(3.5,-3.5)*AccuracyBuff,(3.5,-3.5)*AccuracyBuff);
+				A_Recoil (0.25);
+				Break;
+		}
 		A_SpawnItemEx ("SM_BulletCasing",0,-6,42,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
 		AmmoCount--;
+	}
+	
+	State SM_CheckRefire (Int Chance, StateLabel AbortState, Double FOV = 360)
+	{
+		If (CurSector.Flags & Sector.SECF_NOATTACK)
+			Return FindState (AbortState);
+		
+		AimPos = GetFAFAimPos (Target);
+			
+		If (Random2[pr_monsterrefire]() < Chance)
+			Return State (Null);
+		
+		If (!Target || IsDead (Target) || (Target && !CheckFOV (Target,FOV)) || !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
+			{a_log ("marine refire cancelled");Return FindState (AbortState);}
+		
+		Return State (Null);
+	}
+	
+	//Marines just fire SM_Bullet, so for now at least, so we mostly just need the trace offsets.
+	Bool SM_CheckLOF (Vector3 CheckOffsets = (0,0,32), Int PropHealthThreshold = 25, Bool AimingAt = False)
+	{
+		Let Check = New ("KAI_ProjectileLOFCheck");
+		
+		AimPos = GetFAFAimPos (Target);
+		
+		Vector3 Direction;
+		If (AimingAt)
+			Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
+		Else
+		{
+			If (Target)
+			{
+				Double PitchTo = PitchTo (Target,Height/2,GetAimPosOffset());
+				Direction = (AngleToVector(AngleTo(Target), Cos(PitchTo)), -Sin(PitchTo));
+			}
+			Else
+				Return False; //Actor stopped existing, so no need to fire.
+		}
+		
+		Double Distance = !AimingAt ? MaxTargetRange : Distance3D (Target)+8;
+		Check.Shooter = Self;
+		Check.Other = Target;
+		Check.PropHealthThreshold = PropHealthThreshold; //This can depend on factors like how many rounds the marine is firing.
+		
+		Check.ProjInfo = New ('LOFProjInfo'); //Assign data class.
+		Check.ProjInfo.Projectile = "SM_Bullet"; //Pass projectile class to trace.
+		Check.ProjInfo.InitializeProjectileInfo(); //Let it infer the rest.
+		
+		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
+		
+		//KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance);
+		Bool BadLoaf = Check.BadLOF;
+		If (Check.ProjInfo) Check.ProjInfo.Destroy();
+		Check.Destroy();
+		Return !BadLoaf;
+	}
+	
+	Bool SM_FindInLOF (Actor Who, Vector3 CheckOffsets = (0,0,32), Bool AimingAt = False)
+	{
+		Let Check = New ("SM_FindTargetInLOF");
+		
+		Vector3 Direction;
+		If (AimingAt)
+			Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
+		Else
+		{
+			If (Who)
+			{
+				Double PitchTo = PitchTo (Who,Height/2,GetAimPosOffset());
+				Direction = (AngleToVector(AngleTo(Who), Cos(PitchTo)), -Sin(PitchTo));
+			}
+			Else
+				Return False; //Actor stopped existing, so no need to fire.
+		}
+		
+		Check.Shooter = Self;
+		Check.Other = Who;
+		Check.BadLOF = True; //We have to assume the LOF is bad, and if the trace finds the other actor, then it's a good LOF.
+		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,MaxTargetRange,0);
+		Bool Res = Check.BadLOF;
+		Check.Destroy();
+		Return !Res;
+	}
+	
+	//Get what part of the actor the marine is aiming at now.
+	Double GetAimPosOffset ()
+	{
+		Switch (AimPos)
+		{
+			Case FAF_MIDDLE:
+				Return Target.Height/2;
+			Case FAF_TOP:
+				Return Target.Height;
+			Case FAF_BOTTOM:
+				Return 0; //The bottom is the origin of actors.
+			Default:
+				Return 0;
+		}
+	}
+	
+	//Determines the chance of the marine hitting the other actor with his rifle.
+	//Other: The actor to check, obviously.
+	/*Smart: If this is on, usually when the (insert name here) CVAR is false. The marine will fire a series of hitscans at Other and return how many hit,
+	instead of using a basic distance check.*/
+	/*Distance: The distance to the Other actor, used for caching for the basic hit chance algorithm, if it's kept to -Double.NaN and Smart is false,
+	it calculates the distance itself.*/
+	//DumbSpread: The perfect conical spread of the attack, only used by the dumb hit chance algorithm.
+	//Shots: How many hypothetical shots is the marine firing ? Used by the smart check.
+	//Offset: Offset the origin of the smart check by these coordinates relative to the marine.
+	//Spread: A vector4 that stores: X = Minimum horizontal spread Y = Maximum horizontal spread Z = Minimum vertical spread W = Maximum vertical spread.
+	//Range: The maximum range of the attack.
+	//Hostiles: Count any enemies of the marine hit by the smart check as successful hits as well.
+	Int DetermineHitChance (Actor Other, Bool Smart, Double Distance = Double.NaN, Double DumbSpread = 1,
+	Int Shots = 1, Vector3 Offsets = (0,0,0), Vector4 Spread = (0,0,0,0), Double Range = 4096, Bool Hostiles = True)
+	{
+		If (!Other) Return 0;
+		If (!Smart) //Credit: TonynUBarnes for the tangent code.
+		{
+			If (Distance != Distance) //No cached distance passed, calculate it ourselves.
+				Distance = Distance3D(Other);
+			Console.Printf ("DetermineHitChance(): Distance to other is %.2f",Distance);
+			Double MathFunnel = Distance * Tan (DumbSpread/4);
+			Int Hits = Int(Other.Radius / MathFunnel);
+			//Hits = KAI_Math.LinearMap (Distance,0,MaxTargetRange,3,0); //Map the distance to an amount of landed hits from the Threshold to 0.
+			
+			Console.Printf ("DetermineHitChance(): I will land %d shots with the dumb algorithm.",Hits);
+			console.printf ("funnel is %.2f",MathFunnel);
+			Return Hits;
+		}
+		Else
+		{
+			Console.Printf ("DetermineHitChance(): Angle %.2f, Pitch %.2f",Angle,Pitch);
+			Let Check = New ("SM_HitChanceTracer");
+			Int Hits;
+			Vector3 Start = Level.Vec3Offset (Pos,Offsets);
+			Vector3 AimDir;
+			Double HSpread, VSpread;
+			
+			Check.Shooter = Self;
+			Check.Other = Other;
+			Check.HostilesToo = Hostiles;
+			
+			While (--Shots >= 0)
+			{
+				Console.Printf ("Firing imaginary bullet.");
+				//Add spread and all that good stuff.
+				HSpread = Angle+FRandom (Spread.X,Spread.Y);
+				VSpread = Pitch+FRandom (Spread.Z,Spread.W);
+				AimDir = (AngleToVector(HSpread, Cos(VSpread)), -Sin(VSpread));
+				
+				Check.Trace (Start,CurSector,AimDir,Range,0);
+				
+				Console.Printf ("Trace fired at %d %d %d, Ended at %d %d %d",Start,Check.Results.HitPos);
+				Spawn ("teleportfog",Check.Results.HitPos);
+				If (Check.Success)
+				{
+					FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+					KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
+					Hits++; //Another happy landing.
+					console.printf ("successful hitscan went %.2f MU",check.results.distance);
+				}
+				Else
+				{
+					FSpawnParticleParams P; P.Color1 = "Red"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+					KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
+					console.printf ("failed hitscan went %.2f MU",check.results.distance);
+				}
+				Check.Success = False; //Try again.
+			}
+			Console.Printf ("DetermineHitChance(): I will land %d shots with the smart algorithm.",Hits);
+			Check.Destroy();
+			Return Hits;
+		}
+		Return 0;
+	}
+}
+
+//Find the marines target in the line of fire, otherwise assume the LOF is bad.
+Class SM_FindTargetInLOF : KAI_LOFRaycast
+{
+	Override ETraceStatus TraceCallback ()
+	{
+		If (Other && Results.HitActor == Other)
+		{console.printf ("SM_FindTargetInLOF: %s found",Other.GetClassName());
+			BadLOF = False;
+			Return Trace_Stop;
+		}
+		
+		If (HitLevelGeometry (Results))
+			Return Trace_Stop;
+		
+		Return Trace_Skip;
+	}
+}
+
+Class SM_HitChanceTracer : KAI_LOFRaycast
+{
+	Bool Success; //The hypotherical trace hit the Other actor or any other enemy of the shooter.
+	Bool HostilesToo; //Count hypothetical projectiles/hitscans stopped by enemies of the shooter successes too.
+	Override ETraceStatus TraceCallback()
+	{
+		//We hit the target or another enemy.
+		If (Other && Results.HitActor == Other || HostilesToo && IsHostile(Shooter,Results.HitActor))
+		{
+			Success = True;
+			Return Trace_Stop;
+		}
+		
+		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
+		If (BlockingLineInTheWay (Results.HitLine,0))
+			Return Trace_Stop;
+		
+		//Level geometry is in the way.
+		If (HitLevelGeometry (Results))
+			Return Trace_Stop;
+		
+		Results.HitActor = Null;
+		Return Trace_Skip;
 	}
 }
 

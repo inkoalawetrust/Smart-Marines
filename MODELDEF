@@ -3,10 +3,11 @@ Model SM_Tracer
 	Path "Models/"
 	Model 0 "Tracer.obj"
 	Skin 0 "Tracer.png"
-	Scale 800.0 250.0 250.0
+	Scale 1200.0 500.0 500.0
 	AngleOffset 90
 	USEACTORPITCH
 	USEACTORROLL
+	DONTCULLBACKFACES
 	
 	FrameIndex POSS A 0 0
 	
