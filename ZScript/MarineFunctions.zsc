@@ -81,6 +81,15 @@ Extend Class SM_Marine
 			MarineState = 0;
 	}
 	
+	//End the marines' firing sequence. Used by both the Fire.End: state, and when the marine abruptly dies.
+	Void SM_EndFiring()
+	{
+		SM_SetMarineState (0,MARINE_FIRING|MARINE_THROWING|MARINE_MELEE);
+		If (!IsDead(Self)) NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
+		AimTimer = BurstCounter = BurstSize = 0; //Reset aim and burst counters.
+		AttackType = FIRE_BURST; //Reset to default fire mode.
+	}
+	
 	Void SM_FireBullet ()
 	{
 		A_StartSound ("Marine/Fire",CHAN_WEAPON);
@@ -89,13 +98,13 @@ Extend Class SM_Marine
 		Switch (AttackType) //TODO: Add slight recoil for full auto.
 		{
 			Case FIRE_BURST:
-				AddProjectileSpread (Bullet,(2.2,-2.2)*AccuracyBuff,(2.2,-2.2)*AccuracyBuff);
-				Break;
-			Case FIRE_SINGLE:
 				AddProjectileSpread (Bullet,(1.1,-1.1)*AccuracyBuff,(1.1,-1.1)*AccuracyBuff);
 				Break;
+			Case FIRE_SINGLE:
+				AddProjectileSpread (Bullet,(0.4,-0.4)*AccuracyBuff,(0.4,-0.4)*AccuracyBuff);
+				Break;
 			Case FIRE_FULLAUTO:
-				AddProjectileSpread (Bullet,(3.5,-3.5)*AccuracyBuff,(3.5,-3.5)*AccuracyBuff);
+				AddProjectileSpread (Bullet,(2.2,-2.2)*AccuracyBuff,(2.2,-2.2)*AccuracyBuff);
 				A_Recoil (0.25);
 				Break;
 		}
@@ -201,6 +210,15 @@ Extend Class SM_Marine
 		}
 	}
 	
+	
+	//MAYDO: I might move this to the KAI, as a shared humanoid and vehicle function that is part of a mixin.
+	
+	Enum HitChanceFlags
+	{
+		DHC_HOSTILES	= 1 << 0, //Count any enemies of the marine hit by the smart check as successful hits as well. Smart check only.
+		DHC_THRUHOSTILES= 1 << 1, //Implies DHC_HOSTILES too, makes the smart check go through any hostiles that have already been hit.
+	}
+	
 	//Determines the chance of the marine hitting the other actor with his rifle.
 	//Other: The actor to check, obviously.
 	/*Smart: If this is on, usually when the (insert name here) CVAR is false. The marine will fire a series of hitscans at Other and return how many hit,
@@ -208,23 +226,33 @@ Extend Class SM_Marine
 	/*Distance: The distance to the Other actor, used for caching for the basic hit chance algorithm, if it's kept to -Double.NaN and Smart is false,
 	it calculates the distance itself.*/
 	//DumbSpread: The perfect conical spread of the attack, only used by the dumb hit chance algorithm.
-	//Shots: How many hypothetical shots is the marine firing ? Used by the smart check.
+	//Shots: How many hypothetical shots is the marine firing ? Use by both check types.
 	//Offset: Offset the origin of the smart check by these coordinates relative to the marine.
 	//Spread: A vector4 that stores: X = Minimum horizontal spread Y = Maximum horizontal spread Z = Minimum vertical spread W = Maximum vertical spread.
 	//Range: The maximum range of the attack.
-	//Hostiles: Count any enemies of the marine hit by the smart check as successful hits as well.
+	//Flags: The flags passed to the check.
 	Int DetermineHitChance (Actor Other, Bool Smart, Double Distance = Double.NaN, Double DumbSpread = 1,
-	Int Shots = 1, Vector3 Offsets = (0,0,0), Vector4 Spread = (0,0,0,0), Double Range = 4096, Bool Hostiles = True)
+	Int Shots = 1, Vector3 Offsets = (0,0,0), Vector4 Spread = (0,0,0,0), Double Range = 4096, Int Flags = DHC_HOSTILES)
 	{
 		If (!Other) Return 0;
 		If (!Smart) //Credit: TonynUBarnes for the tangent code.
 		{
 			If (Distance != Distance) //No cached distance passed, calculate it ourselves.
 				Distance = Distance3D(Other);
+			//Double FunnelDiv = KAI_Math.LinearMap (Distance,0,MaxTargetRange,32,1);
 			Console.Printf ("DetermineHitChance(): Distance to other is %.2f",Distance);
-			Double MathFunnel = Distance * Tan (DumbSpread/4);
-			Int Hits = Int(Other.Radius / MathFunnel);
-			//Hits = KAI_Math.LinearMap (Distance,0,MaxTargetRange,3,0); //Map the distance to an amount of landed hits from the Threshold to 0.
+			Double MathFunnel = Distance * Tan (DumbSpread);
+			Double Chance = (Other.Radius / MathFunnel)+FRandom(0,0.05);
+			Console.Printf ("Hit ratio %.3f",Chance);
+			
+			Int Hits;
+			
+			//Credit: RNG code written by RaveYard.
+			For (Int I = 0; I < Shots; I++)
+			{
+				If (FRandom (0,1.0) <= Chance)
+					Hits++;
+			}
 			
 			Console.Printf ("DetermineHitChance(): I will land %d shots with the dumb algorithm.",Hits);
 			console.printf ("funnel is %.2f",MathFunnel);
@@ -239,22 +267,26 @@ Extend Class SM_Marine
 			Vector3 AimDir;
 			Double HSpread, VSpread;
 			
+			If (Flags & DHC_THRUHOSTILES) //Turn DHC_HOSTILES too if DHC_THRUHOSTILES is true.
+				Flags |= (DHC_HOSTILES|DHC_THRUHOSTILES);
+			
 			Check.Shooter = Self;
 			Check.Other = Other;
-			Check.HostilesToo = Hostiles;
+			Check.HostilesToo = Flags & DHC_HOSTILES;
+			Check.ThruHostiles= Flags & DHC_THRUHOSTILES;
 			
 			While (--Shots >= 0)
 			{
 				Console.Printf ("Firing imaginary bullet.");
 				//Add spread and all that good stuff.
-				HSpread = Angle+FRandom (Spread.X,Spread.Y);
-				VSpread = Pitch+FRandom (Spread.Z,Spread.W);
+				HSpread = AngleTo(Other)+FRandom (Spread.X,Spread.Y);
+				VSpread = PitchTo(Other,Offsets.Z,GetAimPosOffset())+FRandom (Spread.Z,Spread.W);
 				AimDir = (AngleToVector(HSpread, Cos(VSpread)), -Sin(VSpread));
 				
 				Check.Trace (Start,CurSector,AimDir,Range,0);
 				
 				Console.Printf ("Trace fired at %d %d %d, Ended at %d %d %d",Start,Check.Results.HitPos);
-				Spawn ("teleportfog",Check.Results.HitPos);
+				Spawn ("KAI_DebugPoint",Check.Results.HitPos);
 				If (Check.Success)
 				{
 					FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
@@ -300,12 +332,16 @@ Class SM_HitChanceTracer : KAI_LOFRaycast
 {
 	Bool Success; //The hypotherical trace hit the Other actor or any other enemy of the shooter.
 	Bool HostilesToo; //Count hypothetical projectiles/hitscans stopped by enemies of the shooter successes too.
+	Bool ThruHostiles; //Used with HostilesToo. Makes the tracer ignore hostiles it has already hit.
 	Override ETraceStatus TraceCallback()
 	{
 		//We hit the target or another enemy.
-		If (Other && Results.HitActor == Other || HostilesToo && IsHostile(Shooter,Results.HitActor))
+		If (Other && Results.HitActor == Other || HostilesToo && IsHostile(Shooter,Results.HitActor)
+		//Ignore enemies we've hit already.
+		&& !(ThruHostiles && Mobjs.Find(Results.HitActor)))
 		{
-			Success = True;
+			Success = True; //This was a triumph.
+			If (ThruHostiles) AddToMobjList(Results.HitActor); //Add already hit hostiles to the list.
 			Return Trace_Stop;
 		}
 		

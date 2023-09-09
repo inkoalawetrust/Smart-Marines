@@ -1,0 +1,1 @@
+Server Bool SM_DumbHitCheck = False; //The marines determine how well they can hit a target at a distance with only math.

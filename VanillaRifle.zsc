@@ -94,13 +94,13 @@ Class VanillaRifle : Weapon
 			TNT1 A 0 A_JumpIfNoAmmo ("Reload");
 			VRIF C 2
 			{
-				
+				Double CrouchBuff = (Player && Player.Crouching == -1) ? 0.5 : 1;
 				A_WeaponOffset(wy:36,WOF_KEEPX|WOF_INTERPOLATE);
 				
 				If (!Invoker.AlreadyZoomed)
-					A_FireProjectile ("SM_Bullet",FRandom(2.2,-2.2),pitch:FRandom(2.3,-2.3));
+					A_FireProjectile ("SM_Bullet",FRandom(1.1,-1.1)*CrouchBuff,pitch:FRandom(1.1,-1.1)*CrouchBuff);
 				Else
-					A_FireProjectile ("SM_Bullet",FRandom(1,-1),pitch:FRandom(1.1,-1.1));
+					A_FireProjectile ("SM_Bullet",FRandom(0.55,-0.55)*CrouchBuff,pitch:FRandom(0.55,-0.55)*CrouchBuff);
 				A_SpawnItemEx ("SM_BulletCasing",32,-6,38,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
 				A_StartSound ("Marine/Fire"); //TODO: Pass the same parameters as the marines' attack.
 				
