@@ -1,6 +1,7 @@
 //TODO:
 
 //IDEA:
+//Try to make marines able to crouch under short ceilings once again, like I had once tried with my very first attempt at writing them.
 //Give marines a dropkick melee, especially when a light enough non-flying enemy is over a ledge, and especially if fall damage is on.
 //Give them 3 different grenade types depending on the situation, HE-FRAG, Smoke, and Flashbang.
 //Give marines the ability to scale ledges that are almost their height ? Since there's sprites for that in Project Brutality I could use, like the kicks.
@@ -24,6 +25,7 @@ Class SM_Marine : KAI_Humanoid
 		Mass 100;
 		Speed 8;
 		FastSpeed 10;
+		MeleeRange 64;
 		PainChance 96;
 		PainThreshold 5;
 		FriendlySeeBlocks 64;
@@ -62,8 +64,17 @@ Class SM_Marine : KAI_Humanoid
 		MarineState = MARINE_IDLING;
 		AmmoCount = 30;
 		MissileState = FindState ("Fire",True);
+		//The melee state should be passed automatically, since I have a state just called "Melee"
 		AttackStates.Push (FindState ("Fire",True));
 		AttackStates.Push (FindState ("Fire.Loop",True));
+		AttackStates.Push (FindState ("Melee",True));
+		AttackStates.Push (FindState ("Melee.Smack",True));
+		AttackStates.Push (FindState ("Melee.Kick",True));
+		AttackStates.Push (FindState ("Melee.Kick.Run",True)); //Technically an attack state, since he enters this to get up into melee range.
+		AttackStates.Push (FindState ("Marine.Jumpkick",True));
+		AttackStates.Push (FindState ("Marine.Jumpkick.Attack",True));
+		AttackStates.Push (FindState ("Marine.Jumpkick.End",True));
+		
 		//MeleeState = FindState (""); No melee attacks yet
 	}
 	
@@ -78,8 +89,26 @@ Class SM_Marine : KAI_Humanoid
 		If (/*GetAge() % 4 == 0 && */!(MarineState & MARINE_MELEE) && IsInAttackState())
 			AimAtTarget (8/**4*/,8/**4*/,attackspeed:170,200);
 		
+		//Update on whether or not the marine is berserking.
+		If (GetAge() % GameTicRate == 0)
+		{
+			If (CountInv("PowerStrength"))
+			{
+				HasBerserk = True;
+				bAvoidMelee = False;
+			}
+			Else
+			{
+				HasBerserk = False;
+				bAvoidMelee = True;
+			}
+		}
+		
 		If (NextFireDelay && !(MarineState & MARINE_FIRING)) //Decrement the firing delay, if any, for as long as the marine is not shooting.
 			NextFireDelay--;
+		
+		If (JumpKickDelay && !(MarineState & MARINE_MELEE))
+			JumpKickDelay--;
 	}
 	
 	Override Void Die (Actor Source, Actor Inflictor,Int DMGFlags,Name MeansOfDeath)
@@ -106,29 +135,28 @@ Class SM_Marine : KAI_Humanoid
 		If (!Target) Return False;
 		If (!CanAttack()) Return False;
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
+		Int Threat = AssessThreatLevel (Target);
 		
 		console.printf ("fire delay is %d tics",nextfiredelay);
-		//TODO: Use different trace offsets if the marine decides to fire kneeling or lying down. Also double DetermineHitChance accuracy on the Vector4s.
+		//TODO:
+		//Use different height offsets if the marine decides to fire kneeling or lying down. Also double DetermineHitChance accuracy on the Vector4s.
+		//Make it so if the marine is low on ammo (1-4 shots left), and is near an enemy weaker than him. He will melee it before running away.
 		
-		//Go to different gunfire states from ShouldAttack():
-			//3 round aimed bursts for weak enemies or at a decent distance
-			//Maybe even single (Very accurate) shots for large distances
-			//Full auto for close quarters or powerful enemies
-			//Maybe also factor in how much damage their actual attack does.
-			//And use as many traces as the marines' burst size to estimate the hit chance of a target ?
 		//Make the marines use HE-FRAG grenades:
 			//With random RNG, for variety.
 			//If the rifle is too ineffective against their target.
 			//And/Or if they are attacking around a crowd of enemies.
 			//If HE would be too ineffective (e.g against Cyberdemons or god mode players), but the target doesn't have +NOPAIN, they will throw flashbangs.
-		If (!NextFireDelay && SM_CheckLOF (FirePos)) //Can fire at all.
+		//Check if you should fire your gun.
+		Double Dist = Distance3D (Target);
+		//If low on ammo, do a quick melee attack on your enemy instead, if its' close enough and less dangerous than you. And then retreat to reload.
+		Bool QuickMelee = (AmmoCount <= 4 && Threat < Self.ThreatLevel && Dist <= MeleeRange*3);
+		If (true == false &&!QuickMelee && !NextFireDelay && SM_CheckLOF (FirePos))
 		{
-			Double Dist = Distance3D (Target);
-			Int Threat = AssessThreatLevel (Target);
-			
-			Vector4 SSpread = (0.4,-0.4,0.4,-0.4); //Single shot spread.
-			Vector4 BSpread = (1.1,-1.1,1.1,-1.1); //Burst fire spread.
-			Vector4 FSpread = (2.2,-2.2,2.2,-2.2); //Full auto spread.
+			Double Buff = SM_IsCrouched() ? 0.5 : 1.0;
+			Vector4 SSpread = (0.4*Buff,-0.4*Buff,0.4*Buff,-0.4*Buff); //Single shot spread.
+			Vector4 BSpread = (1.1*Buff,-1.1*Buff,1.1*Buff,-1.1*Buff); //Burst fire spread.
+			Vector4 FSpread = (2.2*Buff,-2.2*Buff,2.2*Buff,-2.2*Buff); //Full auto spread.
 			
 			//NOTE: The random numbers allow marines to sometimes decide to use a different sub-optimal firing mode, for variety.
 			If (!NoStateJump)
@@ -137,7 +165,7 @@ Class SM_Marine : KAI_Humanoid
 				//Fire a burst instead too sometimes.
 				Int FullAutoThreshold = (Health <= SpawnHealth()/6) ? 4 : 8; //If low on health, the marines will more desperately fire full auto.
 				If (Random (0, 255) >= 8 && (Threat >= THREAT_DANGEROUS ||
-				Threat < THREAT_NORMAL && DetermineHitChance (Target,SM_DumbHitCheck,Dist,2.2,15,FirePos,FSpread,MaxTargetRange,DHC_THRUHOSTILES) >= FullAutoThreshold))
+				Threat < THREAT_NORMAL && DetermineHitChance (Target,!SM_DumbHitCheck,Dist,2.2,15,FirePos,FSpread,MaxTargetRange,DHC_THRUHOSTILES) >= FullAutoThreshold))
 				{//https://youtu.be/LPAEgHsJYxk?si=4EdaE-oCczn5ehDD&t=75
 					BurstSize = MAGAZINE_SIZE;
 					AttackType = FIRE_FULLAUTO;
@@ -146,7 +174,7 @@ Class SM_Marine : KAI_Humanoid
 				//If your enemy is weak.
 				Else If (Random (0, 255) >= 3 && (/*Threat < THREAT_ABOVENORMAL ||*/
 				//Or you decided against full auto, but would hit the non-weak enemy at least twice.
-				DetermineHitChance (Target, SM_DumbHitCheck, Dist, 1.1, 3, FirePos, BSpread, MaxTargetRange) >= 2))
+				DetermineHitChance (Target, !SM_DumbHitCheck, Dist, 1.1, 3, FirePos, BSpread, MaxTargetRange) >= 2))
 				{//Then fire a burst.
 					BurstSize = 3;
 					AttackType = FIRE_BURST;
@@ -164,6 +192,60 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Return True;
 		}
+		
+		//Check if you should do melee. But only on weak-ish enemies.
+		//MAYDO: Add a variable that forces the marine to reload if QuickMelee is true, after he finishes his melee ?
+		Int MeleeChance = bAvoidMelee ? 32 : 128;
+		If (Random (0,255) < MeleeChance && Threat < THREAT_DANGEROUS)
+		{//if (!jumpkickdelay)SetStateLabel ("Melee.jumpKick"); //DEBUG
+			Bool CanSee = CheckSight(Target,SF_IGNOREWATERBOUNDARY);
+			If (KAI_CheckMeleeRange (Target) && CanSee) //Check the standard melee range.
+			{
+				If (!NoStateJump)
+				{
+					FCheckPosition TM;
+					Int DropkickChance = (bAvoidMelee ? 32 : 144);
+					//It's not safe to jump this far, so don't do this.
+					If (!CheckMove (Vec2Angle (64,AngleTo(Target)),PCM_DROPOFF))
+						DropkickChance = -1;
+					//Check if the enemy can move this far back.
+					If (DropkickChance != 1 && CheckMove (Target.Vec2Angle(88,Target.AngleTo(Self)),tm:TM))
+					{
+						//If there is a dropoff bigger than the targets' height, 88 MU from the direction you will face him at, be extra likely to punt him.
+						If ((Target.Pos.Z - TM.FloorZ) >= Target.Pos.Z+Target.Height)
+							DropkickChance += RandomPick (20,30,40);
+						
+						//Major points if the enemy will actually be HURT by falling off.
+						If ((Level.MonsterFallingDamage || Target.bFallDamage) && TM.CurSector.Flags & Sector.SECF_NOFALLINGDAMAGE)
+						{
+							If (Target.ApplyDamageFactor ("Falling",100) > 0) //Also check if it has a damage factor making it immune to this damage.
+								Dropkickchance += 50;
+						}
+					}
+					//Might do a flying kick that knocks actors around.
+					If (Random (0,255) < DropkickChance)
+					{a_log ("the target is standing near a ledge i can punt him off of");
+						{
+							SetStateLabel ("Melee.Jumpkick");
+							Return True;
+						}
+					}
+					//Randomly choose between kicks and rifle butts.
+					If (Random (False,True) == True)
+						SetStateLabel ("Melee.Smack");
+					Else
+						SetStateLabel ("Melee.Kick");
+				}
+				Return True;
+			}
+			Else If (CanSee && Random (0,255) < (bAvoidMelee ? 88 : 224) && KAI_CheckMeleeRange (Target,MeleeRange*4)) //Check 4 times further sometimes.
+			{a_log ("going to enter the kick chase state");
+				If (!NoStateJump)
+					SetStateLabel ("Melee.Kick.Run");
+				Return True;
+			}
+		}
+		
 		Return False;
 	}
 	
@@ -184,7 +266,9 @@ Class SM_Marine : KAI_Humanoid
 		MARINE_MELEE	= 1 << 5, //Beating someone up
 		MARINE_RELOAD 	= 1 << 6, //Reloading
 		MARINE_RETREAT	= 1 << 7, //GTFOing, assumed to be from some danger by default.
-		//MARINE_PATROL	= 1 << 8, //Patrolling
+		MARINE_KNEELING	= 1 << 8, //Kneeling down.
+		MARINE_LYINGDOWN= 1 << 9, //Lying down on the ground.
+		//MARINE_PATROL	= 1 << 10, //Patrolling
 	}
 	
 	Const MARINE_HEARDIST = 4096; //How far can the marine hear.
@@ -210,11 +294,16 @@ Class SM_Marine : KAI_Humanoid
 	{
 		FIRE_BURST, //Fire a 3 round burst like the base M4 Carbine. Decently accurate.
 		FIRE_SINGLE, //Fire a single accurate shot.
-		FIRE_FULLAUTO, //Fire everything, pretty inaccurate, adds recoil, and slightly faster than normal fire (MAYDO ?).
+		FIRE_FULLAUTO, //Fire everything, pretty inaccurate, adds recoil, and faster than normal fire.
 	}
 	Bool SittingDown; //Is the marine firing while kneeling or lying down ? Adds an overall accuracy buff.
+	//Other attacks
+	Bool HasBerserk; //Has an active berserk pack.
+	Int JumpkickDelay; //How long before the marine does a flying kick again.
 	
 	String User_Armor; //The name of the armor the marine should be equipped with upon spawning. Default is the vanilla green armor.
+	
+	vector3 OLDKICKPOSDEBUG;
 	
 	States
 	{
@@ -248,7 +337,7 @@ Class SM_Marine : KAI_Humanoid
 		//Idle.Stay.Alert: //Standing there, menacingly. Maybe use this for if the marine last saw an enemy a few seconds ago ?
 		//Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
 		See:
-			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True); //NOTE: Might cause problems if I implement the patrolling state ?
+			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True); //NOTE: Removing all marine stauses might cause problems if I implement the patrolling state ?
 			MARF JJKKLLMM 3 SM_Chase (chaseflags:CHF_DONTIDLE);
 			Goto See+1;
 		//TODO: Add these to the attack states array.
@@ -308,8 +397,113 @@ Class SM_Marine : KAI_Humanoid
 				Return State (Null);
 			}
 			Goto See;
+		//MAYDO: Make marines likely to retreat after melee, and less likely if they have berserk ?
+		Melee:
+			#### # 0 A_Jump (255,"Melee.Smack","Melee.Kick","Melee.Jumpkick"); 
+		Melee.Smack: //Smack enemy with your rifle.
+			#### # 0 A_FaceTarget();
+			MARI A 3 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_WANDER);
+			MARM A 2 A_FaceTarget();
+			MARM B 8
+			{
+				Double DmgMul = HasBerserk ? 10 : 1;
+				Sound HitSound = HasBerserk ? "Marine/PowerMelee" : "Marine/Melee";
+				A_CustomMeleeAttack (Random[Punch](4,8)*DmgMul,HitSound,"Marine/MeleeMiss",'Melee',HasBerserk);
+				If (HasBerserk) Target.A_Recoil (2*Cos(Target.PitchTo(Self,Target.Height/2)));
+			}
+			Goto See;
+		Melee.Kick: //Kick enemy in place, 50/50 chance on which one the marine will use since they are more or less the same.
+			#### # 0 A_FaceTarget();
+			MARI A 2 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_WANDER);
+			//#### # 0 A_JumpIf ((Distance2D(Target) >= (MeleeRange/2)+Target.Radius),"Melee.Kick.Run");
+			MARM F 8
+			{
+				Double DmgMul = HasBerserk ? 6 : 1;
+				Sound HitSound = HasBerserk ? "Marine/PowerMelee" : "Marine/Melee";
+				A_CustomMeleeAttack (Random[Punch](4,8)*DmgMul,HitSound,"Marine/MeleeMiss",'Melee',HasBerserk);
+				Target.TriggerPainChance ('Melee'); //Additional pain chance.
+				If (HasBerserk)
+				{
+					Target.TriggerPainChance ('Melee'); //Even more pain.
+					Target.A_Recoil (5*Cos(Target.PitchTo(Self,Target.Height/2))); //Produce recoil from the bottom of the marine to the middle of the victim.
+					Target.Vel.Z += 10; //Wee
+				}
+			}
+			Goto See;
+		//TODO: When I add the chase timer, use it here to make it so if the marine has ran too long, he will just give up on the melee, like if the enemy fucks off.
+		Melee.Kick.Run: //Too far to kick, run to the enemy.
+			MARM DDEE 2
+			{
+				//Give up on the target if its' dead, nonexistent, or way too far away.
+				If (!KAI_CheckMeleeRange(Target,1024) || IsDead (Target))
+					Return SeeState;
+				Double OldSpeed = Speed;
+				If (!HasBerserk)
+					A_SetSpeed (Speed*2.5); //The marine is just slightly faster than the stock players' walking speed.
+				Else
+					A_SetSpeed (Speed*3);
+				KAI_MoveTowards (Target.Pos,0.25,25);
+				A_SetSpeed (OldSpeed);
+				If (Distance2D(Target) <= (MeleeRange/2)+Target.Radius)
+					Return FindState ("Melee.Kick",True); //Now we can punt it.
+				Return State (Null);
+			}
+			Loop;
+		Melee.Jumpkick: //Jump.
+			MARI A 1 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_WANDER);
+			#### # 0
+			{
+				A_FaceTarget();
+				A_StartSound ("Marine/Throw");
+				A_Recoil (-10);
+				Vel.Z += 6;
+				console.printf ("start position %d %d %d",pos);
+				OLDKICKPOSDEBUG = pos;
+			}
+			MARI A 1; //One tick delay for the ground check to not immediately return true.
+			Marine.Jumpkick.Loop: //Flying loop.
+				MARM C 1
+				{a_log ("waiting to hit something");
+					//If we land or hit an actor.
+					If (GetZAt () >= Pos.Z || BlockingMobj)
+					{
+						Return FindState ("Marine.Jumpkick.Attack");
+					}
+					Return State (Null);
+				}
+				Wait;
+		Marine.Jumpkick.Attack: //Where the magic happens
+			MARM C 1
+			{
+				If (BlockingMobj)
+				{
+					Double DmgMul = HasBerserk ? 4 : 1;
+					Sound HitSound = HasBerserk ? "Marine/PowerMelee" : "Marine/Melee";
+					a_log ("THIS IS SPARTA");
+					A_StartSound (HitSound,CHAN_WEAPON);
+					Int Dmg = BlockingMobj.DamageMobj (Self,Self,Random[Punch](8,12)*DmgMul,'Melee');
+					BlockingMobj.TraceBleed (Dmg,Self);
+					If (!bDontThrust)
+					{
+						Double MassMul = KAI_Math.LinearMap (BlockingMobj.Mass,1000,0,0.0,1.0);
+						console.printf ("mass %d, mass multiplier %.2f",blockingmobj.mass,massmul);
+						Double XVel , YVel, ZVel;
+						XVel = YVel = 8*MassMul;
+						ZVel = 4*MassMul;
+						//If (HasBerserk) //Change velocities.
+						
+						//Double Ang = BlockingMobj.AngleTo (Self);
+						BlockingMobj.Vel.X += XVel * Cos (Angle) + YVel * Sin (Angle);
+						BlockingMobj.Vel.Y += XVel * Sin (Angle) - YVel * Cos (Angle);
+						BlockingMobj.Vel.Z += ZVel;
+					}
+				}console.printf ("end position %d %d %d, difference %d %d %d, difference distance %d",pos,level.vec3diff(pos,OLDKICKPOSDEBUG),
+				level.vec3diff(pos,OLDKICKPOSDEBUG).length());
+				JumpKickDelay = GameTicRate*Random(1,4);
+			}
+			Goto See;
 		Pain:
-			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_WANDER); //Being hurt interrupts staying idle, wandering, and throwing grenades.
+			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_WANDER|MARINE_MELEE); //Being hurt interrupts staying idle, wandering, and throwing grenades.
 			MARA E Random (7,14) A_Pain();
 			//MARA E 0 A_JumpIf ((MarineState & MARINE_RELOAD),"Reload"); //Go back to reloading if you were doing that already. IDEA: Or run away a bit ?
 			//MARA E 0 A_JumpIf ((MarineState & MARINE_RETREAT),"Retreat"); //Or running.

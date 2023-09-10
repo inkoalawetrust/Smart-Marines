@@ -2,10 +2,37 @@
 Extend Class SM_Marine
 {
 	//The code related to the marine making the player die.
+	//PLAYTEST: STILL UNTESTED !
 	Override String GetObituary (Actor Victim, Actor Inflictor, Name MOD, Bool PlayerAttack)
 	{
-		//PLACEHOLDER
-		Return Super.GetObituary (Victim,Inflictor,MOD,PlayerAttack);
+		//Melee obituaries
+		If (Inflictor == Self && MOD == 'Melee')
+		{
+			If (IsInState (Self,"Melee.Smack"))
+			{
+				If (HasBerserk)
+					Return "%o got %p head turned into a baseball by a marine";
+				Else
+					Return HitObituary;
+			}
+			Else If (IsInState (Self,"Melee.Kick"))
+			{
+				If (HasBerserk)
+					Return "%o got punted into orbit";
+				Else
+					Return "%o was neutered by a marines' foot";
+			}
+			Else If (IsInState (Self,"Melee.Jumpkick.Attack"))
+			{
+				If (HasBerserk)
+					Return "%o got %p head turned into a baseball by a marine";
+				Else
+					Return "%o was dropkicked to death by a marine";
+			}
+
+			Return HitObituary;
+		}
+		Return Super.GetObituary (Victim, Inflictor, MOD, PlayerAttack);
 	}
 
 	Int DeathAnimPlayed; //Keeps track of what death animation the marine played, so it can be played in reverse when resurrected.

@@ -53,7 +53,7 @@ Extend Class SM_Marine
 				Else
 					SetStateLabel (RetreatState);
 				MovedAlready = True;
-				Return;
+				//Return; //Might still melee you.
 			}
 			//Actual movement handling.
 			Else
@@ -69,6 +69,12 @@ Extend Class SM_Marine
 		}
 		
 		ShouldAttack(); //Run attack decision code.
+	}
+	
+	//Returns true if the marine is down on the ground in some capacity, as opposed to standing up.
+	Bool SM_IsCrouched()
+	{
+		Return (MarineState & (MARINE_KNEELING|MARINE_LYINGDOWN));
 	}
 	
 	//DECORATE-esque function for use in states.
@@ -335,15 +341,19 @@ Class SM_HitChanceTracer : KAI_LOFRaycast
 	Bool ThruHostiles; //Used with HostilesToo. Makes the tracer ignore hostiles it has already hit.
 	Override ETraceStatus TraceCallback()
 	{
+		Actor Mobj = Results.HitActor;
 		//We hit the target or another enemy.
-		If (Other && Results.HitActor == Other || HostilesToo && IsHostile(Shooter,Results.HitActor)
+		If (Other && Mobj == Other || HostilesToo && IsHostile(Shooter,Mobj)
 		//Ignore enemies we've hit already.
-		&& !(ThruHostiles && Mobjs.Find(Results.HitActor)))
+		&& !(ThruHostiles && Mobjs.Find(Mobj)))
 		{
 			Success = True; //This was a triumph.
-			If (ThruHostiles) AddToMobjList(Results.HitActor); //Add already hit hostiles to the list.
+			If (ThruHostiles) AddToMobjList(Mobj); //Add already hit hostiles to the list.
 			Return Trace_Stop;
 		}
+		
+		If (Mobj && Mobj != Shooter && IsCollidable(Mobj)) //Hit an actor that isn't an enemy.
+			Return Trace_Stop;
 		
 		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
 		If (BlockingLineInTheWay (Results.HitLine,0))
