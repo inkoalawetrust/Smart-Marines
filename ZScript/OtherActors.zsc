@@ -1,6 +1,4 @@
 //TODO:
-//Change the tracer code from many sprite pieces to a single custom model tracer.
-//Add custom splashes for the bullets.
 //Make a MVP_RifleBullet child class in the MVP that replaces these bullets upon spawning.
 
 Class SM_Bullet : KAI_BaseProjectile
@@ -183,6 +181,30 @@ Class SM_BulletSplash : Actor
 			TNT1 A 0 NoDelay A_StartSound("VRifle/WaterHit",CHAN_VOICE,attenuation:ATTN_STATIC);
 			HSPL ABCDEFGHI 1;
 			Stop;
+	}
+}
+
+Class SM_EmptyMagazine : Actor
+{
+	Default
+	{
+		Radius 6;
+		Height 8;
+		Scale 0.7;
+		+NoBlockmap;
+		+RollSprite;
+		+MoveWithSector;
+	}
+	States
+	{
+		Spawn:
+			MARA ] 1 NoDelay
+			{
+				If (Pos.Z - FloorZ >= 1)
+					Roll += 5;
+				Else {SpriteOffset.X = 3; Roll = 90;} //Fall sideways on the floor.
+			}
+			Loop;
 	}
 }
 

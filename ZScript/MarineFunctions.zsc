@@ -1,5 +1,9 @@
 Extend Class SM_Marine
 {
+	Enum MarineChaseFlags
+	{
+		SMC_NOUSESTATE = 1 << 0, //The marine will not wait in his interact state after using a line with no threat around.
+	}
 	//TODO: Add a chase timer that decrements as long as the target is not visible or dead, and once it reaches the threshold, jump to the Idle state.
 	//Unlike in the original Smart Marines, this is VERY MUCH a custom function.
 	Void SM_Chase (StateLabel WaitState = Null, StateLabel RetreatState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 25)
@@ -40,6 +44,7 @@ Extend Class SM_Marine
 			}
 		}
 		
+		Bool UsedLine;
 		//If you can move and haven't done so already.
 		If (!(ChaseFlags & CHF_DONTMOVE))
 		{
@@ -62,13 +67,115 @@ Extend Class SM_Marine
 				KAI_Chase_HandleStrafing (Target,ChaseFlags);
 				[B,MovedAlready] = KAI_Chase_PatrolHandling(WaitState, 0.2, anglelimit:TurnRadius, chaseflags:ChaseFlags);
 				
+				/*If there is no danger in sight, the marine will wait for lines he used like doors and platforms to move. Instead of moving around like a
+				normal monster. However, if there IS danger nearby, the marine will keep moving after using the line like normal.*/
+				Int NoStockUse;
+				If (!IsDangerNearby())
+				{
+					NoStockUse = KMT_NOLINEUSE;
+					UsedLine = SM_MarineUseLine(faceline:!(Flags & SMC_NOUSESTATE)); //Check if there's a line in front of use to use.
+				}
+				
 				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
 				If (Target && !MovedAlready)
-					KAI_MoveTowards (Target.Pos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|KMT_ZIGZAG);
+					KAI_MoveTowards (Target.Pos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|KMT_ZIGZAG|NoStockUse);
 			}
 		}
 		
 		ShouldAttack(); //Run attack decision code.
+		//TODO: Commented out this state until I can figure out how to actually check if a sector is moving, and get the middle point of a line.
+		//If (!(Flags & SMC_NOUSESTATE) && UsedLine) 
+			//SetStateLabel ("Interact");
+	}
+	
+	//Marine's use lines in front of them.
+	//IDEA: Make the marine detect doors or platforms in front of him, then if it's switch activated, search for nearby switches he can go up to and use. Dynamically.
+	Sector UseSec;
+	Bool SM_MarineUseLine (Double UseRange = 64, Bool FaceLine = False)
+	{
+		InteractWaits = 0; //Reset it here just in case.
+		//Let LineSearch = BlockLinesIterator.Create (Self,Radius+64);
+		//Count pushable lines as uses too.
+        If (bCanPushWalls && BlockingLine && BlockingLine.Special && BlockingLine.Activate (Self,0,SPAC_Push))
+		{
+			//If (FaceLine) Angle = GetAngleToPos ((GetLinePos(BlockingLine),0));
+			UseSec = GetLiftOrDoorSector(BlockingLine);//BlockingLine.BackSector;
+			Return True;
+		}
+		
+		If (!bCanUseWalls) Return False;
+		FLineTraceData Usage;
+		
+		LineTrace (Angle,UseRange,0,TRF_BLOCKUSE,Height/2,data:Usage);
+		
+		FSpawnParticleParams P; P.Color1 = "Pink"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+		KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(Height/2),Usage.HitLocation,Usage.Distance,4,p);
+		
+		//Used a line in front of us.
+		Line UseLine = Usage.HitLine;
+		If (UseLine && UseLine.Special && UseLine.Activate (Self,Usage.LineSide,SPAC_Use))
+		{
+			//If (FaceLine) Angle = GetAngleToPos ((GetLinePos(UseLine),0));
+			UseSec = GetLiftOrDoorSector(UseLine);//UseLine.BackSector;
+			a_log ("a marine ran his custom line use function");
+			Return True;
+		}
+		
+		Return False;
+	}
+	
+	//Gets the lift or door sector from the built in sector specials, instead of assuming the back sector is the door or lift, just in case.
+	Sector GetLiftOrDoorSector (Line TheLine)
+	{
+		Sector Result;
+		//Generally, it seems that args[0] is the tag of the affected sector. So this is what we assume.
+		Switch (TheLine.Special)
+		{
+			Case 11: //Door_Open
+			Case 12: //Door_Raise
+			Case 202: //Door_Generic
+			Case 105: //Door_WaitRase
+			Case 203: //Generic_Lift
+			{
+				Let TagIter = Level.CreateSectorTagIterator (TheLine.Args[0],TheLine);
+				Result = Level.Sectors[TagIter.Next()];
+				Break;
+			}
+		}
+		
+		//If (TheLine.Args[0] == 0)
+		//	Return TheLine.BackSector;
+		
+		Return Result;
+	}
+	
+	//KLUDGE: Sector.PlaneMoving doesn't work, despite doing the same thing as this. So we have to use this, epic.
+	Bool SM_SectorInMotion (Sector Sec)
+	{
+		If (!Sec)
+			Return False;
+		
+		If (Sec.FloorData || Sec.CeilingData)
+			Return True;
+		
+		Return False;
+	}
+	
+	//Get the middle point of a line.
+	//KLUDGE: GZDoom really doesn't like this formula I found on the Unreal Engine forum. Probably because it's too straightforward for its' esoteric tastes.
+	Vector2 GetLinePos (Line TheLine)
+	{
+		//If (!TheLine)
+			Return (Double.NaN, Double.NaN);
+		
+		//Return ((TheLine.V2.P - TheLine.V1.P) / TheLine.V2.P + TheLine.V1.P); 
+	}
+	
+	//KAI_MoveAway wrapper.
+	//MAYDO: Try and add code to make marines avoid smashing right into obstables ?
+	Void SM_RunAway (Actor Other, Double RunRad = 64, Int MaxSteps = 32, Double TurnRadius = 25, Int ChaseFlags = 0)
+	{
+		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags);
 	}
 	
 	//Returns true if the marine is down on the ground in some capacity, as opposed to standing up.
@@ -313,6 +420,40 @@ Extend Class SM_Marine
 			Return Hits;
 		}
 		Return 0;
+	}
+	
+	//Search for dangerous enemies around you.
+	Bool IsDangerNearby (Double Range = 1024)
+	{return false; //DEBUG
+		If (Target && CheckSight (Target, SF_IGNOREWATERBOUNDARY)) //My target is visible, that's an enemy.
+			{a_log ("IsDangerNearby(): Found target");Return True;}
+		
+		For (Int pn = 0; pn < MAXPLAYERS; pn++)  //An enemy player is visible, now THAT'S an enemy.
+		{
+			If(!PlayerInGame[pn])
+				Continue;
+			PlayerInfo plr = Players[pn];
+			
+			If (Plr && !IsFriend (Plr.Mo) && CheckSight(Plr.Mo,SF_IGNOREWATERBOUNDARY))
+				{a_log ("IsDangerNearby(): Found enemy player");Return True;}
+		}
+		
+		//Look for dangerous enemies.
+		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
+		
+		While (FindEnemies.Next())
+		{
+			Actor Mobj = FindEnemies.Thing;
+			
+			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
+			
+			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
+			a_log ("IsDangerNearby(): Found random enemy NPC");
+			Return True;
+		}
+		
+		Return False;
 	}
 }
 
