@@ -82,10 +82,33 @@ Extend Class SM_Marine
 			}
 		}
 		
+		SM_UpdateChaseTimer();
 		ShouldAttack(); //Run attack decision code.
 		//TODO: Commented out this state until I can figure out how to actually check if a sector is moving, and get the middle point of a line.
-		//If (!(Flags & SMC_NOUSESTATE) && UsedLine) 
-			//SetStateLabel ("Interact");
+		If (!(Flags & SMC_NOUSESTATE) && UsedLine) 
+			SetStateLabel ("Interact");
+		
+		//If you are set to not automatically idle, only do it when the timer is over the threshold.
+		If (ChaseFlags & CHF_DONTIDLE && ChaseTimer >= MARINE_CHASETIME)
+		{
+			A_ClearTarget();
+			ChaseTimer = 0;
+			SetIdle();
+		}
+	}
+	
+	//Increment the chase timer as long as the target is nonexistent, dead, or out of sight. And reset it if any of these conditions are false.
+	Void SM_UpdateChaseTimer()
+	{
+		If (IsPatrolling(Self)) //Ignore this if we are following a goal.
+			ChaseTimer = 0;
+		Bool Dead = IsDead(Target);
+		If (!Target || Target && (Dead || !CheckSight(Target,SF_IGNOREWATERBOUNDARY)))
+			ChaseTimer++;
+		Else
+			ChaseTimer = 0;
+		If (!Target || Dead) ChaseTimer++; //Decrement the timer extra fast if the target is just flat out gone.
+		Console.Printf ("SM_UpdateChaseTimer(): Time is %d",ChaseTimer);
 	}
 	
 	//Marine's use lines in front of them.
@@ -133,6 +156,7 @@ Extend Class SM_Marine
 		{
 			Case 11: //Door_Open
 			Case 12: //Door_Raise
+			Case 21: //Floor_LowerToNearest
 			Case 202: //Door_Generic
 			Case 105: //Door_WaitRase
 			Case 203: //Generic_Lift
@@ -143,8 +167,8 @@ Extend Class SM_Marine
 			}
 		}
 		
-		//If (TheLine.Args[0] == 0)
-		//	Return TheLine.BackSector;
+		If (TheLine.Args[0] == 0)
+			Return TheLine.BackSector;
 		
 		Return Result;
 	}
@@ -165,18 +189,47 @@ Extend Class SM_Marine
 	//KLUDGE: GZDoom really doesn't like this formula I found on the Unreal Engine forum. Probably because it's too straightforward for its' esoteric tastes.
 	Vector2 GetLinePos (Line TheLine)
 	{
-		//If (!TheLine)
+		If (!TheLine)
 			Return (Double.NaN, Double.NaN);
 		
-		//Return ((TheLine.V2.P - TheLine.V1.P) / TheLine.V2.P + TheLine.V1.P); 
+		Return ((TheLine.V2.P - TheLine.V1.P) * 0.5 + TheLine.V1.P); 
 	}
 	
 	//KAI_MoveAway wrapper.
 	//MAYDO: Try and add code to make marines avoid smashing right into obstables ?
-	Void SM_RunAway (Actor Other, Double RunRad = 64, Int MaxSteps = 32, Double TurnRadius = 25, Int ChaseFlags = 0)
+	Void SM_RunAway (Actor Other, Double RunRad = 64, Int MaxSteps = 32, Double TurnRadius = 25, Int ChaseFlags = 0, Int Flags = 0)//, Int KMAFlags = 0)
 	{
-		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags);
+		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS);
 	}
+	
+	/*//A copy of KAI_MoveAway, with code to walk behind corners.
+	Void SM_Retreat (Actor Other, Int Attempts = 16, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 0.5, Double AngleLimit = 25, Int ChaseFlags = 0, Int Flags = 0)
+	{
+		If (!Other) Return;
+		
+		//Got a goal to head to, no time to get spooked.
+		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
+		{
+			KAI_MoveTowards (Goal.Pos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			Return;
+		}
+		
+		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
+		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= MaxSteps && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
+		{
+			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			NewPosStepCount++;
+			Return;
+		}
+		//Once the position is reached, empty the the NextMovePos vector;
+		Else
+		{
+			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
+			NewPosStepCount = 0;
+		}
+		
+		NextMovePos = FindRandomMovePos (Other.Pos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Other.
+	}*/
 	
 	//Returns true if the marine is down on the ground in some capacity, as opposed to standing up.
 	Bool SM_IsCrouched()
@@ -454,6 +507,28 @@ Extend Class SM_Marine
 		}
 		
 		Return False;
+	}
+	
+	//====|Non-AI functions|====\\
+	//Handles the coloring of the marines. And if the string says "Random" returns a random available color string.
+	String SM_HandleMarineColoring (String WhatColor)
+	{
+		If (!WhatColor || WhatColor ~== "") Return; //Don't run the code if the string is empty.
+		
+		//Handles the random color choice that is performed if the color name given is "Random".
+		If (WhatColor ~== "Random")
+		{
+			Static Const String ColorArray[] = {"Red","Gray","White","Black","Blue","Yellow","Orange","Pink","DarkGreen","DarkRed","Default"}; //Contains all the valid color names.
+			
+			WhatColor = ColorArray[Random(0,ColorArray.Size()-1)]; //Randomly picks a color string.
+		}
+		
+		If (!(WhatColor ~== "Default"))
+			A_SetTranslation (String.Format("Marine_%s", WhatColor));
+		Else
+			A_SetTranslation ('');
+		
+		Return WhatColor;
 	}
 }
 

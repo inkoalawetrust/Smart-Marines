@@ -1,5 +1,3 @@
-//TODO:
-
 //IDEA:
 //Try to make marines able to crouch under short ceilings once again, like I had once tried with my very first attempt at writing them.
 //Give marines a dropkick melee, especially when a light enough non-flying enemy is over a ledge, and especially if fall damage is on.
@@ -120,6 +118,7 @@ Class SM_Marine : KAI_Humanoid
 		SM_EndFiring();
 		QuickMelee = False;
 		UseSec = Null;
+		ChaseTimer = 0;
 	}
 	
 	Override Void UserVariableDefaults()
@@ -132,6 +131,7 @@ Class SM_Marine : KAI_Humanoid
 			Else
 				GiveInventory (User_Armor,1); //Try giving whatever armor available in the current session that the mapper wants.
 		}
+		SM_HandleMarineColoring (User_Color);
 	}
 	
 	Override Bool ShouldAttack (Bool NoStateJump)
@@ -143,16 +143,16 @@ Class SM_Marine : KAI_Humanoid
 		
 		//console.printf ("fire delay is %d tics",nextfiredelay);
 		//TODO:
-		//Use different height offsets if the marine decides to fire kneeling or lying down. Also double DetermineHitChance accuracy on the Vector4s.
-		
+		//Use different fire heights if the marine decides to fire kneeling or lying down.
 		//Make the marines use HE-FRAG grenades:
 			//With random RNG, for variety.
 			//If the rifle is too ineffective against their target.
 			//And/Or if they are attacking around a crowd of enemies.
 			//If HE would be too ineffective (e.g against Cyberdemons or god mode players), but the target doesn't have +NOPAIN, they will throw flashbangs.
+		
+		
 		//Check if you should fire your gun.
 		Double Dist = Distance3D (Target);
-		
 		//If low on ammo, do a quick melee attack on your enemy instead, if its' close enough and less dangerous than you. And then retreat to reload.
 		QuickMelee = (AmmoCount <= 4 && Threat < Self.ThreatLevel && Dist <= MeleeRange*3);
 		If (!QuickMelee && !NextFireDelay && SM_CheckLOF (FirePos))
@@ -192,19 +192,20 @@ Class SM_Marine : KAI_Humanoid
 					a_log ("i have decided to fire a single shot");
 				}
 				
-				//BurstSize = 3; AttackType = FIRE_BURST; //PLACEHOLDER !!!!!!
+				ChaseTimer = 0;
 				SetStateLabel ("Fire");
 			}
 			Return True;
 		}
 		
 		//Check if you should do melee. But only on weak-ish enemies.
-		//MAYDO: Add a variable that forces the marine to reload if QuickMelee is true, after he finishes his melee ?
 		Int MeleeChance = bAvoidMelee ? 32 : 128;
+		If (QuickMelee) //Additional melee chance if you are low on ammo.
+			MeleeChance += 32;
 		If (Random (0,255) < MeleeChance && Threat < THREAT_DANGEROUS)
-		{//if (!jumpkickdelay)SetStateLabel ("Melee.jumpKick"); //DEBUG
-			Bool CanSee = CheckSight(Target,SF_IGNOREWATERBOUNDARY);a_log ("lets see if i can beat this guy up");
-			if (!cansee) a_log ("i don't see him here");
+		{
+			Bool CanSee = CheckSight(Target,SF_IGNOREWATERBOUNDARY);
+			
 			If (KAI_CheckMeleeRange (Target) && CanSee) //Check the standard melee range.
 			{
 				If (!NoStateJump)
@@ -213,39 +214,26 @@ Class SM_Marine : KAI_Humanoid
 					Int DropkickChance = (bAvoidMelee ? 32 : 72)*FRandom (1.0f,2.0f);
 					//It's not safe to jump this far, so don't do this.
 					If (!CheckMove (Vec2Angle (64,AngleTo(Target)),PCM_NOACTORS|PCM_DROPOFF))
-						{a_log ("i cant jump across this");DropkickChance = -1;spawn("kai_debugpoint",Vec3Angle (64,AngleTo(Target)));}
+						DropkickChance = -1;spawn("kai_debugpoint",Vec3Angle (64,AngleTo(Target)));
 					//Check if the enemy can move this far back.
 					If (DropkickChance != 1 && CheckMove ( Target.Vec2Angle(128, AngleTo(Target) ),tm:TM))
-					{a_log ("i can push %s here",target.getclassname());
-					spawn ("teleportfog", Target.Vec3Angle(128, AngleTo(Target) )); //Check where the check is happening.
+					{
 						//If there is a dropoff bigger than the targets' height, 128 MU from the direction you will face him at, be extra likely to punt him.
 						If ((TM.FloorZ+Target.Height) <= Target.FloorZ)
-						{
-							//console.printf ("the height difference is %d, and the absolute top of the enemy is %d",(Target.Pos.Z+Target.Height - TM.FloorZ),Target.Pos.Z);
-							a_log ("and they are over a ledge taller than them.");
 							DropkickChance += RandomPick (20,30,40);
-						}
-						else
-						{
-							//console.printf ("the insufficient height difference is %d, and the absolute top of the enemy is %d",(Target.Pos.Z+Target.Height - TM.FloorZ),Target.Pos.Z);
-							a_log ("they are over a ledge shorter than them.");
-						}
 						
 						//Major points if the enemy will actually be HURT by falling off.
 						If ((Level.MonsterFallingDamage || Target.bFallDamage) && !(TM.CurSector.Flags & Sector.SECF_NOFALLINGDAMAGE))
-						{a_log ("fall damage is on for them or globally");
 							If (Target.ApplyDamageFactor ("Falling",100) > 0) //Also check if it has a damage factor making it immune to this damage.
-								{a_log ("and they have no damage factor immunity to falling");Dropkickchance += 50;}
-						}
+								Dropkickchance += 50;
 					}
+					ChaseTimer = 0;
 					//Might do a flying kick that knocks actors around.
 					If (Random (0,255) < DropkickChance)
-					{a_log ("lets kick the shit out of him");
-						{
-							SetStateLabel ("Melee.Jumpkick");
-							Return True;
-						}
-					}else a_log ("no sparta kicking");
+					{
+						SetStateLabel ("Melee.Jumpkick");
+						Return True;
+					}
 					//Randomly choose between kicks and rifle butts.
 					If (Random (False,True) == True)
 						SetStateLabel ("Melee.Smack");
@@ -255,7 +243,8 @@ Class SM_Marine : KAI_Humanoid
 				Return True;
 			}
 			Else If (CanSee && Random (0,255) < (bAvoidMelee ? 88 : 224) && KAI_CheckMeleeRange (Target,MeleeRange*4)) //Check 4 times further sometimes.
-			{a_log ("going to enter the kick chase state");
+			{
+				ChaseTimer = 0;
 				If (!NoStateJump)
 					SetStateLabel ("Melee.Kick.Run");
 				Return True;
@@ -271,20 +260,30 @@ Class SM_Marine : KAI_Humanoid
 		Return (Other && (IsHostile (Other) || IsTargetingAllies (Self, Other)));
 	}
 	
+	Override Void OnWander()
+	{
+		Super.OnWander();
+		Bool UsedLine;
+		If (!IsDangerNearby())
+			UsedLine = SM_MarineUseLine(faceline:True); //Check if there's a line in front of use to use.
+		
+		//If (UsedLine) 
+			//SetStateLabel ("Interact");
+	}
+	
 	//Actions the marine is performing, can be stacked on each other like flags.
 	Enum MarineStates
 	{
 		MARINE_IDLING 	= 1 << 0, //Bing chilling
 		MARINE_CHASING	= 1 << 1, //Chasing someone.
-		MARINE_WANDER	= 1 << 2, //Wandering
-		MARINE_FIRING 	= 1 << 3, //Shooting
-		MARINE_THROWING	= 1 << 4, //Throwing a grenade
-		MARINE_MELEE	= 1 << 5, //Beating someone up
-		MARINE_RELOAD 	= 1 << 6, //Reloading
-		MARINE_RETREAT	= 1 << 7, //GTFOing, assumed to be from some danger by default.
-		MARINE_KNEELING	= 1 << 8, //Kneeling down.
-		MARINE_LYINGDOWN= 1 << 9, //Lying down on the ground.
-		//MARINE_PATROL	= 1 << 10, //Patrolling
+		MARINE_FIRING 	= 1 << 2, //Shooting
+		MARINE_THROWING	= 1 << 3, //Throwing a grenade
+		MARINE_MELEE	= 1 << 4, //Beating someone up
+		MARINE_RELOAD 	= 1 << 5, //Reloading
+		MARINE_RETREAT	= 1 << 6, //GTFOing, assumed to be from some danger by default.
+		MARINE_KNEELING	= 1 << 7, //Kneeling down.
+		MARINE_LYINGDOWN= 1 << 8, //Lying down on the ground.
+		//MARINE_PATROL	= 1 << 9, //Patrolling
 	}
 	
 	Const MARINE_HEARDIST = 4096; //How far can the marine hear.
@@ -292,6 +291,7 @@ Class SM_Marine : KAI_Humanoid
 	Const MAGAZINE_SIZE = 30; //How much ammo does the marine have per magazine ?
 	Const MARINE_FIREFOV = 60; //The FOV within which the marine can fire his VelInterceptEx() bullets without looking stupid.
 	Const MARINE_USEPATIENCE = 10; //How long the marine stays in the interact state.
+	Const MARINE_CHASETIME = 350; //Chase your target for approximately 30 seconds after he has gone out of sight or died, before going to your idle state.
 	
 	Mixin SM_SplashFunctions;
 	
@@ -301,6 +301,7 @@ Class SM_Marine : KAI_Humanoid
 	UInt8 InteractWaits; //Keeps track of how many times the interact state loops before the marine gives up waiting on the sector he used to stop.
 	Int AimPos; //Where is the marine aiming ? Similar to the TurretAimPos on the vehicles.
 	Int AimTimer; //If the marine has been trying to aim and fire at the target for this long, then it's not working.
+	Int ChaseTimer; //How long has the marines' target being dead or out of sight ?
 	
 	//Shooting variables.
 	Int AmmoCount; //How much ammo the marine has.
@@ -323,6 +324,7 @@ Class SM_Marine : KAI_Humanoid
 	Bool QuickMelee; //If the marine does a melee attack while this is one, he will retreat a bit before going back to See.
 	
 	String User_Armor; //The name of the armor the marine should be equipped with upon spawning. Default is the vanilla green armor.
+	String User_Color; //What color is the marine ?
 	
 	vector3 OLDKICKPOSDEBUG;
 	
@@ -353,16 +355,54 @@ Class SM_Marine : KAI_Humanoid
 			}
 			MARI HHHHHHHH 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
 			Loop;
-		//Idle:
-		//Idle.Stay: //Staying around idle. Basically like in the spawn state.
-		//Idle.Stay.Alert: //Standing there, menacingly. Maybe use this for if the marine last saw an enemy a few seconds ago ?
+		Idle:
+			MARI A 0 SM_SetMarineState (MARINE_IDLING,0,True); //No more acting, only bing chilling.
+			MARI AABBCCDD 3
+			{
+				KAI_Wander(8,768,anglelimit:20);
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+			}
+			MARI D 0 A_Jump (4,"Idle.Stay","Idle.Stay.Alert"/*,"Idle.Stay.Kneel"*/); //Might stay around.
+			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
+			Loop;
+		Idle.Stay: //Staying around idle. Exactly like in the spawn state.
+			MARI EEEEEEEE 3 //Look 80 degrees to your left.
+			{
+				Angle += 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle -= 80;
+				If (Target) SetStateLabel ("See");
+			}
+			MARI FFFFFFFF 3 //Look 20 degrees to your right.
+			{
+				Angle -= 20;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 20;
+				If (Target) SetStateLabel ("See");
+			}
+			MARI GGGGGGGG 3 //Look 80 degrees to your right.
+			{
+				Angle -= 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 80;
+				If (Target) SetStateLabel ("See");
+			}
+			MARI HHHHHHHH 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+			TNT1 A 0 A_Jump (48,"Idle");
+			Loop;
+		Idle.Stay.Alert: //Standing there, menacingly.
+			MARI IIIIIIIIIII 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET); //Roughly 1 second of staying still.
+			TNT1 A 0 A_SetAngle (Angle+RandomPick (40,30,20,10,0,0,-10,-20,-30,40));
+			TNT1 A 0 A_Jump (48,"Idle");
+			Loop;
 		//Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
 		See:
 			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True); //NOTE: Removing all marine stauses might cause problems if I implement the patrolling state ?
 			MARF JJKKLLMM 3 SM_Chase (chaseflags:CHF_DONTIDLE);
+			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
 			Goto See+1;
 		Retreat: //Run away a certain number of steps.
-			MARI AAABBBCCCDDD 1 SM_RunAway (Target);
+			MARI AAABBBCCCDDD 1 SM_RunAway (Target,192);
 			TNT1 A 0
 			{
 				RetreatLoops--;
@@ -393,7 +433,7 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Wait;
 		Fire.Loop:
-			MARF A 0 SM_SetMarineState (MARINE_FIRING,MARINE_IDLING|MARINE_THROWING|MARINE_WANDER); //Set marine actions.
+			MARF A 0 SM_SetMarineState (MARINE_FIRING,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_CHASING); //Set marine actions.
 			MARF A 3 //Delay
 			{
 				If (AttackType == FIRE_FULLAUTO)
@@ -456,6 +496,7 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Goto See;
 		Reload: //Reload the rifle.
+			TNT1 A 0 SM_SetMarineState (MARINE_RELOAD,0);
 			TNT1 A 0 A_JumpIf (RemovedOldMag,5); //We probably flinched mid reload or some shit, so go right to the end of the reload sequence.
 			MARA ABC 6;
 			MARA D 4 {A_SpawnItemEx ("SM_EmptyMagazine",0,-16,27,0,FRandom(-2,-5),FRandom(-1,-0.5)); RemovedOldMag = True;}
@@ -470,13 +511,13 @@ Class SM_Marine : KAI_Humanoid
 				SM_SetMarineState (0,MARINE_RELOAD); //We're done here.
 				RemovedOldMag = False;
 			}
+			TNT1 A 0 A_JumpIf (MARINE_IDLING,"Idle");
 			Goto See;
-		//MAYDO: Make marines likely to retreat after melee, and less likely if they have berserk ?
 		Melee:
 			#### # 0 A_Jump (255,"Melee.Smack","Melee.Kick","Melee.Jumpkick"); 
 		Melee.Smack: //Smack enemy with your rifle.
 			#### # 0 A_FaceTarget();
-			MARI A 3 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_WANDER);
+			MARI A 3 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_IDLING);
 			MARM A 2 A_FaceTarget();
 			MARM B 8
 			{
@@ -488,7 +529,7 @@ Class SM_Marine : KAI_Humanoid
 			Goto Melee.End;
 		Melee.Kick: //Kick enemy in place, 50/50 chance on which one the marine will use since they are more or less the same.
 			#### # 0 A_FaceTarget();
-			MARI A 2 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_WANDER);
+			MARI A 2 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_IDLING);
 			//#### # 0 A_JumpIf ((Distance2D(Target) >= (MeleeRange/2)+Target.Radius),"Melee.Kick.Run");
 			MARM F 8
 			{
@@ -505,13 +546,17 @@ Class SM_Marine : KAI_Humanoid
 				}
 			}
 			Goto Melee.End;
-		//TODO: When I add the chase timer, use it here to make it so if the marine has ran too long, he will just give up on the melee, like if the enemy fucks off.
 		Melee.Kick.Run: //Too far to kick, run to the enemy.
 			MARM DDEE 2
 			{
 				//Give up on the target if its' dead, nonexistent, or way too far away.
-				If (!KAI_CheckMeleeRange(Target,1024) || IsDead (Target))
+				Int RunSeconds = HasBerserk ? 6 : 3; //How many seconds to run before giving up.
+				If (!KAI_CheckMeleeRange(Target,1024) || IsDead (Target) || ++ChaseTimer >= (GameTicRate*RunSeconds)/CurState.Tics)
+				{
+					ChaseTimer = 0;
 					Return SeeState;
+				}
+				
 				Double OldSpeed = Speed;
 				If (!HasBerserk)
 					A_SetSpeed (Speed*2.5); //The marine is just slightly faster than the stock players' walking speed.
@@ -525,7 +570,7 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Loop;
 		Melee.Jumpkick: //Do a flying kick to your enemy, pushing them back in the process.
-			MARI A 1 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_WANDER);
+			MARI A 1 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_IDLING);
 			#### # 0
 			{
 				A_FaceTarget();
@@ -583,6 +628,7 @@ Class SM_Marine : KAI_Humanoid
 			#### # 0 A_JumpIf ((MarineState & MARINE_RELOAD),"Reload");
 			#### # 0
 			{
+				ChaseTimer = 0;
 				If (QuickMelee) //We came here to just do a quick attack.
 				{
 					QuickMelee = False;
@@ -600,7 +646,7 @@ Class SM_Marine : KAI_Humanoid
 				LookExParams MarineSight;
 				MarineSight.FOV = MARINE_FOV;
 				//Wait until you either run out of patience, the sector stops moving!
-				If (InteractWaits >= MARINE_USEPATIENCE || !SM_SectorInMotion (UseSec) ||
+				If (InteractWaits >= MARINE_USEPATIENCE || UseSec && (!UseSec.PlaneMoving(Sector.Floor) && !UseSec.PlaneMoving(Sector.Ceiling)) ||
 				//Or you can see your target again.
 				Target && IsVisible (Target,False,MarineSight))
 				{if (interactwaits >= MARINE_USEPATIENCE) a_log ("too much waiting");
@@ -618,10 +664,11 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0 {InteractWaits++;}
 			Loop;
 		Pain:
-			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_WANDER|MARINE_MELEE); //Being hurt interrupts staying idle, wandering, and throwing grenades.
+			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_MELEE); //Being hurt interrupts staying idle, wandering, and throwing grenades.
 			MARA E Random (7,14) A_Pain();
 			MARA E 0
 			{
+				ChaseTimer = 0;
 				If ((MarineState & MARINE_RELOAD)) //We were reloading before retreating.
 				{
 					If (!RetreatLoops) //Go to reloading, like if the marine was hurt mid reload. But do run away a bit first.
