@@ -4,7 +4,6 @@ Extend Class SM_Marine
 	{
 		SMC_NOUSESTATE = 1 << 0, //The marine will not wait in his interact state after using a line with no threat around.
 	}
-	//TODO: Add a chase timer that decrements as long as the target is not visible or dead, and once it reaches the threshold, jump to the Idle state.
 	//Unlike in the original Smart Marines, this is VERY MUCH a custom function.
 	Void SM_Chase (StateLabel WaitState = Null, StateLabel RetreatState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 25)
 	{
@@ -84,7 +83,7 @@ Extend Class SM_Marine
 		
 		SM_UpdateChaseTimer();
 		ShouldAttack(); //Run attack decision code.
-		//TODO: Commented out this state until I can figure out how to actually check if a sector is moving, and get the middle point of a line.
+		
 		If (!(Flags & SMC_NOUSESTATE) && UsedLine) 
 			SetStateLabel ("Interact");
 		
@@ -202,35 +201,6 @@ Extend Class SM_Marine
 		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS);
 	}
 	
-	/*//A copy of KAI_MoveAway, with code to walk behind corners.
-	Void SM_Retreat (Actor Other, Int Attempts = 16, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 0.5, Double AngleLimit = 25, Int ChaseFlags = 0, Int Flags = 0)
-	{
-		If (!Other) Return;
-		
-		//Got a goal to head to, no time to get spooked.
-		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
-		{
-			KAI_MoveTowards (Goal.Pos, DetourFactor, AngleLimit, ChaseFlags, Flags);
-			Return;
-		}
-		
-		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
-		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= MaxSteps && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
-		{
-			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
-			NewPosStepCount++;
-			Return;
-		}
-		//Once the position is reached, empty the the NextMovePos vector;
-		Else
-		{
-			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
-			NewPosStepCount = 0;
-		}
-		
-		NextMovePos = FindRandomMovePos (Other.Pos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Other.
-	}*/
-	
 	//Returns true if the marine is down on the ground in some capacity, as opposed to standing up.
 	Bool SM_IsCrouched()
 	{
@@ -254,6 +224,54 @@ Extend Class SM_Marine
 		If (!IsDead(Self)) NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
 		AimTimer = BurstCounter = BurstSize = 0; //Reset aim and burst counters.
 		AttackType = FIRE_BURST; //Reset to default fire mode.
+	}
+	
+	//Credit: Lewisk3
+	void SM_FireGrenade(Actor toAct, class<Actor> nade, double maxPitch = 90, double aimSens = 1.0, double aimDist = 128)
+	{
+		if(!toAct) return;
+		
+		// Source and Destination
+		vector3 fromPos = (
+			pos.xy,
+			pos.z + (height)
+		);
+		vector3 toPos = (
+			toAct.pos.xy, 
+			toAct.pos.z + (toAct.height * 0.5) 
+		);
+		
+		vector3 diff = level.vec3diff(fromPos, toPos);
+		
+		// Spawn grenade, calculate values from instance.
+		let nade = Spawn(nade, fromPos);
+		if(!nade) return;    
+		nade.target = self;
+		
+		// Modify toPos Z component based on how many units the thrown grenade
+		// fall by the time it reaches the destination.
+		double dist = diff.xy.Length();
+		if(dist >= aimDist)
+		{
+			double grav = 1.0 + ceil(nade.GetGravity() * (level.gravity * 0.010769));
+			double ticsDist = diff.Length() / double(max(nade.Speed,1.0));        
+			double fallDist = ticsDist * grav;
+			toPos.z += fallDist * aimSens;
+		}
+		
+		// Recalculate differences.
+		diff = level.vec3diff(fromPos, toPos);
+		double aimPitch = VectorAngle( sqrt(diff.y*diff.y + diff.x*diff.x), diff.z );
+		aimPitch = min(aimPitch, maxPitch);
+		
+		// Modify grenade velocity
+		double a = AngleTo(toAct);
+		double p = -aimPitch;
+		nade.vel = (
+			cos(a) * cos(p),
+			sin(a) * cos(p),
+			-sin(p)
+		) * nade.Speed;
 	}
 	
 	Void SM_FireBullet ()
@@ -376,103 +394,105 @@ Extend Class SM_Marine
 		}
 	}
 	
-	
-	//MAYDO: I might move this to the KAI, as a shared humanoid and vehicle function that is part of a mixin.
-	
-	Enum HitChanceFlags
+	//Return what grenade type is likely currently appropriate against the enemy.
+	Int DecideGrenadeType (Actor Against, Int Threshold = MARINE_GRENADECHANCE)
 	{
-		DHC_HOSTILES	= 1 << 0, //Count any enemies of the marine hit by the smart check as successful hits as well. Smart check only.
-		DHC_THRUHOSTILES= 1 << 1, //Implies DHC_HOSTILES too, makes the smart check go through any hostiles that have already been hit.
+		//Don't bother if the other actor doesn't exist, it's not time yet, or if the enemy flies and is over your head !
+		If (!Against || GrenadeDelay || IsFlying (Against) && Pos.Z+Height < Against.Pos.Z) Return GRENADE_NONE;
+		If (Distance3DSquared (Against) >= 768*768 || !SM_CheckLOF((0,0,Height),0)) //Not in throwing range. Or there is no direct LOF, yes, this doesn't account for arcing, I WILL NOT TRY.
+			Return GRENADE_NONE;
+		console.printf ("in range and in sight, lets decide to throw something, the throw threshold is %d",threshold);
+		Bool ImmuneToBlasts = (Against.GetRadiusDamage (Against,256,256,128,False,True) <= 256/8); //The enemy is immune or HIGHLY resistant to blasts.
+		Bool UseHE;
+		
+		//Decide to throw the HE-FRAG grenade without the frag sleeve. Large blast radius and damage, good for strong enemies.
+		//Based on RNG, if the target is super powerful, and if it's not effectively immune to pure explosion damage.
+		If (!ImmuneToBlasts && (Random (0,255) < 96 || AssessThreatLevel (Against) >= ThreatLevelThreshold))
+			{UseHE = True;a_log ("i have decided to throw a pure HE grenade");}
+		
+		//Now, let's check the chance of actually throwing a grenade.
+		Int BulletDamage = Against.ApplyDamageFactor ("SmallRifleBullet",100); //Return how much damage the actor would actually take if 10 bullets did maximum damage.
+		Int GrenChance = (Threshold > 0) ? Random (0,Threshold-24) : INT.MAX;console.printf ("the grenade throwing chance started as %d",grenchance);
+		Double BlastRadius = 192;
+		If (Threshold > 0)
+		{
+			GrenChance += 100-BulletDamage; //Increase grenade chance based on how much bullet damage the enemy can absorb.
+			GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True); //Also based on crowd size.
+		}
+		console.printf ("the grenade throwing chance is now %d",grenchance);
+		If (GrenChance >= Threshold) //Decide if you should throw an HE or frag grenade.
+			Return UseHE ? GRENADE_HE : GRENADE_HEFRAG;
+		
+		Return GRENADE_NONE;
 	}
 	
-	//Determines the chance of the marine hitting the other actor with his rifle.
-	//Other: The actor to check, obviously.
-	/*Smart: If this is on, usually when the (insert name here) CVAR is false. The marine will fire a series of hitscans at Other and return how many hit,
-	instead of using a basic distance check.*/
-	/*Distance: The distance to the Other actor, used for caching for the basic hit chance algorithm, if it's kept to -Double.NaN and Smart is false,
-	it calculates the distance itself.*/
-	//DumbSpread: The perfect conical spread of the attack, only used by the dumb hit chance algorithm.
-	//Shots: How many hypothetical shots is the marine firing ? Use by both check types.
-	//Offset: Offset the origin of the smart check by these coordinates relative to the marine.
-	//Spread: A vector4 that stores: X = Minimum horizontal spread Y = Maximum horizontal spread Z = Minimum vertical spread W = Maximum vertical spread.
-	//Range: The maximum range of the attack.
-	//Flags: The flags passed to the check.
-	Int DetermineHitChance (Actor Other, Bool Smart, Double Distance = Double.NaN, Double DumbSpread = 1,
-	Int Shots = 1, Vector3 Offsets = (0,0,0), Vector4 Spread = (0,0,0,0), Double Range = 4096, Int Flags = DHC_HOSTILES)
+	//Increase an integer value based on the amount of enemies and how powerful they are, to use for AOE attacks. Copied from the MVP !.
+	//Range: The range around which to check for enemies.
+	//AvoidAllies: Deduct points from the score for any allies in the AOE.
+	Int SM_AttackByQuantity (Actor Origin, Double Range = 256, Bool AvoidAllies = False)
 	{
-		If (!Other) Return 0;
-		If (!Smart) //Credit: TonynUBarnes for the tangent code.
+		If (!Origin) Return 0;
+		Actor Mobj;
+		Int Chance;
+		Bool IsHostile, IsVisible; //Caching
+		
+		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Origin,Range);
+		
+		While (FindEnemies.Next())
 		{
-			If (Distance != Distance) //No cached distance passed, calculate it ourselves.
-				Distance = Distance3D(Other);
-			//Double FunnelDiv = KAI_Math.LinearMap (Distance,0,MaxTargetRange,32,1);
-			Console.Printf ("DetermineHitChance(): Distance to other is %.2f",Distance);
-			Double MathFunnel = Distance * Tan (DumbSpread);
-			Double Chance = (Other.Radius / MathFunnel)+FRandom(0,0.05);
-			Console.Printf ("Hit ratio %.3f",Chance);
+			Mobj = FindEnemies.Thing;
 			
-			Int Hits;
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject (Mobj) || Mobj == Self/* || Mobj == Origin*/) Continue;
 			
-			//Credit: RNG code written by RaveYard.
-			For (Int I = 0; I < Shots; I++)
+			IsHostile = IsActorHostile (Mobj); IsVisible = IsVisible (Mobj,False);
+			If (AvoidAllies && !IsHostile && IsVisible)
 			{
-				If (FRandom (0,1.0) <= Chance)
-					Hits++;
+				If (Mobj.bIsMonster) Chance -= 10;
+				If (Mobj.Player) Chance -= 40;
+				Continue;
 			}
 			
-			Console.Printf ("DetermineHitChance(): I will land %d shots with the dumb algorithm.",Hits);
-			console.printf ("funnel is %.2f",MathFunnel);
-			Return Hits;
-		}
-		Else
-		{
-			Console.Printf ("DetermineHitChance(): Angle %.2f, Pitch %.2f",Angle,Pitch);
-			Let Check = New ("SM_HitChanceTracer");
-			Int Hits;
-			Vector3 Start = Level.Vec3Offset (Pos,Offsets);
-			Vector3 AimDir;
-			Double HSpread, VSpread;
-			
-			If (Flags & DHC_THRUHOSTILES) //Turn DHC_HOSTILES too if DHC_THRUHOSTILES is true.
-				Flags |= (DHC_HOSTILES|DHC_THRUHOSTILES);
-			
-			Check.Shooter = Self;
-			Check.Other = Other;
-			Check.HostilesToo = Flags & DHC_HOSTILES;
-			Check.ThruHostiles= Flags & DHC_THRUHOSTILES;
-			
-			While (--Shots >= 0)
-			{
-				Console.Printf ("Firing imaginary bullet.");
-				//Add spread and all that good stuff.
-				HSpread = AngleTo(Other)+FRandom (Spread.X,Spread.Y);
-				VSpread = PitchTo(Other,Offsets.Z,GetAimPosOffset())+FRandom (Spread.Z,Spread.W);
-				AimDir = (AngleToVector(HSpread, Cos(VSpread)), -Sin(VSpread));
-				
-				Check.Trace (Start,CurSector,AimDir,Range,0);
-				
-				Console.Printf ("Trace fired at %d %d %d, Ended at %d %d %d",Start,Check.Results.HitPos);
-				Spawn ("KAI_DebugPoint",Check.Results.HitPos);
-				If (Check.Success)
+			If (IsHostile && IsVisible && Mobj.Distance3DSquared (Origin) <= Range*Range)
+			{a_log ("checking an actor to blast to shit");
+				Switch (AssessThreatLevel (Mobj))
 				{
-					FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-					KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
-					Hits++; //Another happy landing.
-					console.printf ("successful hitscan went %.2f MU",check.results.distance);
+					Case THREAT_UNSTOPPABLE:
+						Chance += 500;
+						Break;
+					Case THREAT_SUPERDANGER:
+						Chance += 200;
+						Break;
+					Case THREAT_VERYDANGEROUS:
+						Chance += 80;
+						Break;
+					Case THREAT_DANGEROUS:
+						Chance += 40;
+						Break;
+					Case THREAT_ABOVENORMAL:
+						Chance += 20;
+						Break;
+					Case THREAT_NORMAL:
+						Chance += 10;
+						Break;
+					Case THREAT_MILD:
+						Chance += 8;
+						Break;
+					Case THREAT_LOW:
+						Chance += 5;
+						Break;
+					Case THREAT_VERYLOW:
+						Chance += 1;
+						Break;
+					Case THREAT_NONE:
+						Break;
+					Default:
+						Chance += 1;
+						Break;
 				}
-				Else
-				{
-					FSpawnParticleParams P; P.Color1 = "Red"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-					KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
-					console.printf ("failed hitscan went %.2f MU",check.results.distance);
-				}
-				Check.Success = False; //Try again.
 			}
-			Console.Printf ("DetermineHitChance(): I will land %d shots with the smart algorithm.",Hits);
-			Check.Destroy();
-			Return Hits;
 		}
-		Return 0;
+		
+		Return Chance;
 	}
 	
 	//Search for dangerous enemies around you.
@@ -513,7 +533,7 @@ Extend Class SM_Marine
 	//Handles the coloring of the marines. And if the string says "Random" returns a random available color string.
 	String SM_HandleMarineColoring (String WhatColor)
 	{
-		If (!WhatColor || WhatColor ~== "") Return; //Don't run the code if the string is empty.
+		If (!WhatColor || WhatColor ~== "") Return WhatColor; //Don't run the code if the string is empty.
 		
 		//Handles the random color choice that is performed if the color name given is "Random".
 		If (WhatColor ~== "Random")
@@ -550,36 +570,20 @@ Class SM_FindTargetInLOF : KAI_LOFRaycast
 	}
 }
 
-Class SM_HitChanceTracer : KAI_LOFRaycast
+//Find and return the first swimmable floor you hit.
+Class SM_FindSwimmableFloor : KAI_LOFRaycast
 {
-	Bool Success; //The hypotherical trace hit the Other actor or any other enemy of the shooter.
-	Bool HostilesToo; //Count hypothetical projectiles/hitscans stopped by enemies of the shooter successes too.
-	Bool ThruHostiles; //Used with HostilesToo. Makes the tracer ignore hostiles it has already hit.
-	Override ETraceStatus TraceCallback()
+	Override ETraceStatus TraceCallback ()
 	{
-		Actor Mobj = Results.HitActor;
-		//We hit the target or another enemy.
-		If (Other && Mobj == Other || HostilesToo && IsHostile(Shooter,Mobj)
-		//Ignore enemies we've hit already.
-		&& !(ThruHostiles && Mobjs.Find(Mobj)))
+		If (Results.Crossed3DWater)
 		{
-			Success = True; //This was a triumph.
-			If (ThruHostiles) AddToMobjList(Mobj); //Add already hit hostiles to the list.
+			console.printf ("hit swimmable water at %d %d %d",results.crossed3dwaterpos);
 			Return Trace_Stop;
 		}
 		
-		If (Mobj && Mobj != Shooter && IsCollidable(Mobj)) //Hit an actor that isn't an enemy.
-			Return Trace_Stop;
-		
-		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
-		If (BlockingLineInTheWay (Results.HitLine,0))
-			Return Trace_Stop;
-		
-		//Level geometry is in the way.
 		If (HitLevelGeometry (Results))
 			Return Trace_Stop;
 		
-		Results.HitActor = Null;
 		Return Trace_Skip;
 	}
 }
@@ -628,5 +632,45 @@ Mixin Class SM_SplashFunctions
 				Return LIQUID_SLIME;
 		
 		Return LIQUID_NONE;
+	}
+	
+	//Allows to quickly set up a spawned liquid splash, and then returns a pointer the splash to allow for further modifications, like making it visually larger or calling A_QuakeEx from it.
+	Actor SpawnLiquidSplash (Int LiquidType = LIQUID_WATER, Sound SplashSound = "SFX/LiquidExplosion", Double Volume = 1.0, Double Attenuation = 0.5,
+	Int ExplosionDamage = 0, Double ExplosionRadius = 0, Double FullDamageRadius = 0, Name DamageType = "", Bool DontHarmSource = False)
+	{
+		Actor Splash = Spawn ("SM_LiquidSplash",Pos);
+		
+		If (Splash)
+		{
+			//Set the shooter of the projectile for DontHarmSource to work.
+			If (bMissile)
+				Splash.Target = Target; //Projectiles store their shooter in the target pointer, so transfer the shooter to the splash.
+			Else
+				Splash.Target = Self; //Otherwise set the shooter to the actor calling the function, if it's not a projectile somehow.
+			
+			SM_LiquidSplash(Splash).LiquidType = LiquidType;
+			SM_LiquidSplash(Splash).SplashSound = SplashSound;
+			SM_LiquidSplash(Splash).Volume = Volume;
+			SM_LiquidSplash(Splash).Attenuation = Attenuation;
+			SM_LiquidSplash(Splash).RadiusDamage = ExplosionDamage;
+			SM_LiquidSplash(Splash).MaxTargetRange = ExplosionRadius;
+			SM_LiquidSplash(Splash).MeleeRange = FullDamageRadius;
+			SM_LiquidSplash(Splash).ExplosionDamageType = DamageType;
+			SM_LiquidSplash(Splash).DontHarmSource = DontHarmSource;
+			Return Splash;
+		}
+		
+		Return Null;
+	}
+	
+	F3DFloor FindWaterBelow (Double Distance = 8)
+	{
+		Let WaterCheck = New ("SM_FindSwimmableFloor");
+		
+		WaterCheck.Trace (Pos,CurSector,(0,0,-1),Distance,0);
+		Let FFloor = WaterCheck.Results.Crossed3DWater;
+		//If (HitPos != HitPos) HitPos = WaterCheck.Results.Crossed3DWaterPos;
+		WaterCheck.Destroy();
+		Return FFloor;
 	}
 }

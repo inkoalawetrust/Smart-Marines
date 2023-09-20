@@ -19,7 +19,7 @@ Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
 Marine jumping/dodging sprites made by Sergeant_Mark_IV. Jumping and shooting sprites made by Tabijaky.
 Crouched marine sprites made by TG5. Crouched gib death sprites made by Ghastly_Dragon.
 Lying down marine sprites made by TG5.
-Projectile sprites by inkoalawetrust.
+Grenade sprites by inkoalawetrust.
 
 ======|Other graphics|======
 Alternate marine colors by inkoalawetrust, partially based on the ones made by DBJ87 for the Allied Marines Realm667 resource.

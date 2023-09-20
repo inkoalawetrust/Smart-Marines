@@ -1,1 +1,1 @@
-Model a smoke, high explosion and fragmentation, and flashbang grenade, and use them as sprites.
+Model a smoke and flashbang grenade, and use them as sprites.

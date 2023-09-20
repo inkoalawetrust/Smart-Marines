@@ -1,6 +1,5 @@
 //IDEA:
 //Try to make marines able to crouch under short ceilings once again, like I had once tried with my very first attempt at writing them.
-//Give marines a dropkick melee, especially when a light enough non-flying enemy is over a ledge, and especially if fall damage is on.
 //Give them 3 different grenade types depending on the situation, HE-FRAG, Smoke, and Flashbang.
 //Give marines the ability to scale ledges that are almost their height ? Since there's sprites for that in Project Brutality I could use, like the kicks.
 //Make marines able to jump over certain obstacles if they can ?
@@ -109,6 +108,9 @@ Class SM_Marine : KAI_Humanoid
 		
 		If (JumpKickDelay && !(MarineState & MARINE_MELEE))
 			JumpKickDelay--;
+		console.printf ("the grenade delay is %d",grenadedelay);
+		If (GrenadeDelay && !(MarineState & (MARINE_FIRING)))
+			GrenadeDelay--;
 	}
 	
 	Override Void Die (Actor Source, Actor Inflictor,Int DMGFlags,Name MeansOfDeath)
@@ -136,7 +138,7 @@ Class SM_Marine : KAI_Humanoid
 	
 	Override Bool ShouldAttack (Bool NoStateJump)
 	{
-		If (!Target) Return False;
+		If (!Target || Target == Goal) Return False; //Don't attack if you have no target or just following a goal.
 		If (!CanAttack()) Return False;
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
 		Int Threat = AssessThreatLevel (Target);
@@ -144,18 +146,21 @@ Class SM_Marine : KAI_Humanoid
 		//console.printf ("fire delay is %d tics",nextfiredelay);
 		//TODO:
 		//Use different fire heights if the marine decides to fire kneeling or lying down.
+		//I'll probably have to make a dedicated DecideGrenadeType() function for the other types, that if it returns GRENADE_NONE will let the marine shoot.
 		//Make the marines use HE-FRAG grenades:
 			//With random RNG, for variety.
 			//If the rifle is too ineffective against their target.
 			//And/Or if they are attacking around a crowd of enemies.
 			//If HE would be too ineffective (e.g against Cyberdemons or god mode players), but the target doesn't have +NOPAIN, they will throw flashbangs.
 		
-		
 		//Check if you should fire your gun.
 		Double Dist = Distance3D (Target);
+		
+		GrenadeType = DecideGrenadeType (Target);
+		
 		//If low on ammo, do a quick melee attack on your enemy instead, if its' close enough and less dangerous than you. And then retreat to reload.
 		QuickMelee = (AmmoCount <= 4 && Threat < Self.ThreatLevel && Dist <= MeleeRange*3);
-		If (!QuickMelee && !NextFireDelay && SM_CheckLOF (FirePos))
+		If (GrenadeType == GRENADE_NONE && !QuickMelee && !NextFireDelay && SM_CheckLOF (FirePos))
 		{
 			Double Buff = SM_IsCrouched() ? 0.5 : 1.0;
 			Vector4 SSpread = (0.4*Buff,-0.4*Buff,0.4*Buff,-0.4*Buff); //Single shot spread.
@@ -170,7 +175,7 @@ Class SM_Marine : KAI_Humanoid
 				Int FullAutoThreshold = (Health <= SpawnHealth()/6) ? 4 : 8; //If low on health, the marines will more desperately fire full auto.
 				Bool DoFullAuto = (Random (0, 255) < 200);
 				If ((DoFullAuto && Threat >= THREAT_DANGEROUS ||
-				DetermineHitChance (Target,!SM_DumbHitCheck,Dist,2.2,15,FirePos,FSpread,MaxTargetRange,DHC_THRUHOSTILES) >= FullAutoThreshold))
+				DetermineHitChance (Target,!SM_DumbHitCheck,Dist,2.2,15,FirePos,FSpread,MaxTargetRange,GetAimPosOffset(),DHC_THRUHOSTILES) >= FullAutoThreshold))
 				{//https://youtu.be/LPAEgHsJYxk?si=4EdaE-oCczn5ehDD&t=75
 					BurstSize = MAGAZINE_SIZE;
 					AttackType = FIRE_FULLAUTO;
@@ -179,7 +184,7 @@ Class SM_Marine : KAI_Humanoid
 				//If your enemy is weak.
 				Else If (Random (0, 255) >= 3 && (/*Threat < THREAT_ABOVENORMAL ||*/
 				//Or you decided against full auto, but would hit the non-weak enemy at least twice.
-				DetermineHitChance (Target, !SM_DumbHitCheck, Dist, 1.1, 3, FirePos, BSpread, MaxTargetRange) >= 2))
+				DetermineHitChance (Target, !SM_DumbHitCheck, Dist, 1.1, 3, FirePos, BSpread, MaxTargetRange, GetAimPosOffset()) >= 2))
 				{//Then fire a burst.
 					BurstSize = 3;
 					AttackType = FIRE_BURST;
@@ -198,10 +203,19 @@ Class SM_Marine : KAI_Humanoid
 			Return True;
 		}
 		
+		If (GrenadeType != GRENADE_NONE)
+		{
+			If (!NoStateJump)
+				SetStateLabel ("Grenade");
+			Return True;
+		}
+		
 		//Check if you should do melee. But only on weak-ish enemies.
 		Int MeleeChance = bAvoidMelee ? 32 : 128;
-		If (QuickMelee) //Additional melee chance if you are low on ammo.
+		If (QuickMelee && Health < SpawnHealth()/4) //Additional melee chance if you are low on ammo but not on health.
 			MeleeChance += 32;
+		If (Health >= SpawnHealth()/4)
+			MeleeChance -= 32; //Lower melee chance if you are low on health.
 		If (Random (0,255) < MeleeChance && Threat < THREAT_DANGEROUS)
 		{
 			Bool CanSee = CheckSight(Target,SF_IGNOREWATERBOUNDARY);
@@ -215,8 +229,8 @@ Class SM_Marine : KAI_Humanoid
 					//It's not safe to jump this far, so don't do this.
 					If (!CheckMove (Vec2Angle (64,AngleTo(Target)),PCM_NOACTORS|PCM_DROPOFF))
 						DropkickChance = -1;spawn("kai_debugpoint",Vec3Angle (64,AngleTo(Target)));
-					//Check if the enemy can move this far back.
-					If (DropkickChance != 1 && CheckMove ( Target.Vec2Angle(128, AngleTo(Target) ),tm:TM))
+					//Check if the enemy can move this far back. And doesn't fly.
+					If (!IsFlying (Target) && DropkickChance != 1 && CheckMove ( Target.Vec2Angle(128, AngleTo(Target) ),tm:TM))
 					{
 						//If there is a dropoff bigger than the targets' height, 128 MU from the direction you will face him at, be extra likely to punt him.
 						If ((TM.FloorZ+Target.Height) <= Target.FloorZ)
@@ -292,6 +306,7 @@ Class SM_Marine : KAI_Humanoid
 	Const MARINE_FIREFOV = 60; //The FOV within which the marine can fire his VelInterceptEx() bullets without looking stupid.
 	Const MARINE_USEPATIENCE = 10; //How long the marine stays in the interact state.
 	Const MARINE_CHASETIME = 350; //Chase your target for approximately 30 seconds after he has gone out of sight or died, before going to your idle state.
+	Const MARINE_GRENADECHANCE = 150; //The chance threshold over which the marine will throw a grenade if in range. MAYDO: Make this into a user variable.
 	
 	Mixin SM_SplashFunctions;
 	
@@ -322,11 +337,20 @@ Class SM_Marine : KAI_Humanoid
 	Bool HasBerserk; //Has an active berserk pack.
 	Int JumpkickDelay; //How long before the marine does a flying kick again.
 	Bool QuickMelee; //If the marine does a melee attack while this is one, he will retreat a bit before going back to See.
+	Int GrenadeDelay; //How long until the marine throws another grenade.
+	UInt8 GrenadeType; //What grenade are we throwing exactly ?
+	
+	Enum GrenadeTypes
+	{
+		GRENADE_NONE, //No grenade
+		GRENADE_HEFRAG, //Exploding+Fragmenting grenades, useful both for crowds and +NORADIUSDMG foes like Cyberdemons due to the hitscan shrapnel.
+		GRENADE_HE, //Pure exploding with no frag jacket. Bigger boom and even better for crowds, AND powerful enemies vulnerable to blasts like the MBT. But not +NORADIUSDMG.
+		GRENADE_SMOKE, //No damage, just throws off +DOSHADOWBLOCK monsters, allowing marines to conceal themselves against powerful enemies and/or while retreating.
+		GRENADE_STUN, //Flashbang, useful for stunning/painlocking anything without +NOPAIN, including players. Stun time depends on threat level.
+	}
 	
 	String User_Armor; //The name of the armor the marine should be equipped with upon spawning. Default is the vanilla green armor.
 	String User_Color; //What color is the marine ?
-	
-	vector3 OLDKICKPOSDEBUG;
 	
 	States
 	{
@@ -362,9 +386,12 @@ Class SM_Marine : KAI_Humanoid
 				KAI_Wander(8,768,anglelimit:20);
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 			}
+			MARI D 0 A_JumpIf (IsPatrolling(Self),1); //Ignore the random staying if patrolling. Only stand when a patrol delay tells you.
 			MARI D 0 A_Jump (4,"Idle.Stay","Idle.Stay.Alert"/*,"Idle.Stay.Kneel"*/); //Might stay around.
 			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
 			Loop;
+		Idle.Decide: //Decide a random stay state to enter, for when patrolling and you reach a delayed point.
+			TNT1 A 0 A_Jump (127,"Idle.Stay.Alert");
 		Idle.Stay: //Staying around idle. Exactly like in the spawn state.
 			MARI EEEEEEEE 3 //Look 80 degrees to your left.
 			{
@@ -388,19 +415,29 @@ Class SM_Marine : KAI_Humanoid
 				If (Target) SetStateLabel ("See");
 			}
 			MARI HHHHHHHH 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
-			TNT1 A 0 A_Jump (48,"Idle");
+			TNT1 A 0
+			{
+				If (Random (0,255) < 48 && !IsPatrolling (Self)) Return FindState ("Idle",True);
+				Return State (Null);
+			}
 			Loop;
 		Idle.Stay.Alert: //Standing there, menacingly.
 			MARI IIIIIIIIIII 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET); //Roughly 1 second of staying still.
 			TNT1 A 0 A_SetAngle (Angle+RandomPick (40,30,20,10,0,0,-10,-20,-30,40));
-			TNT1 A 0 A_Jump (48,"Idle");
+			TNT1 A 0
+			{
+				If (Random (0,255) < 48 && !IsPatrolling (Self)) Return FindState ("Idle",True);
+				Return State (Null);
+			}
 			Loop;
 		//Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
 		See:
 			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True); //NOTE: Removing all marine stauses might cause problems if I implement the patrolling state ?
-			MARF JJKKLLMM 3 SM_Chase (chaseflags:CHF_DONTIDLE);
+			MARF JJKKLLMM 3 SM_Chase ("Idle.Decide","RunFromMelee",CHF_DONTIDLE);
 			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
 			Goto See+1;
+		RunFromMelee:
+			TNT1 A 0 {RetreatLoops = 2;}
 		Retreat: //Run away a certain number of steps.
 			MARI AAABBBCCCDDD 1 SM_RunAway (Target,192);
 			TNT1 A 0
@@ -513,6 +550,42 @@ Class SM_Marine : KAI_Humanoid
 			}
 			TNT1 A 0 A_JumpIf (MARINE_IDLING,"Idle");
 			Goto See;
+		Grenade: //https://www.youtube.com/watch?v=BJrxKiW5f-4
+			TNT1 A 0 SM_SetMarineState (MARINE_THROWING,MARINE_MELEE|MARINE_IDLING|MARINE_FIRING|MARINE_IDLING);
+			MARF F 6;
+			MARF G 4
+			{
+				//AnnounceGrenadeThrow();
+				Class <Actor> GrenCls;
+				Switch (GrenadeType) //Pick the right grenade type.
+				{
+					Case GRENADE_HEFRAG:
+						GrenCls = "SM_FragGrenade";
+						Break;
+					Case GRENADE_HE:
+						GrenCls = "SM_HEGrenade";
+						Break;
+					/*Case GRENADE_SMOKE:
+						GrenCls = "SM_SmokeGrenade";
+						Break;
+					Case STUN_GRENADE:
+						GrenCls = "SM_StunGrenade";
+						Break;*/
+					Default:
+						GrenCls = "SM_FragGrenade";
+						Break;
+				}
+				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+				SM_FireGrenade (Target,GrenCls,55,1.1,1024);
+				GrenadeDelay = 40; //Don't throw a grenade again until at least a second has passed.
+				GrenadeType = GRENADE_NONE; //Reset GrenadeType
+			}
+			TNT1 A 0
+			{
+				RetreatLoops += Random (4,8);
+				SM_SetMarineState (MARINE_THROWING,0); //Were done.
+			}
+			Goto Retreat; //Run a way a little.
 		Melee:
 			#### # 0 A_Jump (255,"Melee.Smack","Melee.Kick","Melee.Jumpkick"); 
 		Melee.Smack: //Smack enemy with your rifle.
@@ -577,13 +650,11 @@ Class SM_Marine : KAI_Humanoid
 				A_StartSound ("Marine/Throw");
 				A_Recoil (-10);
 				Vel.Z += 6;
-				console.printf ("start position %d %d %d",pos);
-				OLDKICKPOSDEBUG = pos;
 			}
 			MARI A 1; //One tick delay for the ground check to not immediately return true.
 			Marine.Jumpkick.Loop: //Flying loop.
 				MARM C 1
-				{a_log ("waiting to hit something");
+				{
 					//If we land or hit an actor.
 					If (GetZAt () >= Pos.Z || BlockingMobj)
 						Return FindState ("Marine.Jumpkick.Attack");
@@ -618,8 +689,7 @@ Class SM_Marine : KAI_Humanoid
 						BlockingMobj.Vel.Z += ZVel*BuffMul;
 						BlockingMobj.bBlasted = True;
 					}
-				}console.printf ("end position %d %d %d, difference %d %d %d, difference distance %d",pos,level.vec3diff(pos,OLDKICKPOSDEBUG),
-				level.vec3diff(pos,OLDKICKPOSDEBUG).length());
+				}
 				JumpKickDelay = GameTicRate*Random(1,4);
 			}
 			Goto Melee.End;
