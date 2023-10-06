@@ -181,10 +181,6 @@ Class SM_BulletSplash : Actor
 	}
 }
 
-//TODO: The fun part, handling 3D floors:
-//Splash if JUST above a swimmable floor. Check by firing an actual LineTracer instead of LineTrace().
-//Of course, also check the swimmable floors' top texture to get the proper splash graphic.
-//Maybe genericize the code for KAI_Projectile once I write it.
 Class SM_FragGrenade : KAI_BaseProjectile
 {
 	Default
@@ -266,7 +262,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		
 		If (IsFrozen())
 			Return;
-		console.printf ("i have %f gravity",getgravity());
+		
 		//The actual timer.
 		If (IsInState(Self,"Spawn"))
 		{
@@ -432,6 +428,138 @@ Class SM_HEGrenade : SM_FragGrenade
 	}
 }
 
+Class SM_SmokeGrenade : KAI_BaseProjectile
+{
+	Default
+	{
+		Radius 4;
+		Height 8;
+		Mass 1;
+		Gravity 0.5;
+		Scale 0.2;
+		Speed 30;
+		BounceFactor 0.4;
+		WallBounceFactor 0.5;
+		ReactionTime 35*4; //Used as the fuse timer, similar to how A_Countdown uses it.
+		BounceType "Hexen";
+		BounceSound "Grenade/Bounce";
+		DamageType "Grenade";
+		-NoGravity;
+		-NoBlockmap; //So marines can find and run from them. MAYDO: Remove this probably, not sure how relevant it'll be once I add a VJ Base esque hazard system to the KAI.
+		+RollSprite;
+		+FloorClip;
+		+CanBounceWater;
+		+DontBounceOnSky;
+		+BounceOnActors;
+	}
+	
+	Override Void Die (Actor Source, Actor Inflictor, Int DMGFlags, Name MeansOfDeath)
+	{
+		Vector3 OldVel;
+		Super.Die (Source, Inflictor, DMGFlags, MeansOfDeath);
+		Vel = OldVel;
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (IsFrozen())
+			Return;
+		
+		//The actual timer.
+		If (IsInState(Self,"Spawn"))
+		{
+			ReactionTime--;
+			//Play the beeping sound when the grenades' fuse is close to detonaton. But not when the grenade has exploded.
+			If (ReactionTime <= Default.ReactionTime/3)
+				A_StartSound ("Grenade/Warning",CHAN_WEAPON,CHANF_LOOPING,1.0,2);
+		}
+		
+		If (GetAge() % 4 == 0)
+		{
+			//Only roll and play the bounce sound when moving fast enough.
+			If (Vel.Length() >= 2)
+			{
+				BounceSound = Default.BounceSound;
+				Roll += 20;
+				SpriteOffset.X = 0;
+			}
+			Else
+			{
+				BounceSound = "";
+				Roll = -90; //Fall over when not in motion.
+				SpriteOffset.X = -4;
+			}
+		}
+	}
+	
+	States
+	{
+		Spawn:
+			TNT1 A 0 NoDelay A_SpawnItemEx ("SM_GrenadeLever",yvel:FRandom(-2,-4),FRandom(2,4));
+			SMGR F 4
+			{
+				//Time's out.
+				If (ReactionTime <= 0)
+					SetStateLabel ("Deploy");
+			}
+			Goto Spawn+1;
+		Deploy: //KLUDGE: The smoke canister can't "die" because then it gets stuck in mid air.
+			SMGR F 0
+			{
+				A_StopSound (CHAN_WEAPON);
+				A_StartSound ("Grenade/SmokeDeploy");
+				bNoGravity = False; //Can still bounce around.
+				ReactionTime = GameTicRate*15; //Now the reaction time is used to count how long before the grenade stops spitting smoke.
+				//A KAI NPC spawned us, get their handler so we only have the inevitable projectile list update overhead.
+				If (Target && Target Is "KAI_Actor")
+				{
+					If (KAI_Actor(Target).KAIHandler)
+						KAI_Actor(Target).KAIHandler.RemoveFromProjectileList (Self);
+				}
+				//Not a KAI NPC shooter, or we had no shooter at all. So we need the extra overhead of finding the handler.
+				Else If (!Target || !(Target Is "KAI_Actor"))
+				{
+					Let Handler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler"));
+					If (Handler)
+						Handler.RemoveFromProjectileList (Self);
+				}
+			}
+			SMGR F 1
+			{
+				If (ReactionTime <= 0) Return State (Null);
+				console.printf ("smoke counter is %d",reactiontime);
+				
+				Actor Smoke;
+				For (Int I = 2; I > 0; I--)
+				{
+					Smoke = Spawn ("SM_SmokeParticle",Pos.PlusZ (Height/2),ALLOW_REPLACE);
+					
+					If (Smoke)
+					{
+						Double XVel = FRandom (7,-7); Double YVel = FRandom (7,-7); Double ZVel = FRandom (-2,7);
+						Double Ang = FRandom (0,360);
+						Smoke.Angle = Angle;
+						Smoke.Vel.X = XVel * Cos (Ang) + YVel * Sin (Ang);
+						Smoke.Vel.Y = XVel * Sin (Ang) - YVel * Cos (Ang);
+						Smoke.Vel.Z = ZVel;
+						
+						Smoke.Speed *= FRandom (-1.5,1.5); //Set roll speed.
+						Smoke.ReactionTime *= FRandom (0.75,2.5);
+						Double Mul = FRandom (0.75,3); //Update both the visual and hitbox size, for +SHADOWBLOCK.
+						Smoke.Scale *= Mul;
+						Smoke.A_SetSize (Radius*Mul,Height*Mul);
+					}
+				}
+				
+				If (Smoke) ReactionTime--; //Increment the counter only every tick in which smoke was spawned.
+				Return State (Null);
+			}
+			Wait;
+	}
+}
+
 Class SM_ShrapnelPuff : BulletPuff
 {
 	Default {Scale 0.5;}
@@ -481,6 +609,69 @@ Class SM_ShrapnelPuff : BulletPuff
 	}
 }
 
+Class SM_SmokeParticle : Actor
+{
+	Default
+	{
+		Speed 2; //How fast the smoke rolls around.
+		Radius 24;
+		Height 48;
+		ReactionTime 35; //How long the smoke lasts.
+		ShadowPenaltyFactor 2.0;
+		Scale 0.75;
+		//RenderStyle "Add";
+		+NoGravity;
+		+RollSprite;
+		+ShadowBlock; //The secret sauce.
+		+ForceXYBillboard;
+	}
+	
+	Override Void Tick ()
+	{
+		If (IsFrozen())
+			Return;
+		
+		Vector3 Old = Pos;
+		
+		//Copy of the basic MF5_NOINTERACTION movement code. Since that flag also disables blockmap linking, which is needed for SHADOWBLOCK.
+		If (!KAI_Math.IsEmptyVector3 (Vel))
+			SetOrigin (Vec3Offset(Vel.X,Vel.Y,Vel.Z),True);
+		
+		Vel *= 0.98;
+		
+		ReactionTime--;
+		
+		//FastProjectile state progression code.
+		if (Tics != -1)
+		{
+			If (Tics > 0) Tics--;
+			While (!Tics)
+			{
+				If (!SetState (CurState.NextState))
+				{ // Mobj was removed
+					Return;
+				}
+			}
+		}
+	}
+	
+	States
+	{
+		Spawn:
+			MSMK ABCDEFG 2 A_SetRoll (Roll+Speed,SPF_INTERPOLATE);
+			MSMK G 0 A_JumpIf (ReactionTime < 0, 2);
+			MSMK G 2 A_SetRoll (Roll+Speed,SPF_INTERPOLATE);
+			Goto Spawn+7;
+			MSMK HIJKLM 2
+			{
+				A_SetRoll (Roll+Speed,SPF_INTERPOLATE);
+				A_SetSize (Radius*0.98,Height*0.98); //The hitbox size matters for SHADOWBLOCK as well.
+				A_SetScale (Scale.X*0.98);
+				A_FadeOut (0.02);
+			}
+			Stop;
+	}
+}
 Class SM_GrenadeLever : Actor //The lever the grenade drops once the pin is pulled.
 {
 	Default

@@ -7,3 +7,18 @@ Version "4.10"
 	#Include "ZScript/MarineFunctions.zsc" //Functions shared by all marine types.
 	#Include "ZScript/OtherActors.zsc" //Misc actors used by the marines.
 	#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
+
+Class SM_MarineHandler : EventHandler
+{
+	Override Void WorldThingSpawned (WorldEvent E)
+	{
+		//If there's 2000 or less monsters (For performance) on the map. Give newly spawned monsters +DOSHADOWBLOCK.
+		//Used to make tank smokescreens affect monster aiming in general, and in the future, for marine smoke grenades.
+		If (!SM_Disable_DoShadowBlock && Level.Total_Monsters <= 2000 && E.Thing && E.Thing.bIsMonster)
+		{
+			//Ignore if the thing has the flag on already. Or is a lost soul-alike.
+			If (!E.Thing.bDoShadowBlock && !(E.Thing.bFloat && (E.Thing.bSkullFly || E.Thing.bRetargetAfterSlam)))
+				E.Thing.bDoShadowBlock = True;
+		}
+	}
+}

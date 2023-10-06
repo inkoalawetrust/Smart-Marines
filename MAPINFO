@@ -6,5 +6,5 @@ DoomEdNums
 
 GameInfo
 {
-	//AddEventHandlers = "SM_ProjectileHandler", "SM_LiquidTextureNameList", "SM_SquadHandler"
+	AddEventHandlers = "SM_MarineHandler"
 }

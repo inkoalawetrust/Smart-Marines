@@ -101,7 +101,10 @@ Class VanillaRifle : Weapon
 					A_FireProjectile ("SM_Bullet",FRandom(1.1,-1.1)*CrouchBuff,pitch:FRandom(1.1,-1.1)*CrouchBuff);
 				Else
 					A_FireProjectile ("SM_Bullet",FRandom(0.55,-0.55)*CrouchBuff,pitch:FRandom(0.55,-0.55)*CrouchBuff);
-				A_SpawnItemEx ("SM_BulletCasing",32,-6,38,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
+				Double CaseZ = 38;
+				If (Player)
+					CaseZ *= Player.CrouchFactor;
+				A_SpawnItemEx ("SM_BulletCasing",32,-6,CaseZ,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
 				A_StartSound ("Marine/Fire"); //TODO: Pass the same parameters as the marines' attack.
 				
 				A_GunFlash();

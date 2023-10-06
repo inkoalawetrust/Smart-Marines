@@ -79,6 +79,7 @@ Grenade/Bounce "Sounds/GrenadeBounce.ogg"
 Grenade/Explode "Sounds/GrenadeBoom.ogg"
 Grenade/Warning "Sounds/GrenadeBeep.ogg"
 Grenade/WaterBlast "Sounds/WaterBoom.ogg"
+Grenade/SmokeDeploy "Sounds/SmokeDeploy.ogg"
 
 $Attenuation Turret/Fire 0.25
 $Attenuation Turret/Impact 0.75
@@ -114,3 +115,4 @@ $Limit Turret/Impact 0
 $Limit Grenade/Bounce 0
 $Limit Grenade/Explode 0
 $Limit Grenade/WaterBlast 0
+$Limit Grenade/SmokeDeploy 0

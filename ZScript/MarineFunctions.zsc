@@ -9,6 +9,8 @@ Extend Class SM_Marine
 	{
 		//Very marine specific things
 		If (BurstCounter) BurstCounter = 0; //Reset the burst fire countdown when not firing. Like if the marine is hurt mid-burst.
+		bNoFriction = Default.bNoFriction; //Reset the friction flag to the default, in case the marine begun firing or something mid-jump.
+		bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
 		
 		//ZScript exports of different segments of GZDooms' native AI code. This is the stuff not needed for movement.
 		KAI_Chase_PreChecks(ChaseFlags);
@@ -75,9 +77,31 @@ Extend Class SM_Marine
 					UsedLine = SM_MarineUseLine(faceline:!(Flags & SMC_NOUSESTATE)); //Check if there's a line in front of use to use.
 				}
 				
+				If (!MovedAlready)
+					MovedAlready = SM_HandleClimbing();
+				Else
+					SM_HandleClimbing();
+				
+				Vector2 JumpPosition = SM_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
+				If (JumpPosition == JumpPosition) //We have a valid position we must jump to, AKA the returned vector isn't null.
+				{
+					//The jump destination is longer than half the jump distance, so do a long jump if there's space behind you for it.
+					//If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/2)
+						//TODO: Got to running jump state etc.
+					//Else //The distance is less than 144 MU away, so do a normal jump.
+					{
+						JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
+						SetStateLabel ("Jump");
+						MovedAlready = True;
+					}
+				}
+				
+				
 				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
 				If (Target && !MovedAlready)
+				{
 					KAI_MoveTowards (Target.Pos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|KMT_ZIGZAG|NoStockUse);
+				}
 			}
 		}
 		
@@ -96,6 +120,160 @@ Extend Class SM_Marine
 		}
 	}
 	
+	//Exactly what it says, handles detecting ledges and making the marine climb them.
+	//The jumping variable allows the marine to jump so that he can catch ledges that are barely just too high to reach.
+	Bool SM_HandleClimbing (Bool Jumping = True)
+	{
+		FCheckPosition Tm;
+		Tm.FromPMove = True;
+		Vector2 CheckPos = Vec2Angle(Speed,Angle);
+		//Handle climbing up ledges about the marines' height.
+		//BUG: The code causes the marine to climb over invisible ledges if it crosses from normal geometric ground to bridge things.
+		If (!CheckMove (CheckPos,0,Tm)
+		//Marines can climb over actors, but shouldn't do it on LIVING ones, since it looks stupid, especially with friendly marines climbing over the player.
+		&& (!BlockingMobj || IsInanimateObject (BlockingMobj)))
+		{
+			//KLUDGE: I'm pretty sure Tm.FloorZ should handle actors itself, but it doesn't.
+			Double ClimbZ = Tm.FloorZ;
+			If (BlockingMobj)
+				ClimbZ += BlockingMobj.Height;
+			if (isinstate (self,"jump"))
+				console.printf ("im trying to climb mid jump, my z pos is %.2f, and my climb height is %.2f, tm.floorz is %.2f",pos.z,climbz,tm.floorz);
+			//Ledge is just at around the marines' height.
+			If (ClimbZ < Pos.Z+(Height*1.1) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
+			{
+				ClimbPos = (CheckPos,ClimbZ);
+				SetOrigin ((ClimbPos.XY,Pos.Z),True);
+				console.printf ("angle to pos is %.2f",GetAngleToPos(ClimbPos));
+				SetStateLabel ("Climb");
+				Return True;
+			}
+			//Ledge is just a bit too tall for the marine, but could be still reached by jumping and grabbing it.
+			//Height*1.75 is around 98 MU with the marines' 56 MU height.
+			Else If (Jumping && ClimbZ < Pos.Z+(Height*1.75) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
+			{
+				//If (ClimbZ >= Pos.Z+(Height*1.8)) //Blocking actor is too high up to climb over.
+				//	{a_log ("this truck is too tall to jump AND THEN climb over, nested check");Return False;}
+				
+				JumpPos = (CheckPos,ClimbZ-56); //Jump to the position we need to climb.
+				SetStateLabel ("Jump");
+				Return True;
+			}
+			else
+			a_log ("this truck is too tall to jump AND THEN climb over");
+		}
+		Return False;
+	}
+	
+	//Get a position for the marine to jump to, if he doesn't have to jump, the gap is too wide, or there's something in the way, this returns a null vector.
+	Vector2 SM_GetJumpPosition (Double CheckDistance, Double CheckAngle)
+	{
+		Vector2 PosOffset = Vec2Angle (Radius*2,CheckAngle);
+		spawn ("kai_debugpoint",(posoffset,floorz));
+		vector3 oldpos = pos;
+		setorigin ((posoffset,pos.z),false);
+		Vector2 Path = Level.Vec2Diff( PosOffset, Vec2Angle (CheckDistance,CheckAngle));
+		Double Distance = Path.Length()-0;
+		Double Spacing = Radius*2.01;
+		If (Distance <= 1) {a_log ("SM_GetJumpPosition(): Epic fail");Return (Double.NaN,Double.NaN);}
+		Path /= Distance;
+		Double RealDropHeight = MaxDropoffHeight;
+		
+		Vector2 MovePos;
+		FCheckPosition Tm;
+		Double RealHeight;
+		For (Int I = 0; I < Distance+Spacing; I += Spacing)
+		{
+			MovePos = Level.Vec2Offset(Pos.XY, Path*I);spawn ("kai_debugpoint",(movepos,tm.floorz));
+			Bool Moved = CheckPosition (MovePos,False,Tm);
+			//console.printf ("SM_GetJumpPosition(): movepos %d %d %d, floorz is %d",(movepos,tm.floorz),tm.floorz);
+			//Get the real height, used by GetZAt to handle ledges.
+			RealHeight = CurSector.NextLowestFloorAt (Pos.X,Pos.Y,Pos.Z,FFCF_3DRESTRICT,MaxStepHeight);
+			//if (!((FloorZ - Tm.DropoffZ) > RealDropHeight/2))
+			//	a_log ("SM_GetJumpPosition(): floorz dropoff height isn't low enough");
+			//if (!((RealHeight - Tm.DropoffZ) > RealDropHeight/2))
+			//	a_log ("SM_GetJumpPosition(): real dropoff height isn't low enough");
+			//This position has a dropoff larger than the marines' dropoff height.
+			If ((FloorZ - Tm.DropoffZ) > RealDropHeight/2 && (RealHeight - Tm.DropoffZ) > RealDropHeight/2)
+			{
+				spawn ("kai_debugpoint",(movepos,tm.floorz));
+			}
+			//Or it doesn't, so stop the check, this is where we should jump at. If it's not short enough for the marine to just walk over of course.
+			Else
+			{
+				//console.printf ("SM_GetJumpPosition(): failed pos at %d %d, ravine height is %d",movepos,(FloorZ - Tm.DropoffZ));
+				//Make the jump pos null if the distance to the jump position is shorter than the marines' radius. Like if there is no hole to jump over at all.
+				If (Level.Vec2Diff (Pos.XY,MovePos).Length() < Radius)
+					{/*a_log ("SM_GetJumpPosition(): jump length too short, nullifying jump position");*/MovePos = (Double.NaN,Double.NaN);}
+				Break;
+			}
+		}
+		
+		//The path was clear and all that, but the final position is RIGHT INTO THE MOAT WE'RE WANT TO JUMP OVER.
+		If ((FloorZ - Tm.DropoffZ) > RealDropHeight/2 && (RealHeight - Tm.DropoffZ) > RealDropHeight/2)
+			{/*console.printf ("SM_GetJumpPosition(): jump destination is in the pit, cancelling jump");*/MovePos = (Double.NaN,Double.NaN);}
+		
+		setorigin (oldpos,false);
+		
+		If (MovePos == MovePos) //Only run this if MovePos isn't null.
+		{
+			FLineTraceData JumpClear;
+			LineTrace (CheckAngle,distance,0,TRF_SOLIDACTORS|TRF_THRUHITSCAN,Height/2,Radius*2,data:JumpClear);
+			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(Height/2),JumpClear.HitLocation,JumpClear.Distance,8,p);
+			//console.printf ("SM_GetJumpPosition(): jumpclear distance is %.2f, and it hit at %d %d %d",jumpclear.distance, jumpclear.hitlocation);
+			
+			If (JumpClear.HitType != TRACE_HitNone)
+				{a_log ("SM_GetJumpPosition(): my jump path is not clear");Return (Double.NaN,Double.NaN);}
+			
+			//spawn ("teleportfog",(movepos,tm.floorz));
+		}
+		Return MovePos;
+	}
+	
+	//Have the marine jump to the specified position, this uses a custom version of Lewisk3's grenade throwing function.
+	Void SM_JumpTo (Vector3 Where, Double JumpSpeed = 17.2)
+	{
+		//FireGrenade() properties turned into hardcoded variables.
+		Double AimDist = 0;//MARINE_JUMPLENGTH;
+		Double MaxPitch = 90;
+		Double AimSens = 1.1;
+		
+		// Source and Destination
+		vector3 fromPos = (
+			pos.xy,
+			pos.z + (height/2) //MAYDO: Remove this additional Z offset entirely maybe ?
+		);
+		vector3 toPos = Where;
+		
+		vector3 diff = level.vec3diff(fromPos, toPos);
+		
+		// Modify toPos Z component based on how many units the thrown  ̶g̶r̶e̶n̶a̶d̶e̶ marine
+		// fall by the time it reaches the destination.
+		double dist = diff.xy.Length();
+		if(dist >= aimDist)
+		{
+			double grav = 1.0 + ceil(self.GetGravity() * (level.gravity * 0.010769));
+			double ticsDist = diff.Length() / double(max(self.Speed,1.0));        
+			double fallDist = ticsDist * grav;
+			toPos.z += fallDist * aimSens;
+		}
+		
+		// Recalculate differences.
+		diff = level.vec3diff(fromPos, toPos);
+		double aimPitch = VectorAngle( sqrt(diff.y*diff.y + diff.x*diff.x), diff.z );
+		aimPitch = min(aimPitch, maxPitch);
+		spawn ("teleportfog",topos);
+		// Modify  ̶g̶r̶e̶n̶a̶d̶e̶ marine velocity
+		double a = GetAngleToPos(Where,0);
+		double p = -aimPitch;
+		self.vel = (
+			cos(a) * cos(p),
+			sin(a) * cos(p),
+			-sin(p)
+		) * JumpSpeed;
+	}
+	
 	//Increment the chase timer as long as the target is nonexistent, dead, or out of sight. And reset it if any of these conditions are false.
 	Void SM_UpdateChaseTimer()
 	{
@@ -107,7 +285,7 @@ Extend Class SM_Marine
 		Else
 			ChaseTimer = 0;
 		If (!Target || Dead) ChaseTimer++; //Decrement the timer extra fast if the target is just flat out gone.
-		Console.Printf ("SM_UpdateChaseTimer(): Time is %d",ChaseTimer);
+		//Console.Printf ("SM_UpdateChaseTimer(): Time is %d",ChaseTimer);
 	}
 	
 	//Marine's use lines in front of them.
@@ -194,10 +372,36 @@ Extend Class SM_Marine
 		Return ((TheLine.V2.P - TheLine.V1.P) * 0.5 + TheLine.V1.P); 
 	}
 	
+	//Change what sprite frame to display based on the marines' pitch.
+	//TODO: Add alternate handling for when kneeling down.
+	Int SM_UpdateElevation (Int Down, Int Straight, Int Up, Int KneelDown = -1, Int KneelStraight = -1, Int KneelUp = -1)
+	{
+		If (!SittingDown)
+		{
+			If (Pitch <= -15)
+				Return Up;
+			Else If (Pitch >= 10)
+				Return Down;
+		}
+		Else
+		{
+			If (Pitch <= -15)
+				Return KneelUp;
+			Else If (Pitch >= 10)
+				Return KneelDown;
+		}
+		
+		If (!SittingDown)
+			Return Straight;
+		Else
+			Return KneelStraight;
+	}
+	
 	//KAI_MoveAway wrapper.
 	//MAYDO: Try and add code to make marines avoid smashing right into obstables ?
 	Void SM_RunAway (Actor Other, Double RunRad = 64, Int MaxSteps = 32, Double TurnRadius = 25, Int ChaseFlags = 0, Int Flags = 0)//, Int KMAFlags = 0)
 	{
+		bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
 		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS);
 	}
 	
@@ -220,10 +424,11 @@ Extend Class SM_Marine
 	//End the marines' firing sequence. Used by both the Fire.End: state, and when the marine abruptly dies.
 	Void SM_EndFiring()
 	{
-		SM_SetMarineState (0,MARINE_FIRING|MARINE_THROWING|MARINE_MELEE);
+		SM_SetMarineState (0,MARINE_FIRING|MARINE_THROWING|MARINE_MELEE|MARINE_KNEELING|MARINE_LYINGDOWN);
 		If (!IsDead(Self)) NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
 		AimTimer = BurstCounter = BurstSize = 0; //Reset aim and burst counters.
 		AttackType = FIRE_BURST; //Reset to default fire mode.
+		SittingDown = False;
 	}
 	
 	//Credit: Lewisk3
@@ -279,7 +484,7 @@ Extend Class SM_Marine
 		A_StartSound ("Marine/Fire",CHAN_WEAPON);
 		Actor Bullet = A_SpawnProjectile ("SM_Bullet",42,-6,flags:CMF_AIMDIRECTION,Pitch);
 		Double AccuracyBuff = SittingDown ? 0.5 : 1.0; //Double the accuracy if the marine is sitting down and firing.
-		Switch (AttackType) //TODO: Add slight recoil for full auto.
+		Switch (AttackType)
 		{
 			Case FIRE_BURST:
 				AddProjectileSpread (Bullet,(1.1,-1.1)*AccuracyBuff,(1.1,-1.1)*AccuracyBuff);
@@ -402,34 +607,78 @@ Extend Class SM_Marine
 		If (Distance3DSquared (Against) >= 768*768 || !SM_CheckLOF((0,0,Height),0)) //Not in throwing range. Or there is no direct LOF, yes, this doesn't account for arcing, I WILL NOT TRY.
 			Return GRENADE_NONE;
 		console.printf ("in range and in sight, lets decide to throw something, the throw threshold is %d",threshold);
-		Bool ImmuneToBlasts = (Against.GetRadiusDamage (Against,256,256,128,False,True) <= 256/8); //The enemy is immune or HIGHLY resistant to blasts.
-		Bool UseHE;
-		
+		Bool ImmuneToBlasts = (Against.bNoRadiusDmg || Against.GetRadiusDamage (Against,256,256,128,False,True) <= 256/8); //The enemy is immune or HIGHLY resistant to blasts.
+		Bool UseHE, UseSmoke;
+		console.printf ("the %s will take %d damage",against.getclassname(),Against.GetRadiusDamage (Against,256,256,128,False,True));
 		//Decide to throw the HE-FRAG grenade without the frag sleeve. Large blast radius and damage, good for strong enemies.
 		//Based on RNG, if the target is super powerful, and if it's not effectively immune to pure explosion damage.
 		If (!ImmuneToBlasts && (Random (0,255) < 96 || AssessThreatLevel (Against) >= ThreatLevelThreshold))
-			{UseHE = True;a_log ("i have decided to throw a pure HE grenade");}
+		{
+			//Randomly decide to throw smoke, as long as the enemy CAN be affected by the smokescreen.
+			If (Random (0,255) < 120 && (!Against.bSeeInvisible || Against.bShadowAim || Against.Player) && (Against.Player || Against.bDoShadowBlock))
+				{UseSmoke = True;a_log ("i have randomly decided to throw smoke");}
+			Else
+				{UseHE = True;a_log ("i have decided to throw a pure HE grenade");}
+		}
 		
 		//Now, let's check the chance of actually throwing a grenade.
 		Int BulletDamage = Against.ApplyDamageFactor ("SmallRifleBullet",100); //Return how much damage the actor would actually take if 10 bullets did maximum damage.
 		Int GrenChance = (Threshold > 0) ? Random (0,Threshold-24) : INT.MAX;console.printf ("the grenade throwing chance started as %d",grenchance);
+		Int PreGrenChance = GrenChance; //The grenade chance before being incremented by AttackByQuantity.
 		Double BlastRadius = 192;
 		If (Threshold > 0)
 		{
 			GrenChance += 100-BulletDamage; //Increase grenade chance based on how much bullet damage the enemy can absorb.
-			GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True); //Also based on crowd size.
+			If (Target.Speed <= 6 || Random (0,255) < 64) //Our target is quite slow, lets see about throwing a smoke grenade.
+				GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True,ABQ_Infight|ABQ_Smokescreen);
+			Else
+				GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True); //Grenade chance is also based on crowd size.
 		}
 		console.printf ("the grenade throwing chance is now %d",grenchance);
 		If (GrenChance >= Threshold) //Decide if you should throw an HE or frag grenade.
-			Return UseHE ? GRENADE_HE : GRENADE_HEFRAG;
+		{
+			If (UseHE)
+				Return GRENADE_HE;
+			Else If (UseSmoke)
+				Return GRENADE_SMOKE;
+			Else
+				Return GRENADE_HEFRAG;
+		}
 		
 		Return GRENADE_NONE;
+	}
+	
+	//Prepare to throw a smoke grenade in front of you before retreating. That is to say like when running to reload.
+	Bool PrepareForSmokeThrow (Int Chance = 48)
+	{
+		If (Target && Distance3DSquared (Target) <= 256*256) //If the target is too close, don't bother. Like if running away from a melee enemy.
+			{A_LOG ("target is too close");Return False;}
+		
+		Chance += SM_AttackByQuantity (Target,flags:ABQ_Smokescreen); //Increase chance the more danger their is around.
+		
+		If (Health <= SpawnHealth()/3) //Extra chance if low on health.
+			Chance += 30;
+		
+		If (Random (0,255) >= Chance)
+			{console.printf ("a smoke chance of %d wasn't enough",chance);Return False;}
+		
+		//SM_SetMarineState (MARINE_RETREAT,MARINE_IDLING|MARINE_CHASING); //Specifies to the grenade drop state that the marine needs to retreat afterwards.
+		GrenadeType = GRENADE_SMOKE;
+		QuickGrenade = True;a_log ("throwing quick grenade and dipping.");
+		Return True;
+	}
+	
+	Enum ABQFlags
+	{
+		ABQ_Smokescreen = 1 << 0, //If on, ignore actors that can see through DOSHADOWBLOCK, unless they are players. 
+		ABQ_Infight		= 1 << 1, //Give bonus points for monsters that can infight. Based on how many other monsters that can infight are found in Range.
 	}
 	
 	//Increase an integer value based on the amount of enemies and how powerful they are, to use for AOE attacks. Copied from the MVP !.
 	//Range: The range around which to check for enemies.
 	//AvoidAllies: Deduct points from the score for any allies in the AOE.
-	Int SM_AttackByQuantity (Actor Origin, Double Range = 256, Bool AvoidAllies = False)
+	//Smokescreen: This is a check for if the marine is throwing a smoke grenade. Makes actors that can see throw the smoke be ignored from the count.
+	Int SM_AttackByQuantity (Actor Origin, Double Range = 256, Bool AvoidAllies = False, Int Flags = 0)
 	{
 		If (!Origin) Return 0;
 		Actor Mobj;
@@ -438,6 +687,7 @@ Extend Class SM_Marine
 		
 		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Origin,Range);
 		
+		Int ViableEnemies;
 		While (FindEnemies.Next())
 		{
 			Mobj = FindEnemies.Thing;
@@ -452,6 +702,16 @@ Extend Class SM_Marine
 				Continue;
 			}
 			
+			//Actor can see through smoke grenades, because it's an NPC that's unfazed by SHADOWBLOCK.
+			If (Flags & ABQ_Smokescreen && IsHostile && IsVisible && !(!Mobj.bSeeInvisible || Mobj.bShadowAim || Mobj.Player) && (Mobj.Player || Mobj.bDoShadowBlock))
+				Continue;
+			
+			If (IsHostile)
+				ViableEnemies++;
+			
+			If (Flags & ABQ_Infight && IsHostile && IsVisible && Mobj.OkayToSwitchTarget (Origin))
+				{Chance += ViableEnemies; //Give an additional bonus if the monster can infight with the target, based on every additional monster in range.
+			console.printf ("%s can infight with %s, so the chance is now %d",mobj.getclassname(),origin.getclassname(),chance);}
 			If (IsHostile && IsVisible && Mobj.Distance3DSquared (Origin) <= Range*Range)
 			{a_log ("checking an actor to blast to shit");
 				Switch (AssessThreatLevel (Mobj))

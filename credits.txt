@@ -19,6 +19,7 @@ Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
 Marine jumping/dodging sprites made by Sergeant_Mark_IV. Jumping and shooting sprites made by Tabijaky.
 Crouched marine sprites made by TG5. Crouched gib death sprites made by Ghastly_Dragon.
 Lying down marine sprites made by TG5.
+Climbing marine sprites made by Yify.
 Grenade sprites by inkoalawetrust.
 
 ======|Other graphics|======
@@ -28,6 +29,7 @@ Digital sight scanlines and crosshairs made by inkoalawetrust
 First person turret sprites and muzzle flash made by Sergeant_Mark_IV. Overlay glow and light graphics made by inkoalawetrust
 Friendly marine command text made using the Doom Text Generator: https://c.eev.ee/doom-text-generator/
 Bullet tracers made by inkoalawetrust
+Smoke sprites are from unknown source, ripped from Project Brutality and edited by me.
 
 ======|Sounds|======
 Reloading and rocket travelling sound is from Half-Life.
@@ -37,6 +39,7 @@ Berserk rifle melee sound made by EFlexMusic https://freesound.org/people/EFlexM
 Rifle melee missing sound made by qubodup https://freesound.org/people/qubodup/sounds/60013/
 Grenade exploding sound is by Stefano Cremona, taken from the GDC Audio Library 2020
 Grenade water explosion sound was mixed from two sounds from the GDC Audio Library 2018 and 2020
+Smoke grenade sound is from is from Call Of Duty United Offensive.
 Missile exploding sound is from the GDC Audio Library 2018.
 Missile firing sound by morganpurkis https://freesound.org/people/morganpurkis/sounds/398214/
 Zoomed in rifle sound is a modified version of littlemachine.wav from Half-Life 1, edited by inkoalawetrust
