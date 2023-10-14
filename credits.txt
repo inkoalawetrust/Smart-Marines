@@ -20,6 +20,7 @@ Marine jumping/dodging sprites made by Sergeant_Mark_IV. Jumping and shooting sp
 Crouched marine sprites made by TG5. Crouched gib death sprites made by Ghastly_Dragon.
 Lying down marine sprites made by TG5.
 Climbing marine sprites made by Yify.
+Marine giving stimpack sprites by TG5.
 Grenade sprites by inkoalawetrust.
 
 ======|Other graphics|======

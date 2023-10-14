@@ -10,7 +10,7 @@ Extend Class SM_Marine
 		//Very marine specific things
 		If (BurstCounter) BurstCounter = 0; //Reset the burst fire countdown when not firing. Like if the marine is hurt mid-burst.
 		bNoFriction = Default.bNoFriction; //Reset the friction flag to the default, in case the marine begun firing or something mid-jump.
-		bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
+		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
 		
 		//ZScript exports of different segments of GZDooms' native AI code. This is the stuff not needed for movement.
 		KAI_Chase_PreChecks(ChaseFlags);
@@ -77,25 +77,38 @@ Extend Class SM_Marine
 					UsedLine = SM_MarineUseLine(faceline:!(Flags & SMC_NOUSESTATE)); //Check if there's a line in front of use to use.
 				}
 				
-				If (!MovedAlready)
-					MovedAlready = SM_HandleClimbing();
-				Else
-					SM_HandleClimbing();
+				//Crouching comes first.
+				//If (!MovedAlready)
+				//	MovedAlready = SM_HandleCrouching();
+				//Else
+					SM_HandleCrouching();
+				
+				If (!Crouching)
+				{
+					If (!MovedAlready)
+						MovedAlready = SM_HandleClimbing();
+					Else If (MovedAlready && !Crouching)
+						SM_HandleClimbing();
+				}
 				
 				Vector2 JumpPosition = SM_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
-				If (JumpPosition == JumpPosition) //We have a valid position we must jump to, AKA the returned vector isn't null.
+				If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
 				{
+					JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
+					Bool Reachable = True; //Assume we can jump there by default.
 					//The jump destination is longer than half the jump distance, so do a long jump if there's space behind you for it.
-					//If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/2)
-						//TODO: Got to running jump state etc.
-					//Else //The distance is less than 144 MU away, so do a normal jump.
+					If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/1.5 && (Reachable = SM_CanRunBack()))
+					{console.printf ("doing a long jump over a distance of %.2f threshold is %d",Level.Vec2Diff (Pos.XY,JumpPosition).Length(),MARINE_JUMPLENGTH/1.5);
+						PreJumpPos = Vec3Angle(256,Angle-180);
+						SetStateLabel ("Jump.Running");
+						MovedAlready = True;
+					}
+					Else If (Reachable) //If the gap is too short to do a running jump, do a normal one, but don't fall back to normal jumps for large gaps.
 					{
-						JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
 						SetStateLabel ("Jump");
 						MovedAlready = True;
 					}
 				}
-				
 				
 				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
 				If (Target && !MovedAlready)
@@ -120,6 +133,56 @@ Extend Class SM_Marine
 		}
 	}
 	
+	Bool SM_CanRunBack()
+	{
+		Vector3 RealPos = Pos;
+		Bool Moved = IsPosReachable (Vec3Angle(256,Angle-180));
+		If (Moved)
+		{
+			SetOrigin (Vec3Angle(256,Angle-180),False);
+			Moved = IsPosReachable (Vec3Angle(256,Angle));
+			SetOrigin (RealPos,False);
+		}
+		Return Moved;
+	}
+	
+	//Handle the marine crouching when his move is potentially obstructed by level geometry and/or actor obstacles.
+	//Returns true if the marine will crouch, false if he will not.
+	Bool SM_HandleCrouching (Bool ChangeHeight = True)
+	{
+		Vector2 CheckPos = Vec2Angle(Speed,Angle);
+		FCheckPosition Tm;
+		//Tm.FromPMove = True;
+		
+		Double CurHeight = Height;
+		Height = Default.Height; //Check our uncrouched height.
+		
+		//TODO: Figure out how to distinguish if the move is blocked by a ceiling being too short or an actor being below the marines' height ONLY.
+		If (!CheckPosition (CheckPos,tm:Tm))
+		{
+			Double SecHeight = Tm.CeilingZ;
+			F3DFloor FFloor;
+			If (FFloor = SM_Find3DFloorInFrontOfMe(Level.Vec2Diff(Pos.XY,CheckPos).Length()*3))
+				SecHeight = FFloor.Bottom.ZAtPoint(CheckPos);
+			
+			If (BlockingMobj && (BlockingMobj.Pos.Z < Pos.Z+Height && BlockingMobj.Pos.Z >= Pos.Z+MARINE_CROUCHHEIGHT) ||
+			(SecHeight < Pos.Z+Height && SecHeight >= Pos.Z+MARINE_CROUCHHEIGHT))
+			{a_log ("SM_HandleCrouching(): Marine must crouch to cross this obstacle.");
+				If (ChangeHeight) Height = MARINE_CROUCHHEIGHT;
+				Crouching = True;
+				Return True;
+			}
+			else
+				a_log ("SM_HandleCrouching(): nothing short enough is blocking the marine to warrant crouching");
+		}else a_log ("SM_HandleCrouching():hello, i don't need to crouch at all");
+		
+		Crouching = False;
+		Height = CurHeight;
+		If (ChangeHeight) Height = Default.Height;
+		a_log ("SM_HandleCrouching(): Marine doesn't need to crouch.");
+		Return False;
+	}
+	
 	//Exactly what it says, handles detecting ledges and making the marine climb them.
 	//The jumping variable allows the marine to jump so that he can catch ledges that are barely just too high to reach.
 	Bool SM_HandleClimbing (Bool Jumping = True)
@@ -135,8 +198,16 @@ Extend Class SM_Marine
 		{
 			//KLUDGE: I'm pretty sure Tm.FloorZ should handle actors itself, but it doesn't.
 			Double ClimbZ = Tm.FloorZ;
+			
+			F3DFloor FFloor;
+			//Check for 3D floors the marine can climb over separetely with a trace, since CheckPosition() won't cut it.
+			If (FFloor = SM_Find3DFloorInFrontOfMe(Level.Vec2Diff(Pos.XY,CheckPos).Length()*3)) //There's actually a 3D floor in front of the marine.
+				{ClimbZ = FFloor.Top.ZAtPoint(CheckPos); //Set the climbZ to the top of that 3D floor !
+				a_log ("i hit a 3d floor");}
+			console.printf ("3d floor height is %.2f, check trace distance is %.2f",climbz,Level.Vec2Diff(Pos.XY,CheckPos).Length()*3);
+			
 			If (BlockingMobj)
-				ClimbZ += BlockingMobj.Height;
+				ClimbZ = BlockingMobj.Pos.Z + BlockingMobj.Height;
 			if (isinstate (self,"jump"))
 				console.printf ("im trying to climb mid jump, my z pos is %.2f, and my climb height is %.2f, tm.floorz is %.2f",pos.z,climbz,tm.floorz);
 			//Ledge is just at around the marines' height.
@@ -144,7 +215,7 @@ Extend Class SM_Marine
 			{
 				ClimbPos = (CheckPos,ClimbZ);
 				SetOrigin ((ClimbPos.XY,Pos.Z),True);
-				console.printf ("angle to pos is %.2f",GetAngleToPos(ClimbPos));
+				console.printf ("angle to pos is %.2f, climbz is %.2f",GetAngleToPos(ClimbPos),ClimbZ);
 				SetStateLabel ("Climb");
 				Return True;
 			}
@@ -156,7 +227,7 @@ Extend Class SM_Marine
 				//	{a_log ("this truck is too tall to jump AND THEN climb over, nested check");Return False;}
 				
 				JumpPos = (CheckPos,ClimbZ-56); //Jump to the position we need to climb.
-				SetStateLabel ("Jump");
+				SetStateLabel ("Jump.Up");
 				Return True;
 			}
 			else
@@ -168,75 +239,106 @@ Extend Class SM_Marine
 	//Get a position for the marine to jump to, if he doesn't have to jump, the gap is too wide, or there's something in the way, this returns a null vector.
 	Vector2 SM_GetJumpPosition (Double CheckDistance, Double CheckAngle)
 	{
-		Vector2 PosOffset = Vec2Angle (Radius*2,CheckAngle);
-		spawn ("kai_debugpoint",(posoffset,floorz));
+		Vector2 PosOffset = Vec2Angle (Radius*2.01,CheckAngle);
+		
 		vector3 oldpos = pos;
-		setorigin ((posoffset,pos.z),false);
+		//setorigin ((posoffset,pos.z),false);
 		Vector2 Path = Level.Vec2Diff( PosOffset, Vec2Angle (CheckDistance,CheckAngle));
-		Double Distance = Path.Length()-0;
+		Double Distance = Path.Length();
 		Double Spacing = Radius*2.01;
 		If (Distance <= 1) {a_log ("SM_GetJumpPosition(): Epic fail");Return (Double.NaN,Double.NaN);}
 		Path /= Distance;
 		Double RealDropHeight = MaxDropoffHeight;
 		
 		Vector2 MovePos;
-		FCheckPosition Tm;
+		//FCheckPosition Tm;
+		FLineTraceData Jump;
 		Double RealHeight;
-		For (Int I = 0; I < Distance+Spacing; I += Spacing)
+		
+		//Get the ACTUAL collision height, actors included.
+		Double REALFloorZ = FloorZ;
+		Bool Useless; //Why fucking return if the caller is on another actor ? Just return the fucking POINTER !
+		Actor Bottom;
+		SetOrigin (Pos.PlusZ(-1),False);
+		[Useless,Bottom] = TestMobjZ ();
+		SetOrigin (Pos.PlusZ(1),False);
+		If (Bottom)
+			REALFloorZ = Bottom.Pos.Z+Bottom.Height;
+			
+		For (Int I = Spacing; I < Distance+(Spacing*2); I += Spacing)
 		{
-			MovePos = Level.Vec2Offset(Pos.XY, Path*I);spawn ("kai_debugpoint",(movepos,tm.floorz));
-			Bool Moved = CheckPosition (MovePos,False,Tm);
-			//console.printf ("SM_GetJumpPosition(): movepos %d %d %d, floorz is %d",(movepos,tm.floorz),tm.floorz);
+			MovePos = Level.Vec2Offset(Pos.XY, Path*I);//spawn ("kai_debugpoint",(movepos,tm.floorz));
+			console.printf ("performed %d jump checks at %d %d",I,movepos);
+			//Bool Moved = CheckPosition (MovePos,False,Tm);
+			LineTrace (0,8192,90,TRF_THRUHITSCAN|TRF_SOLIDACTORS|TRF_ABSPOSITION,0,MovePos.X,MovePos.Y,data:Jump);
+			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
+			//Tm.DropoffZ = Tm.FloorZ = Jump.HitLocation.Z;
+			if (jump.hitsector) a_log ("jump check found a sector");
+			
+			console.printf ("SM_GetJumpPosition(): movepos %d %d %d, REALFloorZ is %d",(movepos,Jump.HitLocation.Z),Jump.HitLocation.Z);
 			//Get the real height, used by GetZAt to handle ledges.
 			RealHeight = CurSector.NextLowestFloorAt (Pos.X,Pos.Y,Pos.Z,FFCF_3DRESTRICT,MaxStepHeight);
-			//if (!((FloorZ - Tm.DropoffZ) > RealDropHeight/2))
-			//	a_log ("SM_GetJumpPosition(): floorz dropoff height isn't low enough");
-			//if (!((RealHeight - Tm.DropoffZ) > RealDropHeight/2))
-			//	a_log ("SM_GetJumpPosition(): real dropoff height isn't low enough");
 			//This position has a dropoff larger than the marines' dropoff height.
-			If ((FloorZ - Tm.DropoffZ) > RealDropHeight/2 && (RealHeight - Tm.DropoffZ) > RealDropHeight/2)
+			Sector SecAt = Level.PointInSector (MovePos);
+			If (SecAt && Jump.HitLocation.Z >= SecAt.FloorPlane.ZAtPoint(MovePos) && (REALFloorZ - Jump.HitLocation.Z) > RealDropHeight/2)// && (RealHeight - Jump.HitLocation.Z) > RealDropHeight/2)
 			{
-				spawn ("kai_debugpoint",(movepos,tm.floorz));
+				//spawn ("kai_debugpoint",(movepos,Jump.HitLocation.Z));
 			}
 			//Or it doesn't, so stop the check, this is where we should jump at. If it's not short enough for the marine to just walk over of course.
 			Else
 			{
-				//console.printf ("SM_GetJumpPosition(): failed pos at %d %d, ravine height is %d",movepos,(FloorZ - Tm.DropoffZ));
+				console.printf ("SM_GetJumpPosition(): failed pos at %d %d, ravine height is %d, REALFloorZ %d, check height %d",movepos,
+				(REALFloorZ - Jump.HitLocation.Z),REALFloorZ,Jump.HitLocation.Z);
+				console.printf ("okay, how the actual fuck is the marines own floor height the same as the check trace ? is he at %d %d %d",pos);
 				//Make the jump pos null if the distance to the jump position is shorter than the marines' radius. Like if there is no hole to jump over at all.
-				If (Level.Vec2Diff (Pos.XY,MovePos).Length() < Radius)
-					{/*a_log ("SM_GetJumpPosition(): jump length too short, nullifying jump position");*/MovePos = (Double.NaN,Double.NaN);}
+				If (Level.Vec2Diff (Pos.XY,MovePos).Length() < Spacing)
+					{a_log ("SM_GetJumpPosition(): jump length too short, nullifying jump position");MovePos = (Double.NaN,Double.NaN);}
 				Break;
 			}
 		}
 		
 		//The path was clear and all that, but the final position is RIGHT INTO THE MOAT WE'RE WANT TO JUMP OVER.
-		If ((FloorZ - Tm.DropoffZ) > RealDropHeight/2 && (RealHeight - Tm.DropoffZ) > RealDropHeight/2)
-			{/*console.printf ("SM_GetJumpPosition(): jump destination is in the pit, cancelling jump");*/MovePos = (Double.NaN,Double.NaN);}
+		If ((REALFloorZ - Jump.HitLocation.Z) > RealDropHeight/2)// && (RealHeight - Jump.HitLocation.Z) > RealDropHeight/2)
+			{console.printf ("SM_GetJumpPosition(): jump destination is in the pit, cancelling jump");MovePos = (Double.NaN,Double.NaN);}
 		
-		setorigin (oldpos,false);
+		//setorigin (oldpos,false);
 		
 		If (MovePos == MovePos) //Only run this if MovePos isn't null.
 		{
 			FLineTraceData JumpClear;
 			LineTrace (CheckAngle,distance,0,TRF_SOLIDACTORS|TRF_THRUHITSCAN,Height/2,Radius*2,data:JumpClear);
-			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			FSpawnParticleParams P; P.Color1 = "Blue"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
 			KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(Height/2),JumpClear.HitLocation,JumpClear.Distance,8,p);
-			//console.printf ("SM_GetJumpPosition(): jumpclear distance is %.2f, and it hit at %d %d %d",jumpclear.distance, jumpclear.hitlocation);
+			console.printf ("SM_GetJumpPosition(): jumpclear distance is %.2f, and it hit at %d %d %d",jumpclear.distance, jumpclear.hitlocation);
 			
 			If (JumpClear.HitType != TRACE_HitNone)
 				{a_log ("SM_GetJumpPosition(): my jump path is not clear");Return (Double.NaN,Double.NaN);}
 			
-			//spawn ("teleportfog",(movepos,tm.floorz));
+			//spawn ("teleportfog",(movepos,Jump.HitLocation.Z));
 		}
 		Return MovePos;
 	}
 	
+	//ATTEMPT AT AN ALTERNATE JUMP FUNCTION.
+	//v0 is the velocity
+	//g is the gravity
+	/*Void SM_JumpTo (Vector3 Where, Double JumpSpeed = 17.2)
+	{
+		Double G = GetGravity();
+		Double Root = JumpSpeed * JumpSpeed * JumpSpeed * JumpSpeed - G * (G * Where.X * Where.X + 2.0 * Where.Y * JumpSpeed * JumpSpeed);
+		//If (Root <= 0)
+		//	Return;
+		Root = Sqrt (Root);
+		Double Ang = ATan ((JumpSpeed * JumpSpeed - Root) / (G / Where.X));
+	}*/
+	
 	//Have the marine jump to the specified position, this uses a custom version of Lewisk3's grenade throwing function.
-	Void SM_JumpTo (Vector3 Where, Double JumpSpeed = 17.2)
+	Void SM_JumpTo (Vector3 Where, Double JumpSpeed = -17.2)
 	{
 		//FireGrenade() properties turned into hardcoded variables.
 		Double AimDist = 0;//MARINE_JUMPLENGTH;
-		Double MaxPitch = 90;
+		Double MaxPitch = 45;//90;
 		Double AimSens = 1.1;
 		
 		// Source and Destination
@@ -263,15 +365,39 @@ Extend Class SM_Marine
 		diff = level.vec3diff(fromPos, toPos);
 		double aimPitch = VectorAngle( sqrt(diff.y*diff.y + diff.x*diff.x), diff.z );
 		aimPitch = min(aimPitch, maxPitch);
-		spawn ("teleportfog",topos);
+		//spawn ("teleportfog",topos);
 		// Modify  ̶g̶r̶e̶n̶a̶d̶e̶ marine velocity
 		double a = GetAngleToPos(Where,0);
 		double p = -aimPitch;
+		
+		//If the jump speed is negative, pick a jump speed that will be JUST enough to throw the marine at the desired position, as long as the calculated
+		//velocity is below the negative speed. Essentially making the negative velocity act like a speed limit instead of a hardcoded value.
+		If (JumpSpeed < 0)
+		{
+			JumpSpeed = Abs (JumpSpeed);
+			Double Original = JumpSpeed;
+			JumpSpeed = KAI_Math.LinearMap (Diff.Length(),0,MARINE_JUMPLENGTH,0,JumpSpeed);
+			JumpSpeed = Abs (JumpSpeed);
+			JumpSpeed = Clamp (JumpSpeed,0,Original);
+			/*vector3 diff = level.vec3diff(fromPos, toPos);
+			double v = abs(jumpSpeed);
+			double g = GetGravity();
+			double dX = diff.x**2;
+			double dY = diff.y*(v*v);
+			double velocityDelta = (v*v*v*v) - ( g * ((g*dX) + (2*dY)) );
+			double thetaPitch = velocityDelta <= 0 ? 0 : atan( ((v*v) - velocityDelta) / (g * diff.x) );
+			p = -thetaPitch;*/
+			
+			console.printf ("scaled jump vel: %.2f",jumpspeed);
+		}
+		
 		self.vel = (
 			cos(a) * cos(p),
 			sin(a) * cos(p),
 			-sin(p)
 		) * JumpSpeed;
+		//If (JumpSpeed < 0) Self.Vel.Z = (ToPos.Z + Diff.Length() / (Vel.Length() * GameTicRate) * GetGravity());
+		console.printf ("vel is %.2f %.2f %.2f",vel);
 	}
 	
 	//Increment the chase timer as long as the target is nonexistent, dead, or out of sight. And reset it if any of these conditions are false.
@@ -288,7 +414,7 @@ Extend Class SM_Marine
 		//Console.Printf ("SM_UpdateChaseTimer(): Time is %d",ChaseTimer);
 	}
 	
-	//Marine's use lines in front of them.
+	//Marines use lines in front of them.
 	//IDEA: Make the marine detect doors or platforms in front of him, then if it's switch activated, search for nearby switches he can go up to and use. Dynamically.
 	Sector UseSec;
 	Bool SM_MarineUseLine (Double UseRange = 64, Bool FaceLine = False)
@@ -372,43 +498,37 @@ Extend Class SM_Marine
 		Return ((TheLine.V2.P - TheLine.V1.P) * 0.5 + TheLine.V1.P); 
 	}
 	
-	//Change what sprite frame to display based on the marines' pitch.
-	//TODO: Add alternate handling for when kneeling down.
-	Int SM_UpdateElevation (Int Down, Int Straight, Int Up, Int KneelDown = -1, Int KneelStraight = -1, Int KneelUp = -1)
-	{
-		If (!SittingDown)
-		{
-			If (Pitch <= -15)
-				Return Up;
-			Else If (Pitch >= 10)
-				Return Down;
-		}
-		Else
-		{
-			If (Pitch <= -15)
-				Return KneelUp;
-			Else If (Pitch >= 10)
-				Return KneelDown;
-		}
-		
-		If (!SittingDown)
-			Return Straight;
-		Else
-			Return KneelStraight;
-	}
-	
 	//KAI_MoveAway wrapper.
 	//MAYDO: Try and add code to make marines avoid smashing right into obstables ?
 	Void SM_RunAway (Actor Other, Double RunRad = 64, Int MaxSteps = 32, Double TurnRadius = 25, Int ChaseFlags = 0, Int Flags = 0)//, Int KMAFlags = 0)
 	{
-		bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
+		SM_HandleCrouching();
+		
+		If (!Crouching && SM_HandleClimbing())
+			Return;
+		
+		Vector2 JumpPosition = SM_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
+		If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
+		{
+			JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
+			//The jump is longer than half the max jump distance, normally we do a running jump, but since we are presumably running for our lives, don't bother.
+			If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/1.5)
+				Return;
+			Else
+			{
+				SetStateLabel ("Jump");
+				Return;
+			}
+		}		
+		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
+		
 		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS);
 	}
 	
 	//Returns true if the marine is down on the ground in some capacity, as opposed to standing up.
 	Bool SM_IsCrouched()
 	{
-		Return (MarineState & (MARINE_KNEELING|MARINE_LYINGDOWN));
+		Return (Crouching || MarineState & (MARINE_KNEELING|MARINE_LYINGDOWN));
 	}
 	
 	//DECORATE-esque function for use in states.
@@ -419,16 +539,6 @@ Extend Class SM_Marine
 			MarineState &= ~Remove;
 		Else
 			MarineState = 0;
-	}
-	
-	//End the marines' firing sequence. Used by both the Fire.End: state, and when the marine abruptly dies.
-	Void SM_EndFiring()
-	{
-		SM_SetMarineState (0,MARINE_FIRING|MARINE_THROWING|MARINE_MELEE|MARINE_KNEELING|MARINE_LYINGDOWN);
-		If (!IsDead(Self)) NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
-		AimTimer = BurstCounter = BurstSize = 0; //Reset aim and burst counters.
-		AttackType = FIRE_BURST; //Reset to default fire mode.
-		SittingDown = False;
 	}
 	
 	//Credit: Lewisk3
@@ -477,28 +587,6 @@ Extend Class SM_Marine
 			sin(a) * cos(p),
 			-sin(p)
 		) * nade.Speed;
-	}
-	
-	Void SM_FireBullet ()
-	{
-		A_StartSound ("Marine/Fire",CHAN_WEAPON);
-		Actor Bullet = A_SpawnProjectile ("SM_Bullet",42,-6,flags:CMF_AIMDIRECTION,Pitch);
-		Double AccuracyBuff = SittingDown ? 0.5 : 1.0; //Double the accuracy if the marine is sitting down and firing.
-		Switch (AttackType)
-		{
-			Case FIRE_BURST:
-				AddProjectileSpread (Bullet,(1.1,-1.1)*AccuracyBuff,(1.1,-1.1)*AccuracyBuff);
-				Break;
-			Case FIRE_SINGLE:
-				AddProjectileSpread (Bullet,(0.4,-0.4)*AccuracyBuff,(0.4,-0.4)*AccuracyBuff);
-				Break;
-			Case FIRE_FULLAUTO:
-				AddProjectileSpread (Bullet,(2.2,-2.2)*AccuracyBuff,(2.2,-2.2)*AccuracyBuff);
-				A_Recoil (0.25);
-				Break;
-		}
-		A_SpawnItemEx ("SM_BulletCasing",0,-6,42,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
-		AmmoCount--;
 	}
 	
 	State SM_CheckRefire (Int Chance, StateLabel AbortState, Double FOV = 360)
@@ -810,6 +898,134 @@ Extend Class SM_Marine
 		
 		Return WhatColor;
 	}
+	
+	//Change what sprite frame to display based on the marines' pitch.
+	Int SM_UpdateElevation (Int Down, Int Straight, Int Up, Int KneelDown = -1, Int KneelStraight = -1, Int KneelUp = -1, Int LyingDown = -1)
+	{
+		If (Crouching) //Don't update if crouching, since the marine has no aim sprites when crouching, obviously.
+			Return CurState.Frame;
+		
+		If (MarineState & MARINE_LYINGDOWN)
+			Return LyingDown;
+		
+		If (!(MarineState & MARINE_KNEELING))
+		{
+			If (Pitch <= -15)
+				Return Up;
+			Else If (Pitch >= 10)
+				Return Down;
+		}
+		Else
+		{
+			If (Pitch <= -15)
+				Return KneelUp;
+			Else If (Pitch >= 10)
+				Return KneelDown;
+		}
+		
+		If (!(MarineState & MARINE_KNEELING))
+			Return Straight;
+		Else
+			Return KneelStraight;
+	}
+	
+	//Update height based on marine state, used when the marine is firing while kneeling or lying down, and in the future when crouching.
+	Void SM_UpdateHeight ()
+	{
+		If (Crouching) Return; //Crouching doesn't need updating from here, that's SM_HandlingCrouching()'s job.
+	a_log ("running height update");
+		If (MarineState & MARINE_KNEELING)
+			{a_log ("the marine is kneeling");A_SetSize (newheight:32);}
+		Else If (MarineState & MARINE_LYINGDOWN)
+			{a_log ("the marine is lying down");A_SetSize (newheight:8);}
+		Else
+			{a_log ("no height change");A_SetSize (newheight:Default.Height);}
+	}
+	
+	Void SM_FireBullet ()
+	{
+	If (MarineState & MARINE_KNEELING)
+			a_log ("debug: the marine is kneeling");
+		If (MarineState & MARINE_LYINGDOWN)
+			a_log ("debug: the marine is lying down");
+		A_StartSound ("Marine/Fire",CHAN_WEAPON);
+		Double FireHeight = 42;
+		Double Recoil = 0.25;
+		If (MarineState & MARINE_KNEELING)
+		{
+			FireHeight = 32;
+			Recoil /= 2;
+		}
+		Else If (MarineState & MARINE_LYINGDOWN)
+		{
+			FireHeight = 14;
+			Recoil/= 3;
+		}
+		If (Crouching) //This should probably just be a MarineState instead of a variable lol.
+		{
+			FireHeight = 25;
+			Recoil/= 3;
+		}
+		
+		Actor Bullet = A_SpawnProjectile ("SM_Bullet",FireHeight,-6,flags:CMF_AIMDIRECTION,Pitch);
+		Double AccuracyBuff = SM_IsCrouched() ? 0.5 : 1.0; //Double the accuracy if the marine is sitting down and firing.
+		Switch (AttackType)
+		{
+			Case FIRE_BURST:
+				AddProjectileSpread (Bullet,(1.1,-1.1)*AccuracyBuff,(1.1,-1.1)*AccuracyBuff);
+				Break;
+			Case FIRE_SINGLE:
+				AddProjectileSpread (Bullet,(0.4,-0.4)*AccuracyBuff,(0.4,-0.4)*AccuracyBuff);
+				Break;
+			Case FIRE_FULLAUTO:
+				AddProjectileSpread (Bullet,(2.2,-2.2)*AccuracyBuff,(2.2,-2.2)*AccuracyBuff);
+				A_Recoil (Recoil);
+				Break;
+		}
+		A_SpawnItemEx ("SM_BulletCasing",0,-6,FireHeight,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
+		AmmoCount--;
+	}
+	
+	//End the marines' firing sequence. Used by both the Fire.End: state, and when the marine abruptly dies.
+	Void SM_EndFiring()
+	{
+		SM_SetMarineState (0,MARINE_FIRING|MARINE_THROWING|MARINE_MELEE|MARINE_KNEELING|MARINE_LYINGDOWN);
+		If (!IsDead(Self)) NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
+		AimTimer = BurstCounter = BurstSize = 0; //Reset aim and burst counters.
+		AttackType = FIRE_BURST; //Reset to default fire mode.
+		SM_UpdateHeight();
+	}
+	
+	//KLUDGE: Because LineTrace() is fucking broken and refuses to find solid 3D floors.
+	F3DFloor SM_Find3DFloorInFrontOfMe (Double Dist, Int Iterations = 4)
+	{
+		F3DFloor FFloor;
+		Let FFloorCheck = New ("SM_Find3DFloor");
+		FFloorCheck.HitSwimmable = True; //We only care for swimmable floors.
+		
+		//Iterate the trace this many times across the marines' height, more iterations allow for higher detail in the 3D floor detection when he collides, but have more overhead.
+		Double Spacing = Height/Iterations;
+		Double HeightOffset = Height;
+		For (Int I = Iterations; I > 0; I--)
+		{
+			//Console.Printf ("Ran a 3D floor check at %.2f, the spacing is %.2f",HeightOffset, Spacing);
+			FFloorCheck.Trace (Pos.PlusZ(HeightOffset),CurSector, (AngleToVector(Angle, Cos(0)), -Sin(0)) ,Dist,0);
+			
+			If (FFloor = FFloorCheck.Results.FFloor)
+			{//a_log ("3d floor check passed");
+				FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+				KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
+				FFloorCheck.Destroy();
+				Return FFloor;
+			}
+			FSpawnParticleParams P; P.Color1 = "Red"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
+			HeightOffset -= Spacing;
+		}
+		
+		FFloorCheck.Destroy();
+		Return FFloor;
+	}
 }
 
 //Find the marines target in the line of fire, otherwise assume the LOF is bad.
@@ -830,12 +1046,14 @@ Class SM_FindTargetInLOF : KAI_LOFRaycast
 	}
 }
 
-//Find and return the first swimmable floor you hit.
-Class SM_FindSwimmableFloor : KAI_LOFRaycast
+//KLUDGE: Apparently LineTrace()'s LineTracer must be fucking broken because it does NOT return the 3D floor it found.
+//Find and return the first 3DFloor you hit.
+Class SM_Find3DFloor : KAI_LOFRaycast
 {
+	Bool HitSwimmable; //Hit swimmable 3D floors too.
 	Override ETraceStatus TraceCallback ()
 	{
-		If (Results.Crossed3DWater)
+		If (HitSwimmable && Results.Crossed3DWater)
 		{
 			console.printf ("hit swimmable water at %d %d %d",results.crossed3dwaterpos);
 			Return Trace_Stop;
@@ -925,7 +1143,8 @@ Mixin Class SM_SplashFunctions
 	
 	F3DFloor FindWaterBelow (Double Distance = 8)
 	{
-		Let WaterCheck = New ("SM_FindSwimmableFloor");
+		Let WaterCheck = New ("SM_Find3DFloor");
+		WaterCheck.HitSwimmable = True; //We only care for swimmable floors.
 		
 		WaterCheck.Trace (Pos,CurSector,(0,0,-1),Distance,0);
 		Let FFloor = WaterCheck.Results.Crossed3DWater;

@@ -834,3 +834,32 @@ Class SM_LiquidSplash : KAI_MixinActor
 			Stop;
 	}
 }
+
+//Used by marines after they parkour to give them NoDropoff temporarily, for a few steps. So that they don't get stuck after climbing ledges, but will also
+//not fall off cliffs like lemmings.
+Class SM_DropoffToken : Inventory
+{
+	Default {ReactionTime 16;}
+	Bool PrevDropoff;
+	Override Void AttachToOwner (Actor Other)
+	{
+		Super.AttachToOwner(Other);
+		If (Other && !Other.bDropoff)
+		{console.printf ("gave %s the dropoff flag temporarily",other.getclassname());
+			PrevDropoff = Other.bDropoff;
+			Other.bDropoff = True;
+		}
+		Else
+			GoAwayAndDie();
+	}
+	Override Void DoEffect ()
+	{
+		Super.DoEffect();
+		
+		If (GetAge() >= ReactionTime)
+		{console.printf ("took the dropoff flag from %s",owner.getclassname());
+			If (Owner) Owner.bDropoff = PrevDropoff;
+			GoAwayAndDie();
+		}
+	}
+}

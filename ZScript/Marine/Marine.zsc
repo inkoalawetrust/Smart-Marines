@@ -1,8 +1,9 @@
 //IDEA:
-//Try to make marines able to crouch under short ceilings once again, like I had once tried with my very first attempt at writing them.
 //Give them Flashbangs.
-//Make marines able to jump over certain obstacles if they can ?
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
+//Add the crouching, climbing, and jumping handling to the KAI_Humanoid class in the AI library.
+//I should probably add an SM_IsPosReachable() wrapper and use that instead, to raise the MaxStepHeight before IsPosReachable() calls for the ledge climbing.
+//Reimplement taking cover, the original system of 2 LineTraces' seemed to basically work already, but this time make them account for pitch too.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -124,6 +125,8 @@ Class SM_Marine : KAI_Humanoid
 		QuickMelee = False;
 		UseSec = Null;
 		ChaseTimer = 0;
+		bNoFriction = Default.bNoFriction;
+		bNoGravity = Default.bNoGravity;
 	}
 	
 	Override Void UserVariableDefaults()
@@ -144,7 +147,6 @@ Class SM_Marine : KAI_Humanoid
 		If (!Target || Target == Goal) Return False; //Don't attack if you have no target or just following a goal.
 		If (!CanAttack()) Return False;
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
-		//If (SittingDown) FirePos.Z = 32; //Lower firing height.
 		Int Threat = AssessThreatLevel (Target);
 		
 		//console.printf ("fire delay is %d tics",nextfiredelay);
@@ -157,21 +159,31 @@ Class SM_Marine : KAI_Humanoid
 		
 		GrenadeType = DecideGrenadeType (Target);
 		
+		//Random chance that the marine might decide to fire lying down. Like kneeling, this scales with distance as well, but less, for even larger distances.
+		Bool MightLie = (Random (0,255) < 24 + KAI_Math.LinearMap(Dist,0,MaxTargetRange,0,255));
+		Vector3 LiePos = FirePos; LiePos.Z = 14;
+		If (MightLie && PitchTo (Target,Height/2,Target.Height/2) >= -15 && SM_CheckLOF (LiePos)) //If you decided to lie down and can do so, then we are good.
+		{a_log ("i have decided to lie down");
+			SM_SetMarineState (MARINE_LYINGDOWN,0);
+			FirePos = LiePos;
+		}
+		
+		//If (Random (0,255) < 192 && DetermineHitChance (Target,False,Dist,1.1,10,FirePos,range:MaxTargetRange,GetAimPosOffset()) <= Random (6,9))
+		//Decide to sometimes fire kneeling down, particularly scaling linearly with distance.
+		If (!(MarineState & MARINE_LYINGDOWN) && Random (0,255) < 32 + KAI_Math.LinearMap(Dist,0,MaxTargetRange/2,0,255))
+		{a_log ("i have decided to kneel");
+			SM_SetMarineState (MARINE_KNEELING,0);
+			FirePos.Z = 32; //Lower firing height.
+		}
+		
 		//If low on ammo, do a quick melee attack on your enemy instead, if its' close enough and less dangerous than you. And then retreat to reload.
 		QuickMelee = (AmmoCount <= 4 && Threat < Self.ThreatLevel && Dist <= MeleeRange*3);
-		If (GrenadeType == GRENADE_NONE && !QuickMelee && !NextFireDelay && SM_CheckLOF (FirePos))
+		If ((GrenadeType == GRENADE_NONE || Crouching) && !QuickMelee && !NextFireDelay && SM_CheckLOF (FirePos))
 		{
 			Double Buff = SM_IsCrouched() ? 0.5 : 1.0;
 			Vector4 SSpread = (0.4*Buff,-0.4*Buff,0.4*Buff,-0.4*Buff); //Single shot spread.
 			Vector4 BSpread = (1.1*Buff,-1.1*Buff,1.1*Buff,-1.1*Buff); //Burst fire spread.
 			Vector4 FSpread = (2.2*Buff,-2.2*Buff,2.2*Buff,-2.2*Buff); //Full auto spread.
-			
-			//Do a general dumb check to ensure the marine can attack without needing to kneel down.
-			//If (DetermineHitChance (Target,False,1024,BSpread.X,10,FirePos,range:MaxTargetRange,GetAimPosOffset()) <= Random (3,5))
-			//{
-			//	SM_SetMarineState (MARINE_KNEELING);
-			//	FirePos.Z = 32; //Lower firing height.
-			//}
 			
 			//NOTE: The random numbers allow marines to sometimes decide to use a different sub-optimal firing mode, for variety.
 			If (!NoStateJump)
@@ -209,7 +221,7 @@ Class SM_Marine : KAI_Humanoid
 			Return True;
 		}
 		
-		If (GrenadeType != GRENADE_NONE)
+		If (!Crouching && GrenadeType != GRENADE_NONE)
 		{
 			If (!NoStateJump)
 				SetStateLabel ("Grenade");
@@ -222,7 +234,7 @@ Class SM_Marine : KAI_Humanoid
 			MeleeChance += 32;
 		If (Health >= SpawnHealth()/4)
 			MeleeChance -= 32; //Lower melee chance if you are low on health.
-		If (Random (0,255) < MeleeChance && Threat < THREAT_DANGEROUS)
+		If (!Crouching && Random (0,255) < MeleeChance && Threat < THREAT_DANGEROUS)
 		{
 			Bool CanSee = CheckSight(Target,SF_IGNOREWATERBOUNDARY);
 			
@@ -287,10 +299,31 @@ Class SM_Marine : KAI_Humanoid
 		//If (!IsDangerNearby())
 			UsedLine = SM_MarineUseLine(faceline:True); //Check if there's a line in front of use to use.
 		
-		If (SM_HandleClimbing())
+		SM_HandleCrouching();
+		
+		If (!Crouching && SM_HandleClimbing())
 			Return False;
 		
-		bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
+		Vector2 JumpPosition = SM_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
+		If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
+		{
+			JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
+			Bool Reachable = True; //Assume we can jump there by default.
+			//The jump destination is longer than half the jump distance, so do a long jump if there's space behind you for it.
+			If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/1.5 && (Reachable = SM_CanRunBack()))
+			{console.printf ("doing a long jump over a distance of %.2f threshold is %d",Level.Vec2Diff (Pos.XY,JumpPosition).Length(),MARINE_JUMPLENGTH/1.5);
+				PreJumpPos = Vec3Angle(256,Angle-180);
+				SetStateLabel ("Jump.Running");
+				Return False;
+			}
+			Else If (Reachable) //If the gap is too short to do a running jump, do a normal one, but don't fall back to normal jumps for large gaps.
+			{
+				SetStateLabel ("Jump");
+				Return False;
+			}
+		}
+		
+		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
 		
 		//If (UsedLine) 
 			//SetStateLabel ("Interact");
@@ -316,11 +349,11 @@ Class SM_Marine : KAI_Humanoid
 	Const MARINE_HEARDIST = 4096; //How far can the marine hear.
 	Const MARINE_FOV = 120; //How wide the marine can see.
 	Const MAGAZINE_SIZE = 30; //How much ammo does the marine have per magazine ?
-	Const MARINE_FIREFOV = 60; //The FOV within which the marine can fire his VelInterceptEx() bullets without looking stupid.
 	Const MARINE_USEPATIENCE = 10; //How long the marine stays in the interact state.
 	Const MARINE_CHASETIME = 350; //Chase your target for approximately 30 seconds after he has gone out of sight or died, before going to your idle state.
 	Const MARINE_GRENADECHANCE = 150; //The chance threshold over which the marine will throw a grenade if in range. MAYDO: Make this into a user variable.
 	Const MARINE_JUMPLENGTH = 288;
+	Const MARINE_CROUCHHEIGHT = 30;
 	
 	Mixin SM_SplashFunctions;
 	
@@ -333,6 +366,8 @@ Class SM_Marine : KAI_Humanoid
 	Int ChaseTimer; //How long has the marines' target being dead or out of sight ?
 	Vector3 ClimbPos; //Where the marine will move at after climbing up a sector in his climb state.
 	Vector3 JumpPos; //Where the marine must jump to in his jump state.
+	Vector3 PreJumpPos; //Where the marine started his running jump. Used to make the marine walk back and run forward to jump over very big gaps.
+	/*Private*/ Bool Crouching; //If true, the marine is currently crouching.
 	
 	//Shooting variables.
 	Int AmmoCount; //How much ammo the marine has.
@@ -347,12 +382,11 @@ Class SM_Marine : KAI_Humanoid
 		FIRE_SINGLE, //Fire a single accurate shot.
 		FIRE_FULLAUTO, //Fire everything, pretty inaccurate, adds recoil, and faster than normal fire.
 	}
-	Bool SittingDown; //Is the marine firing while kneeling or lying down ? Adds an overall accuracy buff.
 	
 	//Other attacks
 	Bool HasBerserk; //Has an active berserk pack.
 	Int JumpkickDelay; //How long before the marine does a flying kick again.
-	Bool QuickMelee; //If the marine does a melee attack while this is one, he will retreat a bit before going back to See.
+	Bool QuickMelee; //If the marine does a melee attack while this is on, he will retreat a bit before going back to See.
 	Bool QuickGrenade; //Marine quickly throws a grenade in front of him to retreat.
 	Int GrenadeDelay; //How long until the marine throws another grenade.
 	UInt8 GrenadeType; //What grenade are we throwing exactly ?
@@ -371,6 +405,8 @@ Class SM_Marine : KAI_Humanoid
 	
 	States
 	{
+		Crouch_Sprites: //Caching to not have GetSpriteIndex() crash shit.
+			MARC ABCEDF 0;
 		//When the marine is looking around with this animation, he actually changes his sight angle.
 		Spawn:
 			MARI EEEEEEEE 3 //Look 80 degrees to your left.
@@ -400,6 +436,7 @@ Class SM_Marine : KAI_Humanoid
 			MARI A 0 SM_SetMarineState (MARINE_IDLING,0,True); //No more acting, only bing chilling.
 			MARI AABBCCDD 3
 			{
+				If (Crouching) Sprite = GetSpriteIndex ('MARC');
 				KAI_Wander(8,768,anglelimit:20);
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 			}
@@ -450,14 +487,43 @@ Class SM_Marine : KAI_Humanoid
 		//Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
 		See:
 			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True); //NOTE: Removing all marine stauses might cause problems if I implement the patrolling state ?
-			MARF JJKKLLMM 3 SM_Chase ("Idle.Decide","RunFromMelee",CHF_DONTIDLE);
+			MARF JJKKLLMM 3
+			{
+				If (Crouching) //Remap movement animation, the actual hitbox change is handled by SM_Chase().
+				{
+					Sprite = GetSpriteIndex ('MARC');
+					//Remap sprite frames, man this shit looks incomprehensible if you don't have like 4 years of experience making GZDoom mods.
+					Switch (Frame)
+					{
+						Default:
+							Break;
+						Case 9: //J
+							Frame = 0; //A
+							Break;
+						Case 10: //K
+							Frame = 1; //B
+							Break;
+						Case 11: //L
+							Frame = 2; //C
+							Break;
+						Case 12: //M
+							Frame = 3; //D
+							Break;
+					}
+				}
+				SM_Chase ("Idle.Decide","RunFromMelee",CHF_DONTIDLE);
+			}
 			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
 			Goto See+1;
 		RunFromMelee:
 			TNT1 A 0 {RetreatLoops = 2;}
 		Retreat: //Run away a certain number of steps.
 			TNT1 A 0 SM_SetMarineState (MARINE_RETREAT,MARINE_IDLING|MARINE_CHASING);
-			MARI AAABBBCCCDDD 1 SM_RunAway (Target,192);
+			MARI AAABBBCCCDDD 1
+			{
+				If (Crouching) Sprite = GetSpriteIndex ('MARC');
+				SM_RunAway (Target,192);
+			}
 			TNT1 A 0
 			{
 				RetreatLoops--;
@@ -480,7 +546,7 @@ Class SM_Marine : KAI_Humanoid
 			MARF JJJ 2;
 			MARF A 2 //Wait until you can actually aim properly at the enemy.
 			{
-				Frame = SM_UpdateElevation (13, 21, 17); //Standing up: N, V, R : Kneeling down: 
+				Frame = SM_UpdateElevation (13, 21, 17, 14, 23, 18, 7); //Standing up: N, V, R : Kneeling down: O, X, S : Lying down: H
 				If (++AimTimer >= GameTicRate * 3) //https://www.youtube.com/watch?v=VX5gXHcbJAk
 					Return FindState ("Fire.End",True);
 				If (Target && CheckFOV(Target,160/2) && AimingAheadOfTarget())
@@ -492,7 +558,10 @@ Class SM_Marine : KAI_Humanoid
 			MARF A 0 SM_SetMarineState (MARINE_FIRING,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_CHASING); //Set marine actions.
 			MARF A 3 //Delay
 			{
-				Frame = SM_UpdateElevation (13, 21, 17, 14, 23, 19); //Standing up: N, V, R : Kneeling down: O, X, S
+				SM_UpdateHeight();
+				Frame = SM_UpdateElevation (13, 21, 17, 14, 23, 18, 7); //Standing up: N, V, R : Kneeling down: O, X, S : Lying down: H
+				If (Crouching)
+					Sprite = GetSpriteIndex ('MARC');
 				If (AttackType == FIRE_FULLAUTO)
 					Tics = 2; //Fire faster in full auto.
 				If (AmmoCount <= 0) //Out of ammo.
@@ -505,7 +574,10 @@ Class SM_Marine : KAI_Humanoid
 			}
 			MARF E 3 Light ("MarineMuzzleFlash")
 			{
-				Frame = SM_UpdateElevation (15, 22, 19, 16, 24, 20); //Standing up: P, W, T : Kneeling down: Q, Y, U
+				SM_UpdateHeight();
+				Frame = SM_UpdateElevation (15, 22, 19, 16, 24, 20, 8); //Standing up: P, W, T : Kneeling down: Q, Y, U : Lying down: I
+				If (Crouching)
+					Sprite = GetSpriteIndex ('MARC');
 				SM_FireBullet();
 			}
 			MARF A 0
@@ -515,9 +587,14 @@ Class SM_Marine : KAI_Humanoid
 				
 				BurstCounter++;console.printf ("fired %d rounds",burstcounter);
 				//Run line of fire checks.
-				If (!SM_CheckLOF ((0,-6,42))) //The default parameters for this function are for marines firing bursts.
+				Vector3 CheckPos = (0,-6,42);
+				If (MarineState & MARINE_KNEELING)
+					CheckPos.Z = 32;
+				Else If (MarineState & MARINE_LYINGDOWN)
+					CheckPos.Z = 14;
+				If (!SM_CheckLOF (CheckPos)) //The default parameters for this function are for marines firing bursts.
 					Return FindState ("Fire.End",True);
-				Return SM_CheckRefire (10,"Fire.End",MARINE_FIREFOV); //Since we are firing a short burst, be very likely to stop if anything is in the way.
+				Return SM_CheckRefire (10,"Fire.End",MARINE_FOV); //Since we are firing a short burst, be very likely to stop if anything is in the way.
 			}
 			MARF A 0 A_JumpIf (BurstCounter >= BurstSize,"Fire.End");
 			Goto Fire.Loop;
@@ -582,7 +659,7 @@ Class SM_Marine : KAI_Humanoid
 				SM_SetMarineState (0,MARINE_RELOAD); //We're done here.
 				RemovedOldMag = False;
 			}
-			TNT1 A 0 A_JumpIf (MARINE_IDLING,"Idle");
+			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");
 			Goto See;
 		Grenade: //https://www.youtube.com/watch?v=BJrxKiW5f-4
 			TNT1 A 0 SM_SetMarineState (MARINE_THROWING,MARINE_MELEE|MARINE_IDLING|MARINE_FIRING|MARINE_IDLING);
@@ -777,17 +854,23 @@ Class SM_Marine : KAI_Humanoid
 		Climb:
 			MARA F 6 //Stop the marines momentum and turn on no gravity, to allow him to ledge grab when jumping, or if the sector below him begins moving down.
 			{
+				Crouching = False;
 				A_Stop();
 				bNoGravity = True;
 			}
 			MARA G 5 A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
 			TNT1 A 0 A_SetAngle (GetAngleToPos(Vec3Angle (Speed,Angle))); //Face in front of where you climbed to.
 			TNT1 A 0 SetOrigin ((Vec2Angle(Radius+1,Angle),ClimbPos.Z),True); //And at last. Go to the climbing position and resume walking or whatever.
-			MARA G 1 {bNoGravity = Default.bNoGravity;}
+			MARA G 1
+			{
+				bNoGravity = Default.bNoGravity;
+				GiveInventory ("SM_DropoffToken",1); //HACK: Zandronum Moment
+			}
 			Goto See;
 		Jump:
 			MARA H 1
 			{
+				Crouching = False;
 				If (JumpPos.Z != JumpPos.Z) //No Z coordinate passed, as is usually the case if JumpPos just becomes the return of GetJumpPosition().
 					JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y); //So just get the Z at the XY coordinates.
 				bNoFriction = True; //Get rid of the god forsaken friction.
@@ -803,6 +886,7 @@ Class SM_Marine : KAI_Humanoid
 				{console.printf ("okay i landed, back to walking");
 					bNoFriction = Default.bNoFriction;
 					A_Stop(); //Stop moving.
+					GiveInventory ("SM_DropoffToken",1); //HACK: Zandronum Moment
 					If (MarineState & MARINE_IDLING) //We were bing chilling, go back to that.
 						Return FindState ("Idle",True);
 					
@@ -811,8 +895,23 @@ Class SM_Marine : KAI_Humanoid
 				Return State (Null);
 			}
 			Wait;
-		//TODO: Run back 160-192 MU if the path is clear, then sprint forward before jumping. Used to add more flair (And logic) to longer jumps.
-		//Jump.Running:
+		Jump.Up: //Used when the marine needs to jump to reach a ledge just out of reach.
+			MARA H 1
+			{
+				Crouching = False;
+				If (JumpPos.Z != JumpPos.Z) //No Z coordinate passed, as is usually the case if JumpPos just becomes the return of GetJumpPosition().
+					JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y); //So just get the Z at the XY coordinates.
+				bNoFriction = True; //Get rid of the god forsaken friction.
+				SM_JumpTo (JumpPos,17.5); //Using the velocity altering negative value makes the jump fail.
+				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+			}
+			MARA H 1;
+			Goto Jump.Loop;
+		Jump.Running:
+			MARI AABBCCDDAABBCCDDAABBCCDD 2 KAI_MoveTowards (PreJumpPos, 0.5, 0);//Move back.
+			//Begin running forward and jump.
+			MARI AAABBBCCCDDDAAABBBCCCDDD 1 KAI_MoveTowards ((JumpPos.XY,GetZAt (JumpPos.X,JumpPos.Y)), 0.5, 0);
+			Goto Jump;
 		Pain:
 			//Being hurt interrupts staying idle, wandering, attacking (Except firing), and kneeling or lying down..
 			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_MELEE|MARINE_KNEELING|MARINE_LYINGDOWN);
@@ -820,6 +919,7 @@ Class SM_Marine : KAI_Humanoid
 			MARA E 0
 			{
 				bNoFriction = Default.bNoFriction; //Reset the friction flag to the default, in case the marine flinched mid jump.
+				bNoGravity = Default.bNoGravity;
 				ChaseTimer = 0;
 				If ((MarineState & MARINE_RELOAD)) //We were reloading before retreating.
 				{
