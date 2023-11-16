@@ -1,9 +1,10 @@
 //IDEA:
 //Give them Flashbangs.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
-//Add the crouching, climbing, and jumping handling to the KAI_Humanoid class in the AI library.
-//I should probably add an SM_IsPosReachable() wrapper and use that instead, to raise the MaxStepHeight before IsPosReachable() calls for the ledge climbing.
 //Reimplement taking cover, the original system of 2 LineTraces' seemed to basically work already, but this time make them account for pitch too.
+
+//TODO:
+//REMOVE THE DEPENDANCIES TO THE VEHICLES.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -93,7 +94,7 @@ Class SM_Marine : KAI_Humanoid
 		//Update on whether or not the marine is berserking.
 		If (GetAge() % GameTicRate == 0)
 		{
-			If (CountInv("PowerStrength"))
+			If (DeadDogTimer || CountInv("PowerStrength"))
 			{
 				HasBerserk = True;
 				bAvoidMelee = False;
@@ -105,16 +106,52 @@ Class SM_Marine : KAI_Humanoid
 			}
 		}
 		
+		
+		If (CountInv("SM_DogRageToken") && IsInState (Self,"AskDog"))
+		{
+			Actor Killer = SM_DogRageToken(FindInventory("SM_DogRageToken",True)).DogKiller;
+			If (Killer && Killer.Player && FindDeadDogs (384,Killer) >= 3) //Killed too many dogs, probably at once.
+			{
+				Actor a = Spawn ("c65d3dfcb9b85e04ea7e82f81789b569");
+				If (a) a.target = Killer;
+				Killer = Null;
+			}
+			If (Killer)
+			{
+				DaDog = Null;
+				Target = Killer;
+				TakeInventory ("SM_DogRageToken",1);
+				SetStateLabel ("Melee.OnePunch");
+			}
+		}
+		
 		//Console.Printf ("Current marine velocity %.2f %.2f %.2f, gravity %.3f, altitude %.2f, height %.2f",Vel,GetGravity(),GetZAt (),pos.z);
 		
+		//The clocks.
 		If (NextFireDelay && !(MarineState & MARINE_FIRING)) //Decrement the firing delay, if any, for as long as the marine is not shooting.
 			NextFireDelay--;
 		
 		If (JumpKickDelay && !(MarineState & MARINE_MELEE))
 			JumpKickDelay--;
 		
-		If (GrenadeDelay && !(MarineState & (MARINE_FIRING)))
+		If (GrenadeDelay && !(MarineState & MARINE_FIRING))
 			GrenadeDelay--;
+		
+		If (HealDelay)
+			HealDelay--;
+		
+		If (DeadDogTimer)
+			DeadDogTimer--;
+	}
+	
+	Override Int TakeSpecialDamage (Actor Inflictor, Actor Source, Int Damage, Name DamageType)
+	{
+		Int Dam = Super.TakeSpecialDamage (Inflictor, Source, Damage, DamageType);
+		
+		If (HasBerserk && DeadDogTimer) //Take less damage when John Wick.
+			Dam *= 0.8;
+		
+		Return Dam;
 	}
 	
 	Override Void Die (Actor Source, Actor Inflictor,Int DMGFlags,Name MeansOfDeath)
@@ -124,6 +161,7 @@ Class SM_Marine : KAI_Humanoid
 		SM_EndFiring();
 		QuickMelee = False;
 		UseSec = Null;
+		HealTarget = DaDog = Null;
 		ChaseTimer = 0;
 		bNoFriction = Default.bNoFriction;
 		bNoGravity = Default.bNoGravity;
@@ -150,9 +188,6 @@ Class SM_Marine : KAI_Humanoid
 		Int Threat = AssessThreatLevel (Target);
 		
 		//console.printf ("fire delay is %d tics",nextfiredelay);
-		//TODO:
-		//Use different fire heights if the marine decides to fire kneeling or lying down.
-		//Make marines sometimes drop smoke grenades in front of them when retreating, especially if the enemy is powerful. Also maybe as a normal-ish attack too.
 		
 		//Check if you should fire your gun.
 		Double Dist = Distance3D (Target);
@@ -297,14 +332,14 @@ Class SM_Marine : KAI_Humanoid
 		Super.OnWander();
 		Bool UsedLine;
 		//If (!IsDangerNearby())
-			UsedLine = SM_MarineUseLine(faceline:True); //Check if there's a line in front of use to use.
+			UsedLine = SM_MarineUseLine(faceline:True); //Check if there's a line in front of us to use.
 		
-		SM_HandleCrouching();
+		Crouching = KAI_HandleCrouching (Default.Height,MARINE_CROUCHHEIGHT);
 		
-		If (!Crouching && SM_HandleClimbing())
+		If (!Crouching && KAI_HandleClimbing(ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
 			Return False;
 		
-		Vector2 JumpPosition = SM_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
+		Vector2 JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
 		If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
 		{
 			JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
@@ -324,6 +359,39 @@ Class SM_Marine : KAI_Humanoid
 		}
 		
 		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
+		if (healtarget) console.printf ("going to heal %s",healtarget.getclassname());
+		//Decide to help a pal out.
+		If (!HealDelay && !HealTarget)
+		{
+			If (Random (0,255) < 8)
+				HealTarget = SM_FindAllyToHelp();
+		}
+		Else If (HealTarget && Distance3DSquared (HealTarget) <= (MeleeRange + HealTarget.Radius)*(MeleeRange + HealTarget.Radius))
+		{
+			SetStateLabel ("HealAlly");
+			Return False;
+		}
+		
+		If (HealTarget) //We have someone to heal, so go do that instead of wandering or following a player.
+		{
+			KAI_MoveTowards (HealTarget.Pos, 0.5, 20, 0, 0);
+			Return False;
+		}
+		
+		If (Random (0,2048) == Random (0,2048) && !IsActorPlayingSound (CHAN_VOICE,"Marine/WhatDaDogDoin") && (DaDog = IsDogNearby()))
+		{
+			SetStateLabel ("AskDog");
+			Return False;
+		}
+		
+		//If the stars align and you are in the players' peripheral vision without them being in third person.
+		PlayerInfo Client = Players[ConsolePlayer];
+		Actor ClientMo = Client.Mo;
+		If (Random (0,2048) == Random (0,2048) && !(Client.Cheats & CF_CHASECAM) && !SM_CheckFOV (ClientMo,Self,Players[ConsolePlayer].FOV/1.5) )
+		{
+			SetStateLabel ("MarineShaker");
+			Return False;
+		}
 		
 		//If (UsedLine) 
 			//SetStateLabel ("Interact");
@@ -369,6 +437,11 @@ Class SM_Marine : KAI_Humanoid
 	Vector3 PreJumpPos; //Where the marine started his running jump. Used to make the marine walk back and run forward to jump over very big gaps.
 	/*Private*/ Bool Crouching; //If true, the marine is currently crouching.
 	
+	//Healing variables
+	Actor HealTarget; //Who to walk up to and heal.
+	//Int HealTravelTime; //Decrement while the marine goes to heal an ally, in case he gets stuck or something.
+	Int HealDelay; //Time until next heal. //MAYDO: I'll probably make healing toggleable, in which case, just make this configurable instead of an on/off.
+	
 	//Shooting variables.
 	Int AmmoCount; //How much ammo the marine has.
 	Int BurstCounter; //Used by the burst fire tracking.
@@ -390,6 +463,12 @@ Class SM_Marine : KAI_Humanoid
 	Bool QuickGrenade; //Marine quickly throws a grenade in front of him to retreat.
 	Int GrenadeDelay; //How long until the marine throws another grenade.
 	UInt8 GrenadeType; //What grenade are we throwing exactly ?
+	
+	
+	//Dawg
+	Int DeadDogTimer; //Incremented up by SM_MarineHandler when a friendly dog dies near a friendly marine, makes the marine furious.
+	Vector3 PreOnePunchPos;
+	Actor DaDog;
 	
 	Enum GrenadeTypes
 	{
@@ -437,12 +516,28 @@ Class SM_Marine : KAI_Humanoid
 			MARI AABBCCDD 3
 			{
 				If (Crouching) Sprite = GetSpriteIndex ('MARC');
+				Else If (!Crouching && Sprite == GetSpriteIndex ('MARC')) Sprite = GetSpriteIndex ('MARI');
+				Double NormalSpeed = Speed;
+				If (HealTarget)
+					Speed *= 1.5;
 				KAI_Wander(8,768,anglelimit:20);
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				Speed = NormalSpeed;
+				//KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 			}
-			MARI D 0 A_JumpIf (IsPatrolling(Self),1); //Ignore the random staying if patrolling. Only stand when a patrol delay tells you.
-			MARI D 0 A_Jump (4,"Idle.Stay","Idle.Stay.Alert"/*,"Idle.Stay.Kneel"*/); //Might stay around.
-			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
+			MARI D 0 
+			{
+				//Dumb the heal target if it's out of reachable.
+				If (!HealDelay && HealTarget && (!CheckSight (HealTarget,SF_IGNOREWATERBOUNDARY) || SM_IsPosReachable(HealTarget.Pos,ignoreactors:True)))
+					HealTarget = Null;
+				
+				If (!Crouching && !HealTarget && !IsPatrolling (Self)) //Might stand around if not busy.
+					Return A_Jump (4,"Idle.Stay","Idle.Stay.Alert"/*,"Idle.Stay.Kneel"*/);
+				
+				If (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2 && !Crouching && !HealTarget) //Go and pre-emptively reload.
+					Return FindState ("Reload",True);
+				
+				Return State (Null);
+			}
 			Loop;
 		Idle.Decide: //Decide a random stay state to enter, for when patrolling and you reach a delayed point.
 			TNT1 A 0 A_Jump (127,"Idle.Stay.Alert");
@@ -491,7 +586,8 @@ Class SM_Marine : KAI_Humanoid
 			{
 				If (Crouching) //Remap movement animation, the actual hitbox change is handled by SM_Chase().
 				{
-					Sprite = GetSpriteIndex ('MARC');
+					If (Crouching) Sprite = GetSpriteIndex ('MARC');
+					Else If (!Crouching && Sprite == GetSpriteIndex ('MARC')) Sprite = GetSpriteIndex ('MARI');
 					//Remap sprite frames, man this shit looks incomprehensible if you don't have like 4 years of experience making GZDoom mods.
 					Switch (Frame)
 					{
@@ -713,6 +809,8 @@ Class SM_Marine : KAI_Humanoid
 			MARM B 8
 			{
 				Double DmgMul = HasBerserk ? 10 : 1;
+				If (DeadDogTimer)
+					DmgMul += 5;
 				Sound HitSound = HasBerserk ? "Marine/PowerMelee" : "Marine/Melee";
 				A_CustomMeleeAttack (Random[Punch](4,8)*DmgMul,HitSound,"Marine/MeleeMiss",'Melee',HasBerserk);
 				If (HasBerserk) Target.A_Recoil (2*Cos(Target.PitchTo(Self,Target.Height/2)));
@@ -725,6 +823,8 @@ Class SM_Marine : KAI_Humanoid
 			MARM F 8
 			{
 				Double DmgMul = HasBerserk ? 6 : 1;
+				If (DeadDogTimer)
+					DmgMul += 5;
 				Sound HitSound = HasBerserk ? "Marine/PowerMelee" : "Marine/Melee";
 				A_CustomMeleeAttack (Random[Punch](4,8)*DmgMul,HitSound,"Marine/MeleeMiss",'Melee',HasBerserk);
 				Target.TriggerPainChance ('Melee'); //Additional pain chance.
@@ -785,6 +885,8 @@ Class SM_Marine : KAI_Humanoid
 				If (BlockingMobj)
 				{
 					Double DmgMul = HasBerserk ? 4 : 1;
+					If (DeadDogTimer)
+						DmgMul += 5;
 					Sound HitSound = HasBerserk ? "Marine/PowerMelee" : "Marine/Melee";
 					a_log ("THIS IS SPARTA");
 					A_StartSound (HitSound,CHAN_WEAPON);
@@ -811,6 +913,69 @@ Class SM_Marine : KAI_Humanoid
 				JumpKickDelay = GameTicRate*Random(1,4);
 			}
 			Goto Melee.End;
+		Melee.OnePunch:
+			MARM D 0 A_JumpIf (!Target,"Melee.End");
+			MARM D 30
+			{
+				DeadDogTimer = 0;
+				A_StartSound ("Marine/Death1",CHAN_VOICE,CHANF_OVERLAP,attenuation:0);
+				A_StartSound ("Marine/Death1",CHAN_VOICE,CHANF_OVERLAP,attenuation:0);
+				A_StartSound ("Marine/Death1",CHAN_VOICE,CHANF_OVERLAP,attenuation:0);
+				A_StartSound ("Marine/Death1",CHAN_VOICE,CHANF_OVERLAP,attenuation:0);
+				A_StartSound ("Marine/Death1",CHAN_VOICE,CHANF_OVERLAP,attenuation:0);
+				A_QuakeEx (5,5,5,35,0,8192,QF_SCALEDOWN,falloff:1,rollintensity:5);
+				bNoDamage = bNoGravity = bDontThrust = True;
+			}
+			MARM D 0 //Nothin personnel, kiddo.
+			{
+				PreOnePunchPos = Pos;
+				Vector3 TeleportPos = (Target.Vec2Angle (Target.Radius + MeleeRange,Target.Angle-180),Target.Pos.Z);
+				console.printf ("my target is %s, i will teleport to %d %d %d",target.getclassname(),teleportpos);
+				Teleport (TeleportPos,Angle,TELF_SOURCEFOG|TELF_DESTFOG);
+			}
+			MARM D 5;
+			MARA JJ 8
+			{
+				//Massive skill issue.
+				If (Target.Player)
+					Target.Player.Cheats &= ~(CF_GODMODE|CF_GODMODE2|CF_BUDDHA|CF_BUDDHA2);
+				
+				Target.bNoDamage = Target.bBuddha = Target.bInvulnerable = False;
+				
+				//Die
+				Bool XTreme = bExtremeDeath;
+				bExtremeDeath = True;
+				Target.DamageMobj (Self,Self,INT.MAX,"Massacre",DMG_FORCED);
+				bExtremeDeath = XTreme;
+				
+				//Send the enemy flying, regardless of bDontThrust.
+				Double MassMul = KAI_Math.LinearMap (Target.Mass,100000,0,0.0,1.0);
+				console.printf ("mass %d, mass multiplier %.2f",Target.mass,massmul);
+				Double XVel , YVel, ZVel;
+				XVel = YVel = 64*MassMul;
+				ZVel = 24*MassMul;
+				Double BuffMul = 1;
+				
+				Target.Vel.X += (XVel * Cos (Angle) + YVel * Sin (Angle))*BuffMul;
+				Target.Vel.Y += (XVel * Sin (Angle) - YVel * Cos (Angle))*BuffMul;
+				Target.Vel.Z += ZVel*BuffMul;
+				Target.bBlasted = True;
+				
+				//Summon giant explosion.
+				If (CheckActorExists ('MVP_MBTFireEffect'))
+					Spawn ("MVP_MBTFireEffect",Target.Pos);
+				Else
+					Spawn ("SM_OnePunchBlast",Target.Pos);
+			}
+			MARM D 0 Teleport (PreOnePunchPos,Angle,TELF_SOURCEFOG);
+			MARA D 10;
+			MARM D 0
+			{
+				bNoDamage = Default.bNoDamage;
+				bNoGravity = Default.bNoGravity;
+				bDontThrust = Default.bDontThrust;
+			}
+			Goto Melee.End;
 		Melee.End: //Just in case I need to add any shit here.
 			#### # 0 SM_SetMarineState (0,MARINE_MELEE); //We are no longer doing melee.
 			#### # 0 A_JumpIf ((MarineState & MARINE_RELOAD),"Reload");
@@ -825,6 +990,42 @@ Class SM_Marine : KAI_Humanoid
 				}
 				Return State (Null);
 			}
+			Goto See;
+		HealAlly:
+			TNT1 A 0 A_JumpIf (!HealTarget,17); //Skip this if we have no heal target for some reason.
+			MARA IIIIII 1 A_Face (HealTarget);
+			TNT1 A 0 //Now actually heal the target.
+			{
+				If (HealTarget.Player) //Straight up give an item to players.
+				{
+					Inventory Stimmy = Inventory (Spawn("SM_MarineStimpack",Pos));
+					If (Stimmy)
+					{
+						Stimmy.SetGiveAmount (HealTarget,10,False);
+						If (!Stimmy.CallTryPickup (HealTarget))
+							Stimmy.Destroy();
+						Else
+						{
+							If (Stimmy.PickupFlash) Spawn(Stimmy.PickupFlash, HealTarget.Pos, ALLOW_REPLACE);
+							Stimmy.PrintPickupMessage (HealTarget.CheckLocalView(), Stimmy.PickupMessage());
+							Stimmy.PlayPickupSound (HealTarget);
+							HealTarget.Player.BonusCount = 6; //Screen flash.
+							Spawn ("SM_MarineHealAllyIcon",HealTarget.Pos.PlusZ(Height),ALLOW_REPLACE);
+						}
+					}
+					//HealTarget.GiveInventory ("SM_MarineStimpack",1);
+				}
+				Else
+				{
+					HealTarget.GiveBody (10,HealTarget.SpawnHealth());
+					HealTarget.A_StartSound ("misc/i_pkup",34859,CHANF_OVERLAP,1.0,ATTN_STATIC);
+					Spawn ("SM_MarineHealAllyIcon",HealTarget.Pos.PlusZ(Height),ALLOW_REPLACE);
+				}
+				HealTarget = Null;
+				HealDelay = Random (20,60)*GameTicRate;
+			}
+			MARA JJJJJJJJJJ 1;
+			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");
 			Goto See;
 		//The marine is interacting with a door or the likes, so stop in place. This has no MarineState since if the marine flinches during this, he should move anyway.
 		Interact:
@@ -854,6 +1055,7 @@ Class SM_Marine : KAI_Humanoid
 		Climb:
 			MARA F 6 //Stop the marines momentum and turn on no gravity, to allow him to ledge grab when jumping, or if the sector below him begins moving down.
 			{
+				SetOrigin ((ClimbPos.XY,Pos.Z),True);
 				Crouching = False;
 				A_Stop();
 				bNoGravity = True;
@@ -874,16 +1076,16 @@ Class SM_Marine : KAI_Humanoid
 				If (JumpPos.Z != JumpPos.Z) //No Z coordinate passed, as is usually the case if JumpPos just becomes the return of GetJumpPosition().
 					JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y); //So just get the Z at the XY coordinates.
 				bNoFriction = True; //Get rid of the god forsaken friction.
-				SM_JumpTo (JumpPos);
+				KAI_JumpTo (JumpPos);
 				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
 			}
 			MARA H 1; //Wait one tick.
 		Jump.Loop: //Not sure if this should really be interruptable by pain or if I should add a new marine state for jumping/falling. But I'm leaning to no.
 			MARA H 1
-			{a_log ("running jump loop");if (bonmobj) a_log ("im on top of another actor");
-				SM_HandleClimbing (False); //Marine can try climbing if he misses a jump, like jumping up taller walls, or barely making really big jump by catching the ledge.
+			{
+				KAI_HandleClimbing(ClimbPos,Null,"Climb",Null,1.1,1.75);
 				If (bOnMobj || Pos.Z <= GetZAt ()) //The eagle has landed.
-				{console.printf ("okay i landed, back to walking");
+				{
 					bNoFriction = Default.bNoFriction;
 					A_Stop(); //Stop moving.
 					GiveInventory ("SM_DropoffToken",1); //HACK: Zandronum Moment
@@ -902,16 +1104,67 @@ Class SM_Marine : KAI_Humanoid
 				If (JumpPos.Z != JumpPos.Z) //No Z coordinate passed, as is usually the case if JumpPos just becomes the return of GetJumpPosition().
 					JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y); //So just get the Z at the XY coordinates.
 				bNoFriction = True; //Get rid of the god forsaken friction.
-				SM_JumpTo (JumpPos,17.5); //Using the velocity altering negative value makes the jump fail.
+				KAI_JumpTo (JumpPos,17.5); //Using the velocity altering negative value makes the jump fail.
 				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
 			}
 			MARA H 1;
 			Goto Jump.Loop;
 		Jump.Running:
-			MARI AABBCCDDAABBCCDDAABBCCDD 2 KAI_MoveTowards (PreJumpPos, 0.5, 0);//Move back.
+			MARI AABBCCDDAABBCCDDAABBCCDD 2 //Move back.
+			{
+				KAI_MoveTowards (PreJumpPos, 0.5, 0); 
+				If (BlockingLine || BlockingMobj) //Something is in the way.
+				{
+					If (MarineState & MARINE_IDLING)
+						Return FindState ("Idle",True);
+					
+					Return SeeState;
+				}
+				Return State (Null);
+			}
 			//Begin running forward and jump.
-			MARI AAABBBCCCDDDAAABBBCCCDDD 1 KAI_MoveTowards ((JumpPos.XY,GetZAt (JumpPos.X,JumpPos.Y)), 0.5, 0);
+			MARI AAABBBCCCDDDAAABBBCCCDDD 1
+			{
+				KAI_MoveTowards ((JumpPos.XY,GetZAt (JumpPos.X,JumpPos.Y)), 0.5, 0);
+				If (BlockingLine || BlockingMobj) //Something is in the way.
+				{
+					If (MarineState & MARINE_IDLING)
+						Return FindState ("Idle",True);
+					
+					Return SeeState;
+				}
+				Return State (Null);
+			}
 			Goto Jump;
+		MarineShaker:
+			TNT1 A 0 {ChaseTimer = Random (1,8)*(GameTicRate/2);}
+			MARA KKLLMM 1
+			{
+				PlayerInfo Client = Players[ConsolePlayer];
+				Actor Playa = Client.Mo; //HACK: Because using Client.Mo directly causes ZScript to bitch about CheckFOV having too many parameters passed.
+				If (SM_CheckFOV (Playa,Self,Client.FOV/1.5))
+					ChaseTimer -= 3; //Decrement 3 times as fast when in sight.
+				If (ChaseTimer < 0/* || Distance3DSquared (Playa) <= 512*512*/ || Client.Cheats & CF_CHASECAM)
+				{
+					ChaseTimer = 0;
+					If (MarineState & MARINE_IDLING)
+						Return FindState ("Idle",True);
+					
+					Return SeeState;
+				}
+				ChaseTimer--;
+				Return State (Null);
+			}
+			Goto MarineShaker+1;
+		AskDog: //What peculiar act is the domesticated canine performing.
+			TNT1 A 0
+			{
+				A_StartSound ("Marine/WhatDaDogDoin",CHAN_VOICE);
+				A_Face(DaDog);
+			}
+			MARI HHHHHHHHHHHHHH 5;
+			MARI H 0 {DaDog = Null;}
+			Goto Idle;
 		Pain:
 			//Being hurt interrupts staying idle, wandering, attacking (Except firing), and kneeling or lying down..
 			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_MELEE|MARINE_KNEELING|MARINE_LYINGDOWN);
@@ -920,6 +1173,7 @@ Class SM_Marine : KAI_Humanoid
 			{
 				bNoFriction = Default.bNoFriction; //Reset the friction flag to the default, in case the marine flinched mid jump.
 				bNoGravity = Default.bNoGravity;
+				DaDog = Null;
 				ChaseTimer = 0;
 				If ((MarineState & MARINE_RELOAD)) //We were reloading before retreating.
 				{

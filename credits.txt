@@ -1,13 +1,12 @@
 Code written by inkoalawetrust.
 
-Playtesting done by RaveYard, TDRR, and inkoalawetrust
-
 ======|Actor sprites|======
 Marine aiming rifle sprites made by Sergeant_Mark_IV, aiming and firing sprites made by Tabijaky.
 Alternate marine hip-firing sprites made by Sergeant_Mark_IV.
 Standing idle sprites made by Das M.
 Standing alert sprites made by Superdave938.
-Grenade throwing sprites by Mryayayify
+Grenade throwing sprites by Mryayayify.
+Twerking sprites by Craneo.
 Rifle reloading sprites made by Tabijaky.
 Rifle melee sprites made by TG5.
 Kick sprites made by Captain Toenail and edited by Sergeant_Mark_IV.
@@ -31,6 +30,7 @@ First person turret sprites and muzzle flash made by Sergeant_Mark_IV. Overlay g
 Friendly marine command text made using the Doom Text Generator: https://c.eev.ee/doom-text-generator/
 Bullet tracers made by inkoalawetrust
 Smoke sprites are from unknown source, ripped from Project Brutality and edited by me.
+Giant blast sprites made by inkoalawetrust.
 
 ======|Sounds|======
 Reloading and rocket travelling sound is from Half-Life.

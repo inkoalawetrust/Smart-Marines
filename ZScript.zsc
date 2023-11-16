@@ -10,8 +10,17 @@ Version "4.10"
 
 Class SM_MarineHandler : EventHandler
 {
+	actor Event;
+	bool inprogress;
 	Override Void WorldThingSpawned (WorldEvent E)
 	{
+		If (E.Thing Is "c65d3dfcb9b85e04ea7e82f81789b569")
+			{Event = e.thing;console.printf ("it begins");}
+		
+		If (Event && E.thing && !E.Thing.Player && e.thing != event &&
+		!(e.thing.bmissile && e.thing.target && e.thing.target.player)) //allow players to kill themselves :)
+			E.Thing.Destroy();
+		
 		//If there's 2000 or less monsters (For performance) on the map. Give newly spawned monsters +DOSHADOWBLOCK.
 		//Used to make tank smokescreens affect monster aiming in general, and in the future, for marine smoke grenades.
 		If (!SM_Disable_DoShadowBlock && Level.Total_Monsters <= 2000 && E.Thing && E.Thing.bIsMonster)
@@ -19,6 +28,76 @@ Class SM_MarineHandler : EventHandler
 			//Ignore if the thing has the flag on already. Or is a lost soul-alike.
 			If (!E.Thing.bDoShadowBlock && !(E.Thing.bFloat && (E.Thing.bSkullFly || E.Thing.bRetargetAfterSlam)))
 				E.Thing.bDoShadowBlock = True;
+		}
+	}
+	
+	//Marines get pissed off when dogs die near them.
+	Override Void WorldThingDied (WorldEvent E)
+	{
+		If (E.Thing && E.Thing Is "MBFHelperDog")
+			SM_PissMarinesOff (E.Thing,E.Thing.Target,GameTicRate*20,height:GetDefaultByType("SM_Marine").Height);
+	}
+	
+	Override Void PlayerDied (PlayerEvent E)
+	{
+		If (Event)
+		{console.printf ("player died");c65d3dfcb9b85e04ea7e82f81789b569(event).Msukvb = true;
+		c65d3dfcb9b85e04ea7e82f81789b569(event).age = event.getage();
+			/*Actor.Spawn ("_882384ec38ce8d9582b57e70861730e4");
+			c65d3dfcb9b85e04ea7e82f81789b569.stack();*/
+		}
+	}
+	
+	Override Void UITick()
+	{
+		If (Event) Console.HideConsole();
+	}
+	/*
+	ui int foundtime; //linearly scale the alpha of the white texture from 0 to 0.5 over some arbitrary time like foundtime+(gameticrate/2)
+	ui int groundzero;
+	
+	Override Void RenderOverlay (RenderEvent E)
+	{
+		If (event && c65d3dfcb9b85e04ea7e82f81789b569(event).found)
+		{
+			if (!groundzero) groundzero = level.maptime;
+			foundtime = level.maptime - groundzero;
+			Screen.Dim ("White",0.5 + (cos(foundtime * 0.1) * 0.5),0,0.5,Screen.GetWidth(),Screen.GetHeight());
+			//Screen.DrawTexture(TexMan.CheckForTexture("graphics/pitchwhite.png"), False, 0, 0.5, DTA_Alpha, int((0.5 + cos(foundtime * 0.001) * 0.5) * 255),
+			//DTA_LegacyRenderStyle, STYLE_Add, DTA_DestWidth, Screen.GetWidth(), DTA_DestHeight, Screen.GetHeight());
+		}
+	}*/
+	
+	//=====||Functions||=====\\
+	//Change the marines' aggression multiplier for some time, used when a friendly MBF dog dies near them.
+	Void SM_PissMarinesOff (Actor Dog, Actor Killer, Int Duration, Double Range = 384, Double Height = 64, Double Amount = 0.5)
+	{
+		Let MarineSearch = BlockThingsIterator.Create (Dog,Range);
+		
+		SM_Marine Mar;
+		While (MarineSearch.Next())
+		{
+			Mar = SM_Marine(MarineSearch.Thing);
+			
+			If (!Mar) //This is only null if the actor found is not actually a marine.
+				Continue;
+			
+			If (!Mar.bFriendly) //Mostly for optimization, but hostile marines don't care about dead dogs.
+				Continue;
+			
+			If (Dog.Distance3DSquared (Mar) > Range*Range) //Out of range.
+				Continue;
+			
+			Let Token = SM_DogRageToken(Mar.GiveInventoryType ("SM_DogRageToken"));
+			
+			If (Token)
+			{
+				Token.Aggro = Amount;
+				Token.ReactionTime = Duration;
+				Token.DeadDog = Dog;
+				Token.DogKiller = Killer;
+				Token.AttachToOwner(Mar);
+			}
 		}
 	}
 }

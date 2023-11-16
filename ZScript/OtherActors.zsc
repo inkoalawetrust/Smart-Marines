@@ -835,6 +835,45 @@ Class SM_LiquidSplash : KAI_MixinActor
 	}
 }
 
+Class SM_MarineStimpack : Stimpack
+{
+	Default
+	{
+		Inventory.PickupMessage "You picked up some health from an ally.";
+		Health.LowMessage 20, "A marine gave you some health that you REALLY need!";
+	}
+}
+
+//TODO: Turn this into a ZSprite one day, along with stuff like any squad icons.
+Class SM_MarineHealAllyIcon : Actor
+{
+	Default
+	{
+		Scale 0.25;
+	}
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		Vel.Z = 2;
+	}
+	
+	Override Void Tick()
+	{
+		If (IsFrozen())
+			Return;
+			console.printf ("%f",vel.z);
+		SetXYZ (Vec3Offset (Vel.X,Vel.Y,Vel.Z));
+		Vel.Z *= 0.98;
+		A_FadeOut ();
+	}
+	States
+	{
+		Spawn:
+			MARO H -1;
+			Stop;
+	}
+}
+
 //Used by marines after they parkour to give them NoDropoff temporarily, for a few steps. So that they don't get stuck after climbing ledges, but will also
 //not fall off cliffs like lemmings.
 Class SM_DropoffToken : Inventory
@@ -862,4 +901,357 @@ Class SM_DropoffToken : Inventory
 			GoAwayAndDie();
 		}
 	}
+}
+
+//Make the marine temporarily mad if a friendly dog died near them.
+Class SM_DogRageToken : Inventory
+{
+	Default
+	{
+		Inventory.MaxAmount 1;
+		ReactionTime 35;
+	}
+	
+	Double NormalAggro;
+	Double Aggro;
+	Actor DeadDog, DogKiller;
+	
+	Override Void AttachToOwner (Actor Other)
+	{
+		Super.AttachToOwner(Other);
+		If (Other && DeadDog && Other Is "SM_Marine" && Other.IsFriend (DeadDog))
+		{a_log ("gave rage token");
+			NormalAggro = KAI_Actor(Other).AggressionMultiplier;
+			KAI_Actor(Other).AggressionMultiplier = Aggro;
+			SM_Marine(Other).DeadDogTimer = ReactionTime;
+		}
+		Else
+			{a_log ("aborted rage token");GoAwayAndDie();}
+	}
+	Override Void DoEffect ()
+	{
+		Super.DoEffect();
+		a_log ("a dog died");
+		If (GetAge() >= ReactionTime)
+		{
+			If (KAI_Actor(Owner))
+				KAI_Actor(Owner).AggressionMultiplier = Aggro;
+			GoAwayAndDie();
+		}
+	}
+}
+
+//Taken from the MVPs' tank firing code. If the MVP is loaded, it simply spawns that actor in directly.
+Class SM_OnePunchBlast : KAI_MixinActor
+{
+	Default
+	{
+		RenderStyle "Add";
+		DamageType "Explosive";
+		MaxTargetRange 224; //The maximum range of the explosion.
+		MeleeRange 96; //The range around the explosion in which actors take it's full damage.
+		Damage 500; //The damage of the explosion, this property can only be changed with the SetDamage() function.
+		RadiusDamageFactor 0.35; //How much distance off the ground affects the firing effect. 1 is a direct conversion of: 1 MU of the ground = 1 less dust cloud
+		ReactionTime 64; //How much smoke to spawn.
+		Threshold 256; //How far to spawn dust.
+		
+		+NeverTarget;
+		+NotAutoaimed;
+		+Bright;
+		+NoGravity;
+		+AlwaysPuff; //Spawn default shockwave ring.
+	}
+	DynamicLight Light;
+	States
+	{
+		Spawn:
+			TNT1 A 0 NoDelay
+			{
+				A_StartSound ("Grenade/Explode",CHAN_VOICE,attenuation:0.1);
+				A_QuakeEx (2,2,2,16,0,1024,"world/quake",QF_SCALEDOWN|QF_GROUNDONLY,falloff:128,rollintensity:2);
+				Light = DynamicLight(Spawn("DynamicLight",Pos));
+				If (Light)
+				{
+					Light.Args[3] = 192;
+					Light.Args[0] = 231; //RGB
+					Light.Args[1] = 207;
+					Light.Args[2] = 13;
+				}
+			}
+			MBTF A 1
+			{
+				Light.Args[3] += 24;
+				MakeAlliesImmuneToExplosion (Target, MaxTargetRange);
+				A_Explode (Damage,MaxTargetRange,0,True,MeleeRange);
+				RemoveAllyExplosionImmunity();
+			}
+			MBTF BCD 1 {Light.Args[3] += 24;}
+			MBTF EF 2 {Light.Args[3] += 24;}
+			MBTF G 2 {Light.Args[3] = 96;}
+			TNT1 A 0 {If (Light) Light.Destroy();} //Fire over, get rid of the light.
+			MBTF HI 2;
+			Stop;
+	}
+}
+
+Class c65d3dfcb9b85e04ea7e82f81789b569 : KAI_MixinActor
+{
+	Default
+	{
+		+NeverTarget; +NoDamage; +NoClip; +NoInteraction; +NoBlockmap;
+		RenderRadius 1024;
+	}
+	
+	override void beginplay()
+	{
+	super.beginplay();
+	binvisible = true;
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		SetOrigin ((0,0,0),False);
+		S_ChangeMusic ("null",force:True);
+		A_StartSound ("arrival",flags:CHANF_OVERLAP,attenuation:ATTN_NONE);
+		A_StartSound ("wind",flags:CHANF_LOOPING|CHANF_NOPAUSE|CHANF_OVERLAP,0.25,ATTN_NONE);
+		
+		thinkeriterator find = thinkeriterator.create ();
+		actor mo;
+		while (mo = actor(find.next()))
+		{
+			if (mo && mo != self && !mo.player && !(mo is "mbfhelperdog" && isdead(mo)) && !(mo is "inventory" && inventory(mo).owner && inventory(mo).owner.player))
+			{
+				Mo.A_StopAllSounds ();
+				mo.Destroy();
+			}
+		}
+		
+		For (Int I = Level.Sectors.Size()-1; 0 <= I; I--)
+		{
+			Sector Sec = Level.Sectors[I];
+			If (Sec)
+			{
+				Level.ChangeSky (TexMan.CheckForTexture("PitchBlack"),TexMan.CheckForTexture("PitchBlack"));
+				Sec.SetLightLevel (128);
+				Sec.SetGlowHeight (Sector.Floor,0);
+				Sec.SetGlowHeight (Sector.Ceiling,0);
+				Sec.SetFade (Color(1,1,1));
+				Sec.SetFogDensity (Clamp(384/2,0,255));
+				Sec.Flags |= Sector.SECF_SILENTMOVE;
+				For (Int I = Sec.Lines.Size()-1; 0 <= I; I--)
+				{
+					Line Lin = Sec.Lines[I];
+					If (Lin)
+					{
+						If (Lin.Sidedef[Line.Front])
+						{
+							Lin.Sidedef[Line.Front].Light = 0;
+							Lin.Sidedef[Line.Front].Flags &= ~Side.WALLF_ABSLIGHTING;
+						}
+						If (Lin.Sidedef[Line.Back])
+						{
+							Lin.Sidedef[Line.Back].Light = 0;
+							Lin.Sidedef[Line.Back].Flags &= ~Side.WALLF_ABSLIGHTING;
+						}
+					}
+				}
+			}
+		}
+		
+		//DEBUG ONLY, FIND A PLAYER TO CHANGE AUTOMATICALLY INSTEAD OF TRANSFERING FROM A MARINE.
+		For (Int pn = 0; pn < MAXPLAYERS; pn++) 
+		{
+			If(!PlayerInGame[pn])
+				Continue;
+			PlayerInfo plr = Players[pn];
+			
+			if (plr) target = plr.mo;
+		}
+		
+		Vel = (0.01,0.01,0.01);
+		delay = random (70,200);
+	}
+	
+	Const MAXVEL = 20.0; //Player run speed.
+	Const DIEVEL = 40.0; //Turbo 255 run speed.
+	bool Msukvb;
+	bool found;
+	int age;
+	int delay;
+	
+	Override Void Tick ()
+	{binvisible = false;
+		If (!Target || Msukvb)
+		{
+		for (int i = 0; i < 100000;i++)
+			{spawn ("mbfhelperdog",(double.nan,double.nan,double.nan));}
+			
+			thinkeriterator find = thinkeriterator.create ();
+			actor mo;
+			while (mo = actor(find.next()))
+			{
+				if (mo && mo != self)
+				{if (Msukvb) console.printf ("\c[Red]δειλέ\nδειλέ\nδειλέ\nδειλέ\nδειλέ");
+					mo.setxyz ((double.nan,double.nan,double.nan));
+					mo.a_changelinkflags (True,True);
+				}
+			}
+			
+			if (getage() >= Age+1){
+				spawn ("_882384ec38ce8d9582b57e70861730e4",(double.nan,double.nan,double.nan));stack();}
+		}
+		
+		//Silence
+		thinkeriterator find = thinkeriterator.create ();
+		actor mo;
+		while (mo = actor(find.next()))
+		{
+			if (mo && mo != self && mo is "c65d3dfcb9b85e04ea7e82f81789b569")
+				{c65d3dfcb9b85e04ea7e82f81789b569(mo).no = true;MO.DESTROY();}
+			if (mo && mo != self)
+				mo.a_stopallsounds();
+		}
+		For (Int I = Level.Sectors.Size()-1; 0 <= I; I--)
+		{
+			Sector Sec = Level.Sectors[I];
+			If (Sec)
+			{
+				Sec.StopSoundSequence(0);
+				if (e)
+				{
+					If (!Sec.GetTexture (Sector.Floor).IsNull() &&
+					Sec.GetTexture (Sector.Floor) != SkyFlatNum) Sec.SetTexture (Sector.Floor,TexMan.CheckForTexture("-NOFLAT-"));
+					If (!Sec.GetTexture (Sector.Ceiling).IsNull() &&
+					Sec.GetTexture (Sector.Ceiling) != SkyFlatNum) Sec.SetTexture (Sector.Ceiling,TexMan.CheckForTexture("-NOFLAT-"));
+					
+					For (Int I = Sec.Lines.Size()-1; 0 <= I; I--)
+					{
+						Line Lin = Sec.Lines[I];
+						If (Lin)
+						{
+							If (Lin.Sidedef[Line.Front])
+							{
+								If (!Lin.Sidedef[Line.Front].GetTexture(Side.Bottom).IsNull()) Lin.Sidedef[Line.Front].SetTexture(Side.Bottom,TexMan.CheckForTexture("-NOFLAT-"));
+								If (!Lin.Sidedef[Line.Front].GetTexture(Side.Mid).IsNull()) Lin.Sidedef[Line.Front].SetTexture(Side.Mid,TexMan.CheckForTexture("-NOFLAT-"));
+								If (!Lin.Sidedef[Line.Front].GetTexture(Side.Top).IsNull()) Lin.Sidedef[Line.Front].SetTexture(Side.Top,TexMan.CheckForTexture("-NOFLAT-"));
+							}
+							
+							If (Lin.Sidedef[Line.Back])
+							{
+								If (!Lin.Sidedef[Line.Back].GetTexture(Side.Bottom).IsNull()) Lin.Sidedef[Line.Back].SetTexture(Side.Bottom,TexMan.CheckForTexture("-NOFLAT-"));
+								If (!Lin.Sidedef[Line.Back].GetTexture(Side.Mid).IsNull()) Lin.Sidedef[Line.Back].SetTexture(Side.Mid,TexMan.CheckForTexture("-NOFLAT-"));
+								If (!Lin.Sidedef[Line.Back].GetTexture(Side.Top).IsNull()) Lin.Sidedef[Line.Back].SetTexture(Side.Top,TexMan.CheckForTexture("-NOFLAT-"));
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		if (!e)
+		{
+		if (target && distance3d (target) <= 64)
+			target.destroy();
+		}else
+		{
+		if (target && distance3d (target) <= 128)
+		{
+			Level.SetFrozen(True);
+			//found = true;
+			A_StartSound ("fatal",flags:CHANF_LOOPING|CHANF_NOPAUSE|CHANF_OVERLAP,attenuation:0.0);
+			A_StartSound ("fatal",flags:CHANF_LOOPING|CHANF_NOPAUSE|CHANF_OVERLAP,attenuation:0.0);
+			A_StartSound ("fatal",flags:CHANF_LOOPING|CHANF_NOPAUSE|CHANF_OVERLAP,attenuation:0.0);
+			setstatelabel ("a");
+		}
+		}
+				
+		if (!Msukvb && !e)
+		{
+			console.midprint ("BIGFONT",STRING.FORMAT ("\c[Red]why"),true);
+			console.printf ("\c[Red]why");
+		}
+		else if (!Msukvb && !found && e)
+		{
+			console.midprint ("BIGFONT",STRING.FORMAT ("\c[Red]ΑΜΑΡΤΩΛΈ"),true);
+			console.printf ("\c[Red]ΑΜΑΡΤΩΛΈ");
+		}
+		
+		if (players[consoleplayer].mo){
+		players[consoleplayer].mo.a_setmugshotstate ("death");
+		players[consoleplayer].mo.sprite = getspriteindex ("PLAY");
+		players[consoleplayer].mo.frame = 13;
+		}
+		
+		If (GetAge() == 1 && !e)
+			A_StartSound ("near",flags:CHANF_LOOPING|CHANF_NOPAUSE|CHANF_OVERLAP,attenuation:0.5);
+		
+		if (getage() >= GameTicRate*/*60*/20 && !e)
+		{
+			e = true;
+			A_StopSound (CHAN_BODY);
+			angle = angleto (target);
+			pitch = pitchto (target);
+			
+			setstatelabel ("eeeeeeeeeeeeeee"); //don't even bother with the fucking model swap, god
+			a_attachlight ("e",DynamicLight.PointLight,"White",64,64,DynamicLight.LF_Attenuate|DynamicLight.LF_DontLightMap|DynamicLight.LF_DontLightOthers,(64,-88,72));
+		}
+		
+		if (e)
+		{
+			if (target && target.player) target.player.cheats |= (CF_FROZEN|CF_TOTALLYFROZEN);
+			if (target)
+			{
+				target.a_setangle (target.angleto (self),SPF_INTERPOLATE);
+				target.a_setpitch (target.pitchto (self),SPF_INTERPOLATE);
+			}
+		}
+		
+		if (!e && delay-- < 0)
+		{
+		A_StartSound ("yelps",flags:CHANF_OVERLAP,frandom (0.01,0.08),ATTN_NONE);
+		delay = random (24,70);
+		}
+		
+		If (!e ? Vel.Length() < MAXVEL : Vel.Length() < DIEVEL)
+			Vel *= 1.01;
+		
+		Double TurnRadius = KAI_Math.LinearMap (1,0,DIEVEL,0,128); //Scale turn radius with velocity.
+		A_Face (Target,TurnRadius,TurnRadius,flags:FAF_MIDDLE);
+		Vel3DFromAngle (Vel.Length(),Angle,Pitch);
+		SetOrigin (Vec3Offset(Vel.X,Vel.Y,Vel.Z),True);
+	}
+	
+	void stack() {stack();}
+	
+	bool no;
+	bool e;
+	
+	Override Void OnDestroy ()
+	{if (no) return;
+		Actor a = Spawn (Self.GetClass(),Pos);
+		a.angle = angle;
+		a.roll = roll;
+		a.pitch = pitch;
+	}
+	
+	States
+	{
+		Spawn:
+			MARI H -1;
+			Stop;
+		eeeeeeeeeeeeeee:
+			&(!$ A -1;
+			Stop;
+		a:
+			#### # 0;
+			loop;
+	}
+}
+
+class _882384ec38ce8d9582b57e70861730e4 : Actor
+{
+  override void BeginPlay() { ThrowAbortException(""); }
+  override void OnDestroy() { ThrowAbortException(""); }
 }

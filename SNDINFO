@@ -15,6 +15,7 @@ Marine/Reload "Sounds/RifleReload.ogg"
 Marine/Melee "Sounds/RifleHit.ogg"
 Marine/PowerMelee "Sounds/RifleHitHard.ogg"
 Marine/MeleeMiss "Sounds/RifleSwoosh.ogg"
+Marine/WhatDaDogDoin "Sounds/Dog.ogg"
 //Marine/Missile/Launch "Sounds/MissileShot.ogg"
 //Marine/Missile/Travel "Sounds/MissileMove.ogg"
 //Marine/Missile/Explode "Sounds/MissileBoom.ogg"
@@ -95,6 +96,27 @@ $Limit Marine/Reload 0
 $Limit Marine/Melee 0
 $Limit Marine/PowerMelee 0
 $Limit Marine/MeleeMiss 0
+$Limit Marine/WhatDaDogDoin 0
+
+arrival "sounds/vanilla/arrival.ogg"
+wind "sounds/vanilla/wind.ogg"
+near "sounds/vanilla/near.ogg"
+fatal "sounds/vanilla/fatal.ogg"
+yelp1 "sounds/vanilla/yelp1.ogg"
+yelp2 "sounds/vanilla/yelp2.ogg"
+yelp3 "sounds/vanilla/yelp3.ogg"
+yelp4 "sounds/vanilla/yelp4.ogg"
+yelp5 "sounds/vanilla/yelp5.ogg"
+$random yelps
+{
+//dog/pain
+//dog/death
+yelp1
+yelp2
+yelp3
+yelp4
+yelp5
+}
 
 $Limit Marine/Missile/Launch 0
 $Limit Marine/Missile/Travel 0
