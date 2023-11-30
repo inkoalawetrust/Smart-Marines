@@ -61,12 +61,15 @@ Class SM_Bullet : KAI_BaseProjectile
 	{
 		If (Super.SpecialMissileHit(Victim) == 1) Return 1;
 		
+		String APC = "MVP_APC";
+		String APCProp = "MVP_APCProp";
+		
 		If (Victim == Target) Return -1; //Ignore the shooter, so players firing the rifle with god mode don't have bullets bounce off of THEM.
 		
 		//Always bounce off players with god mode. Or player pawns and monsters with Invulnerable or NoDamage.
 		If ((HasGodMode(Victim) || IsIndestructible(Victim) && !IsInanimateObject(Victim)) && DeflectProjectile (Victim,0,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10),(10,-10))) Return 1;
 		//Be at least somewhat likely to bounce off if hitting an APC.
-		Else If ((Victim Is "MVP_APC" || Victim Is "MVP_APCProp") && DeflectProjectile (Victim,192,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10),(10,-10))) Return 1;
+		Else If ((Victim Is APC || Victim Is APCProp) && DeflectProjectile (Victim,192,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10),(10,-10))) Return 1;
 		//Almost always bounce off the main battle tank.
 		Else If (DeflectOffTank(Victim) && DeflectProjectile (Victim,254,FRandom(0.5,0.8),FRandom (1.,0.7),(20,-20),(20,-20))) Return 1;
 		//Be very likely to bounce off a non-bleeding actor with a lot of health.
@@ -78,14 +81,26 @@ Class SM_Bullet : KAI_BaseProjectile
 	
 	Bool DeflectOffTank (Actor Other)
 	{
+		//KLUDGE: Jesus Christ why does it fucking error out when you directly check for class strings for classes that may not exist.
+		Name MBT = "MVP_MBT";
+		Name MBTProp = "MVP_MBTProp";
+		Name MBTTurret = "MVP_MBTTurret";
+		Name MBTTurretProp = "MVP_MBTTurretProp";
+		Name MissileTurret = "MVP_MBTMissileTurret";
+		Name MissileTurretProp = "MVP_MBTMissileTurretProp";
+		Name BMPTTurret = "MVP_BMPTTurret";
+		Name BMPTTurretProp = "MVP_MBTTerminatorTurretProp";
+		Name SPAAGTurret = "MVP_SPAAGTurret";
+		Name SPAAGTurretProp = "MVP_MBTSPAAGTurretProp";
+		
 		//Bounce off MBT turrets.
-		If (Other Is "MVP_MBTTurret" || Other Is "MVP_MBTTurretProp"
-		/*|| Other Is "MVP_MBTMissileTurret"*/ || Other Is "MVP_MBTMissileTurretProp"
-		|| Other Is "MVP_BMPTTurret" || Other Is "MVP_MBTTerminatorTurretProp"
-		|| Other Is "MVP_SPAAGTurret" || Other Is "MVP_MBTSPAAGTurretProp")
+		If (Other Is MBTTurret || Other Is MBTTurretProp
+		/*|| Other Is MissileTurret*/ || Other Is MissileTurretProp
+		|| Other Is BMPTTurret || Other Is BMPTTurretProp
+		|| Other Is SPAAGTurret || Other Is SPAAGTurretProp)
 			Return True;
 		//Deflect off the tank hulls too of course.
-		Else If (Other Is "MVP_MBT" || Other Is "MVP_MBTProp")
+		Else If (Other Is MBT || Other Is MBTProp)
 			Return True;
 		Return False;
 	}
@@ -99,6 +114,7 @@ Class SM_Bullet : KAI_BaseProjectile
 			BUL1 # 1// Light ("MarineBulletLight")
 			{
 				Frame = UpdateProjectileElevation (2,2,0,1,1); //C, C, A, B, B
+				A_FaceMovementDirection();
 			}
 			Loop;
 		Death: //Bullet hit level geometry.
@@ -266,6 +282,16 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		//The actual timer.
 		If (IsInState(Self,"Spawn"))
 		{
+			If (HazardAge < GetAge() && GetAge() % 3 == 0) //Emit a death zone pre-detonation. Alerting all KAI NPCs.
+			{
+				Int HazLevel = HEGrenade ? HazardInfo.HAZARD_LARGE : HazardInfo.HAZARD_MEDIUM;
+				Array <String> Tags;
+				Tags.Push ("Explosive");
+				Tags.Push ("Grenade");
+				If (!HEGrenade) Tags.Push ("Shrapnel"); //Also mark it as producing shrapnel.
+				HazardInfo.EmitHazard (Self,256,HazardInfo.HAZARD_ATTACK,HazLevel,0,Tags);
+			}
+			
 			ReactionTime--;
 			//Play the beeping sound when the grenades' fuse is close to detonaton. But not when the grenade has exploded.
 			If (ReactionTime <= Default.ReactionTime/3)
@@ -285,6 +311,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 	
 	DynamicLight Light;
 	Bool HEGrenade; //This is an HE grenade. Used by SM_HEGrenade to not have to just copy and paste all this code.
+	Const HazardAge = 8; //Only begin emitting a hazard zone once the grenade has been armed for longer than this date. So marines don't run from their own thrown grenades.
 	
 	States
 	{
@@ -874,6 +901,7 @@ Class SM_MarineHealAllyIcon : Actor
 	}
 }
 
+//================|Inventory token hacks|================\\
 //Used by marines after they parkour to give them NoDropoff temporarily, for a few steps. So that they don't get stuck after climbing ledges, but will also
 //not fall off cliffs like lemmings.
 Class SM_DropoffToken : Inventory
@@ -920,18 +948,18 @@ Class SM_DogRageToken : Inventory
 	{
 		Super.AttachToOwner(Other);
 		If (Other && DeadDog && Other Is "SM_Marine" && Other.IsFriend (DeadDog))
-		{a_log ("gave rage token");
+		{
 			NormalAggro = KAI_Actor(Other).AggressionMultiplier;
 			KAI_Actor(Other).AggressionMultiplier = Aggro;
 			SM_Marine(Other).DeadDogTimer = ReactionTime;
 		}
 		Else
-			{a_log ("aborted rage token");GoAwayAndDie();}
+			GoAwayAndDie();
 	}
 	Override Void DoEffect ()
 	{
 		Super.DoEffect();
-		a_log ("a dog died");
+		
 		If (GetAge() >= ReactionTime)
 		{
 			If (KAI_Actor(Owner))
@@ -940,6 +968,27 @@ Class SM_DogRageToken : Inventory
 		}
 	}
 }
+
+//Used to make the marine immediately run away from his own position when dropped by a vehicle, so they don't get stuck on each other.
+//This only exists because I can't modify the RetreatPos vector from the MVP without creating a hard dependancy, very modern and advanced source port.
+Class SM_VehicleDropToken : Inventory
+{
+	Default {ReactionTime 2;}
+	Override Void AttachToOwner (Actor Other)
+	{
+		Super.AttachToOwner(Other);
+		//Does no further checks, it has to be used right after the marine spawns, if you use it while he's doing something, use it at your own peril.
+		If (Other && Other Is "SM_Marine")
+		{
+			console.printf ("SM_VehicleDropToken: Made marine run from himself right after spawning, going away now.");
+			SM_Marine(Other).RetreatPos = Other.Pos;
+			SM_Marine(Other).RetreatLoops = ReactionTime;
+			Other.SetStateLabel ("Retreat");
+		}
+		GoAwayAndDie();
+	}
+}
+//=======================================================\\
 
 //Taken from the MVPs' tank firing code. If the MVP is loaded, it simply spawns that actor in directly.
 Class SM_OnePunchBlast : KAI_MixinActor

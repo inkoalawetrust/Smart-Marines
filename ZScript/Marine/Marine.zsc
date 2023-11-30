@@ -3,9 +3,6 @@
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
 //Reimplement taking cover, the original system of 2 LineTraces' seemed to basically work already, but this time make them account for pitch too.
 
-//TODO:
-//REMOVE THE DEPENDANCIES TO THE VEHICLES.
-
 Class SM_Marine : KAI_Humanoid
 {
 	Default
@@ -142,6 +139,23 @@ Class SM_Marine : KAI_Humanoid
 		
 		If (DeadDogTimer)
 			DeadDogTimer--;
+		
+		//Update primary hazard to avoid every 4 ticks. Also handle dodging.
+		//IDEA: This should probably be the highest level hazard in range instead of the closest.
+		If (GetAge() % 4 == 0)
+		{
+			//Don't dodge if in any of the pain or jump states (Already), or if climbing.
+			If (!InStateSequence (CurState,FindState("Pain")) &&
+			!InStateSequence (CurState,FindState("Jump")) &&
+			!IsInState (Self,"Climb"))
+			{
+				Actor Misl = SM_ShouldDodgeProjectile(ignore:LastDodged);
+				If (SM_HandleDodging (Misl))
+					LastDodged = Misl;
+			}
+			
+			HazardToAvoid = GetNearestHazard(Hazards);
+		}
 	}
 	
 	Override Int TakeSpecialDamage (Actor Inflictor, Actor Source, Int Damage, Name DamageType)
@@ -165,6 +179,7 @@ Class SM_Marine : KAI_Humanoid
 		ChaseTimer = 0;
 		bNoFriction = Default.bNoFriction;
 		bNoGravity = Default.bNoGravity;
+		RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
 	}
 	
 	Override Void UserVariableDefaults()
@@ -358,6 +373,18 @@ Class SM_Marine : KAI_Humanoid
 			}
 		}
 		
+		//Handle avoiding major hazards first.
+		If (SM_RunFromHazards())
+			Return False;
+		
+		//Handle walking around minor hazards.
+		RunAwayTypes HazardAvoidType = SM_ShouldRunFromHazard (HazardToAvoid);
+		If (HazardAvoidType == RUN_WALK)
+		{console.printf ("walking around minor threat %p at %d %d %d while idle",HazardToAvoid,GetHazardOriginPos(HazardToAvoid));
+			KAI_MoveAway (Null,anglelimit:20,TargPos:GetHazardOriginPos(HazardToAvoid));
+			Return False;
+		}
+		
 		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
 		if (healtarget) console.printf ("going to heal %s",healtarget.getclassname());
 		//Decide to help a pal out.
@@ -366,7 +393,7 @@ Class SM_Marine : KAI_Humanoid
 			If (Random (0,255) < 8)
 				HealTarget = SM_FindAllyToHelp();
 		}
-		Else If (HealTarget && Distance3DSquared (HealTarget) <= (MeleeRange + HealTarget.Radius)*(MeleeRange + HealTarget.Radius))
+		Else If (HealTarget && !Crouching && Distance3DSquared (HealTarget) <= (MeleeRange + HealTarget.Radius)*(MeleeRange + HealTarget.Radius))
 		{
 			SetStateLabel ("HealAlly");
 			Return False;
@@ -436,6 +463,9 @@ Class SM_Marine : KAI_Humanoid
 	Vector3 JumpPos; //Where the marine must jump to in his jump state.
 	Vector3 PreJumpPos; //Where the marine started his running jump. Used to make the marine walk back and run forward to jump over very big gaps.
 	/*Private*/ Bool Crouching; //If true, the marine is currently crouching.
+	HazardInfo HazardToAvoid; //What hazard from his Hazards array should the marine be currently trying to avoid ?
+	Vector3 RetreatPos; //The position the marine retreats from, if this is not NaN, the retreat state runs from this coordinate instead of the target actor.
+	Actor LastDodged; //The last projectile the marine dodged.
 	
 	//Healing variables
 	Actor HealTarget; //Who to walk up to and heal.
@@ -463,7 +493,6 @@ Class SM_Marine : KAI_Humanoid
 	Bool QuickGrenade; //Marine quickly throws a grenade in front of him to retreat.
 	Int GrenadeDelay; //How long until the marine throws another grenade.
 	UInt8 GrenadeType; //What grenade are we throwing exactly ?
-	
 	
 	//Dawg
 	Int DeadDogTimer; //Incremented up by SM_MarineHandler when a friendly dog dies near a friendly marine, makes the marine furious.
@@ -494,6 +523,7 @@ Class SM_Marine : KAI_Humanoid
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle -= 80;
 				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI FFFFFFFF 3 //Look 20 degrees to your right.
 			{
@@ -501,6 +531,7 @@ Class SM_Marine : KAI_Humanoid
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 20;
 				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI GGGGGGGG 3 //Look 80 degrees to your right.
 			{
@@ -508,8 +539,13 @@ Class SM_Marine : KAI_Humanoid
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 80;
 				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
-			MARI HHHHHHHH 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+			MARI HHHHHHHH 3
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
 			Loop;
 		Idle:
 			MARI A 0 SM_SetMarineState (MARINE_IDLING,0,True); //No more acting, only bing chilling.
@@ -522,7 +558,7 @@ Class SM_Marine : KAI_Humanoid
 					Speed *= 1.5;
 				KAI_Wander(8,768,anglelimit:20);
 				Speed = NormalSpeed;
-				//KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 			}
 			MARI D 0 
 			{
@@ -548,6 +584,7 @@ Class SM_Marine : KAI_Humanoid
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle -= 80;
 				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI FFFFFFFF 3 //Look 20 degrees to your right.
 			{
@@ -555,6 +592,7 @@ Class SM_Marine : KAI_Humanoid
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 20;
 				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI GGGGGGGG 3 //Look 80 degrees to your right.
 			{
@@ -562,8 +600,13 @@ Class SM_Marine : KAI_Humanoid
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 80;
 				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
-			MARI HHHHHHHH 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+			MARI HHHHHHHH 3
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
 			TNT1 A 0
 			{
 				If (Random (0,255) < 48 && !IsPatrolling (Self)) Return FindState ("Idle",True);
@@ -571,7 +614,11 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Loop;
 		Idle.Stay.Alert: //Standing there, menacingly.
-			MARI IIIIIIIIIII 3 KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET); //Roughly 1 second of staying still.
+			MARI IIIIIIIIIII 3
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET); //Roughly 1 second of staying still.
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
 			TNT1 A 0 A_SetAngle (Angle+RandomPick (40,30,20,10,0,0,-10,-20,-30,40));
 			TNT1 A 0
 			{
@@ -618,14 +665,18 @@ Class SM_Marine : KAI_Humanoid
 			MARI AAABBBCCCDDD 1
 			{
 				If (Crouching) Sprite = GetSpriteIndex ('MARC');
+				Double RealSpeed = Speed;
+				Speed *= 0.85;
 				SM_RunAway (Target,192);
+				Speed = RealSpeed;
 			}
 			TNT1 A 0
 			{
 				RetreatLoops--;
 				console.printf ("%d retreats left",retreatloops);
-				If (RetreatLoops < 0 || !Target) //Once we are done running like a bitch. Or if there's no target left.
+				If (RetreatLoops <= 0 || !Target) //Once we are done running like a bitch. Or if there's no target left.
 				{
+					RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
 					//We are supposed to be reloading, so do that.
 					If (MarineState & MARINE_RELOAD)
 						Return FindState ("Reload",True);
@@ -639,9 +690,10 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Goto Retreat+1;
 		Fire: //Aim up.
-			MARF JJJ 2;
+			MARF JJJ 2 SM_RunFromHazards();
 			MARF A 2 //Wait until you can actually aim properly at the enemy.
 			{
+				SM_RunFromHazards();
 				Frame = SM_UpdateElevation (13, 21, 17, 14, 23, 18, 7); //Standing up: N, V, R : Kneeling down: O, X, S : Lying down: H
 				If (++AimTimer >= GameTicRate * 3) //https://www.youtube.com/watch?v=VX5gXHcbJAk
 					Return FindState ("Fire.End",True);
@@ -654,6 +706,8 @@ Class SM_Marine : KAI_Humanoid
 			MARF A 0 SM_SetMarineState (MARINE_FIRING,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_CHASING); //Set marine actions.
 			MARF A 3 //Delay
 			{
+				If (SM_RunFromHazards()) //Handle abruptly running away from hazards when firing.
+					SM_EndFiring();
 				SM_UpdateHeight();
 				Frame = SM_UpdateElevation (13, 21, 17, 14, 23, 18, 7); //Standing up: N, V, R : Kneeling down: O, X, S : Lying down: H
 				If (Crouching)
@@ -742,7 +796,7 @@ Class SM_Marine : KAI_Humanoid
 		Reload: //Reload the rifle.
 			TNT1 A 0 SM_SetMarineState (MARINE_RELOAD,0);
 			TNT1 A 0 A_JumpIf (RemovedOldMag,5); //We probably flinched mid reload or some shit, so go right to the end of the reload sequence.
-			MARA ABC 6;
+			MARA ABC 6 SM_RunFromHazards();
 			MARA D 4 {A_SpawnItemEx ("SM_EmptyMagazine",0,-16,27,0,FRandom(-2,-5),FRandom(-1,-0.5)); RemovedOldMag = True;}
 			MARA C 6;
 			MARA B 6
@@ -962,8 +1016,9 @@ Class SM_Marine : KAI_Humanoid
 				Target.bBlasted = True;
 				
 				//Summon giant explosion.
+				String TankBlast = "MVP_MBTFireEffect";
 				If (CheckActorExists ('MVP_MBTFireEffect'))
-					Spawn ("MVP_MBTFireEffect",Target.Pos);
+					Spawn (TankBlast,Target.Pos);
 				Else
 					Spawn ("SM_OnePunchBlast",Target.Pos);
 			}
@@ -1080,6 +1135,20 @@ Class SM_Marine : KAI_Humanoid
 				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
 			}
 			MARA H 1; //Wait one tick.
+			Goto Jump.Loop;
+		Jump.Dodge: //Jumping to dodge a projectile.
+			MARA H 1
+			{
+				Crouching = False;
+				If (JumpPos.Z != JumpPos.Z) //No Z coordinate passed, as is usually the case if JumpPos just becomes the return of GetJumpPosition().
+					JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y); //So just get the Z at the XY coordinates.
+				bNoFriction = True; //Get rid of the god forsaken friction.
+				KAI_JumpTo (JumpPos,8);
+				console.printf ("jump velocity is %.2f %.2f %.2f, length %.2f",vel,vel.length());
+				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+			}
+			MARA H 1; //Wait one tick.
+			Goto Jump.Loop;
 		Jump.Loop: //Not sure if this should really be interruptable by pain or if I should add a new marine state for jumping/falling. But I'm leaning to no.
 			MARA H 1
 			{
@@ -1175,6 +1244,7 @@ Class SM_Marine : KAI_Humanoid
 				bNoGravity = Default.bNoGravity;
 				DaDog = Null;
 				ChaseTimer = 0;
+				RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
 				If ((MarineState & MARINE_RELOAD)) //We were reloading before retreating.
 				{
 					If (!RetreatLoops) //Go to reloading, like if the marine was hurt mid reload. But do run away a bit first.

@@ -2,7 +2,8 @@ Extend Class SM_Marine
 {
 	Enum MarineChaseFlags
 	{
-		SMC_NOUSESTATE = 1 << 0, //The marine will not wait in his interact state after using a line with no threat around.
+		SMC_NOUSESTATE		= 1 << 0, //The marine will not wait in his interact state after using a line with no threat around.
+		SMC_IGNOREHAZARDS	= 1 << 1, //The marine ignores any nearby hazards.
 	}
 	//Unlike in the original Smart Marines, this is VERY MUCH a custom function.
 	Void SM_Chase (StateLabel WaitState = Null, StateLabel RetreatState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 25)
@@ -23,10 +24,12 @@ Extend Class SM_Marine
 		Bool MovedAlready;
 		Double MajorThreatRange = 1536*1536;//(RetreatRange*4)*(RetreatRange*4);
 		
-		//Run away from major threats.
+		MovedAlready = SM_RunFromHazards(); //Avoid any major hazards.
+		
+		//Run away from major actor threats.
 		If (bNoFear && Target && !(Goal && bChaseGoal))
 		{
-			If (!(ChaseFlags & CHF_DONTMOVE))
+			If (!(ChaseFlags & CHF_DONTMOVE) && !MovedAlready)
 			{
 				//If you can't attack (But not because you are in a NOATTACK sector), run. Also run if the other actor is frightening or you're frightened.
 				If ((!CanAttack() && !(CurSector.Flags & Sector.SECF_NOATTACK)) || bFrightened || IsFrightening (Target) ||
@@ -128,6 +131,37 @@ Extend Class SM_Marine
 			ChaseTimer = 0;
 			SetIdle();
 		}
+	}
+	
+	//Marine will run away from major hazards.
+	//Unless it's patrolling and sticking to his path, and even then, he will still run if the hazard is like, a nuke or something.
+	Bool SM_RunFromHazards (Bool NoJump = FaLse)
+	{
+		If (HazardToAvoid && ( !(Goal && bChaseGoal) || HazardToAvoid.Level >= HazardInfo.HAZARD_HUGE ) && SM_ShouldRunFromHazard(HazardToAvoid) == RUN_FAST)
+		{
+			//The amount of loops is the distance to the hazard divided by distance travelled by one retreat sequence + some change.
+			Double RetreatDist = Speed*12; //12 movement calls in one Retreat loop.
+			RetreatPos = GetHazardOriginPos (HazardToAvoid);
+			RetreatLoops = Int(GetHazardDistance(HazardToAvoid) / RetreatDist)+1;
+			
+			//Run a bit extra further for shrapnel.
+			Bool IsGrenade, HasShrapnel;
+			ForEach (CurTag : HazardToAvoid.CustomTags)
+			{
+				If (CurTag ~== "Grenade")
+					IsGrenade = True;
+				If (CurTag ~== "Shrapenl")
+					HasShrapnel = True;
+			}
+			If (IsGrenade && HasShrapnel)
+				RetreatLoops++;
+			
+			console.printf ("marine breaking action to run %d times away from hazard %p",retreatloops,hazardtoavoid);
+			HAZARDTOAVOID.PRINTHAZARDINFO();
+			If (!NoJump) SetStateLabel ("Retreat");
+			Return True;
+		}
+		Return False;
 	}
 	
 	Bool SM_CheckFOV (Actor Viewer, Actor Other, Double FOV)
@@ -290,7 +324,7 @@ Extend Class SM_Marine
 		}		
 		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
 		
-		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS);
+		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS, RetreatPos);
 	}
 	
 	//Returns true if the marine is down on the ground in some capacity, as opposed to standing up.
@@ -398,6 +432,7 @@ Extend Class SM_Marine
 		Check.Shooter = Self;
 		Check.Other = Target;
 		Check.PropHealthThreshold = PropHealthThreshold; //This can depend on factors like how many rounds the marine is firing.
+		Check.FriendlyFire = True;
 		
 		Check.ProjInfo = New ('LOFProjInfo'); //Assign data class.
 		Check.ProjInfo.Projectile = "SM_Bullet"; //Pass projectile class to trace.
@@ -405,10 +440,12 @@ Extend Class SM_Marine
 		
 		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
 		
-		//KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance);
+		Console.printf ("Fired trace for %p at %d %d %d",self,Level.Vec3Offset (Pos,CheckOffsets));
+		FSpawnParticleParams Debug; Debug.Lifetime = 8;
+		KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance,params:Debug);
 		Bool BadLoaf = Check.BadLOF;
 		If (Check.ProjInfo) Check.ProjInfo.Destroy();
-		Check.Destroy();
+		Check.Destroy();if (!badloaf && !bfriendly) console.printf ("SM_CheckLOF(): %p can shoot",self);
 		Return !BadLoaf;
 	}
 	
@@ -611,9 +648,57 @@ Extend Class SM_Marine
 		Return Chance;
 	}
 	
+	HazardInfo GetNearestHazard (Array<HazardInfo> HazardList)
+	{
+		Double ClosestDist = INT.MAX;
+		HazardInfo Closest;
+		
+		ForEach (CurHaz : HazardList)
+		{
+			If (CurHaz)
+			{
+				If (CurHaz.Flags & HazardInfo.HAZ_SECTOR) //The first hazard found in the same sector as you is the closest.
+					Return CurHaz;
+				
+				Double Dist = GetHazardDistance (CurHaz);
+				If (Dist < ClosestDist)
+				{
+					ClosestDist = Dist;
+					Closest = CurHaz;
+				}
+			}
+		}
+		
+		Return Closest;
+	}
+	
+	Enum RunAwayTypes //How should the marine run from a dangerous hazard, if at all ?
+	{
+		RUN_NONE, //The marine doesn't need to run.
+		RUN_WALK, //The marine should probably avoid it, but just walk around it if possible, since it's not that serious.
+		RUN_FAST, //Stop what you are doing and run away. Original marine behavior to grenades and the old SM_ImInDanger token.
+	}
+	
+	//How should the marine run away from this hazard zome, if at all ?
+	RunAwayTypes SM_ShouldRunFromHazard (HazardInfo Hazard)
+	{
+		If (!Hazard || !bAvoidHazards)
+			Return RUN_NONE;
+		
+		//Run away from actually dangerous threats, or if the hazard in question is weak but you are close to dying.
+		If (Hazard.Level >= HazardInfo.HAZARD_MEDIUM || Hazard.Level != HazardInfo.HAZARD_HARMLESS && Health <= SpawnHealth()/3)
+			Return RUN_FAST;
+		
+		//Dealing with a minor threat, so just walk around it if not doing anything else and not low on health.
+		If (Hazard.Level < HazardInfo.HAZARD_MEDIUM && Hazard.Level != HazardInfo.HAZARD_HARMLESS)
+			Return RUN_WALK;
+		
+		Return RUN_NONE;
+	}
+	
 	//Search for dangerous enemies around you.
 	Bool IsDangerNearby (Double Range = 1024)
-	{return false; //DEBUG
+	{
 		If (Target && CheckSight (Target, SF_IGNOREWATERBOUNDARY)) //My target is visible, that's an enemy.
 			{a_log ("IsDangerNearby(): Found target");Return True;}
 		
@@ -701,6 +786,165 @@ Extend Class SM_Marine
 		Return Null;
 	}
 	
+	Enum StrafeDirections
+	{
+		STRAFE_RANDOM = -1, //Strafe in a random direction.
+		STRAFE_NONE = 0, //Don't strafe.
+		STRAFE_LEFT = 1, //Strafe left.
+		STRAFE_RIGHT = 2 //Strafe right.
+	};
+	
+	//After a projectile to dodge is found by SM_ShouldDodgeProjectile, this function handles picking a direction, if any, to dodge out of the way towards.
+	Bool SM_HandleDodging (Actor Projectile, Bool DontJump = False)
+	{
+		If (!Projectile || bDormant || IsDead(Self) || Pos.Z > FloorZ+8) Return False;
+		console.printf ("SM_HandleDodgin(): Dodged a %s",projectile.getclassname());
+		Bool RightSafe, LeftSafe;
+		Double OldAngle = Angle; //Store the current angle before facing the projectile to dodge it.
+		Double OldDropoffHeight = MaxDropoffHeight;
+		
+		MaxDropOffHeight = 128; //Temporarily increase the maximum height the marine can drop from.
+		
+		If (CheckFOV (Projectile,120/2)) //Marines will only know the movement direction if they can actually see it.
+			Angle = VectorAngle (Projectile.Vel.X,Projectile.Vel.Y)-180; //Jump away from the projectiles' movement direction.
+		
+		//Check if it's safe to strafe 56 map units to the left or right, or both. Or none even, like in the case of crammed corridors.
+		Bool DecidedLeft, DecidedRight;
+		Double Delta = DeltaAngle (Angle,AngleTo(Projectile));
+		If (Delta >= -2 && Random (0,255) < 200) //No, the projectile is heading too much towards the left side.
+		{
+			a_log ("the projectile is to the left of the marine");
+			LeftSafe = False;
+			DecidedLeft = True;
+		}
+		Else If (Delta <= 2 && Random (0,255) < 200) //Ditto, but for the right side.
+		{
+			a_log ("the projectile is to the right of the marine");
+			RightSafe = False;
+			DecidedRight = True;
+		}
+		
+		If (!DecidedLeft) LeftSafe = CheckMove (Vec2Angle (56,Angle+90),PCM_DROPOFF);
+		If (!DecidedRight) RightSafe = CheckMove (Vec2Angle (56,Angle-90),PCM_DROPOFF);
+		
+		Int StrafeDirection;
+		
+		If ((LeftSafe && RightSafe)) //Both directions are safe to strafe to.
+			StrafeDirection = STRAFE_RANDOM;
+		Else If ((!LeftSafe && !RightSafe)) //The area is too crammed to strafe anywhere here.
+		{
+			Angle = OldAngle; //Revert the marines' angle if you can't dodge.
+			StrafeDirection = STRAFE_NONE; //Reset the strafe direction to none.
+			MaxDropOffHeight = OldDropoffHeight; //Revert the property to the default again.
+			Return False; //Don't break whatever state sequence the marine is currently in to tell him he can't dodge.
+		}
+		Else If (LeftSafe && !RightSafe) //Can only strafe left.
+			StrafeDirection = STRAFE_LEFT;
+		Else If (!LeftSafe && RightSafe) //Can only strafe right.
+			StrafeDirection = STRAFE_RIGHT;
+		
+		MaxDropOffHeight = OldDropoffHeight; //Revert the property to the default again.
+		
+		If (!DontJump) //Don't jump in both the literal and Doom state machine sense.
+		{
+			Double JumpAng = StrafeDirection == STRAFE_RANDOM ? Angle+RandomPick (90,-90) : 0;
+			If (StrafeDirection == STRAFE_LEFT)
+				JumpAng = Angle+90;
+			Else If (StrafeDirection == STRAFE_RIGHT)
+				JumpAng = Angle-90;
+			JumpPos.XY = Vec2Angle (96,JumpAng);
+			JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y)+(Height/2);
+			SetStateLabel ("Jump.Dodge");
+		}
+		
+		Return True; //Found a direction to strafe at to dodge.
+	}
+	
+	Enum DodgePickModes
+	{
+		DODGE_FIRST, //Simplest and cheapest, just dodge the first valid projectile found. Also how the marines originally dodged.
+		DODGE_RANDOM, //Idiot mode.
+		DODGE_STRONGEST, //Dodge the strongest projectile in range.
+		DODGE_NEAREST, //Dodge the closest projectile in range.
+	}
+	
+	//Find and return a pointer to a projectile for the marine to dodge.
+	//MAYDO: For now I won't make it ignore grenades, but if it looks too stupid to have them dodge grenades, I'll add exceptions for them.
+	Actor SM_ShouldDodgeProjectile (Double Range = 384, Int DodgeMode = DODGE_STRONGEST, Actor Ignore = Null)
+	{
+		Array <Actor> Threats;
+		
+		//Actually find
+		ForEach (Proj : KAIHandler.ProjectileList)
+		{
+			If (!Proj) Continue;
+			
+			Bool DodgeAllyProjectiles; //If on, the marine will dodge the projectile even if it's fired by an ally.
+			
+			Double Dist = Distance3DSquared (Proj);
+			If (Dist > Range*Range || Proj == Ignore) //Out of range or put on ignore.
+				Continue;
+			
+			//Dodge even friendly projectiles if they'd do too much damage, unless friendly fire is off.
+			DodgeAllyProjectiles = (!(Proj Is "KAI_BaseProjectile" && KAI_BaseProjectile(Proj).bNoFriendlyFire) && Proj.GetMissileDamage (1,7) >= Health/2);
+			
+			If (!DodgeAllyProjectiles && !IsActorHostile (Proj.Target)) //Ignore friendly projectiles.
+				Continue;
+			
+			//Don't return true if the projectile is too far away from the marines' peripheral vision. Or if it isn't so close that it's impossible not to notice it.
+			If (!CheckFOV (Proj,120/2) && Dist > MeleeRange*MeleeRange)
+				Continue;
+			
+			//Is the projectile about to hit me ? Weird math nonsense written by RaveYard.
+			bool projectile_is_flying_towards_me = (Vec3To(proj).Unit() dot proj.vel.Unit()) < -0.15;
+			double projectileSafeRadius = sqrt(2 * ((proj.radius + radius) ** 2.2));
+			if(projectile_is_flying_towards_me && KAI_Math.distance3dline(pos, proj.pos, proj.pos + proj.vel) < projectileSafeRadius && CheckSight(Proj,SF_IGNOREWATERBOUNDARY))
+			{
+				If (DodgeMode != DODGE_FIRST)
+					Threats.Push (Proj);
+				Else
+					Return Proj;
+			}
+		}
+		
+		If (DodgeMode == DODGE_RANDOM)
+			Return (Threats[Random (0,Threats.Size()-1)]);
+		Else If (DodgeMode == DODGE_NEAREST)
+		{
+			Double NearestDistance = INT.MAX;
+			Actor NearestProj;
+			For (Int I = Threats.Size()-1; I >= 0; I--)
+			{
+				Double CurrentDistance = Distance3D(Threats[I]);
+				If (NearestDistance > CurrentDistance)
+				{
+					NearestDistance = CurrentDistance;
+					NearestProj = Threats[I];
+				}
+			}
+			
+			Return NearestProj;
+		}
+		Else If (DodgeMode == DODGE_STRONGEST)
+		{
+			Double HighestDamage;
+			Actor StrongestProj;
+			For (Int I = Threats.Size()-1; I >= 0; I--)
+			{
+				Double CurrentDamage = Threats[I].GetMissileDamage(1,7);
+				If (HighestDamage < CurrentDamage)
+				{
+					HighestDamage = CurrentDamage;
+					StrongestProj = Threats[I];
+				}
+			}
+			
+			Return StrongestProj;
+		}
+		
+		Return Null;
+	}
+	
 	//Identical to KAI's IsPosReachable, but also accounts for the marines' ability to climb, if available.
 	Bool SM_IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
 	{
@@ -712,7 +956,7 @@ Extend Class SM_Marine
 		Return Res;
 	}
 	
-	//Get the max health of actors or player pawn acotrs.
+	//Get the max health of actors or player pawn actors.
 	Int SM_GetMaxHealth (Actor Other)
 	{
 		If (!Other)
@@ -802,12 +1046,12 @@ Extend Class SM_Marine
 		Else If (MarineState & MARINE_LYINGDOWN)
 		{
 			FireHeight = 14;
-			Recoil/= 3;
+			Recoil /= 3;
 		}
 		If (Crouching) //This should probably just be a MarineState instead of a variable lol.
 		{
 			FireHeight = 25;
-			Recoil/= 3;
+			Recoil /= 3;
 		}
 		
 		Actor Bullet = A_SpawnProjectile ("SM_Bullet",FireHeight,-6,flags:CMF_AIMDIRECTION,Pitch);

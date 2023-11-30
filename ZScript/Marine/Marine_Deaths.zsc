@@ -2,7 +2,6 @@
 Extend Class SM_Marine
 {
 	//The code related to the marine making the player die.
-	//PLAYTEST: STILL UNTESTED !
 	Override String GetObituary (Actor Victim, Actor Inflictor, Name MOD, Bool PlayerAttack)
 	{
 		//Melee obituaries
@@ -29,9 +28,27 @@ Extend Class SM_Marine
 				Else
 					Return "%o was dropkicked to death by a marine";
 			}
+			Else If (IsInState (Self,"Melee.OnePunch"))
+				Return "%o found out what the marine was doing";
 
 			Return HitObituary;
 		}
+		
+		If (Inflictor Is "SM_FragGrenade")
+		{
+			If (MOD == 'Shrapnel')
+				Return "%o couldn't outrun a grenades' shrapnel";
+			Else If (MOD == "Grenade" || MOD == 'Explosive' || MOD == 'Explosion' || MOD == 'ExplosiveImpact')
+				Return "%o was blown up by a marine";
+		}
+		If (Inflictor Is "SM_ShrapnelPuff")
+			If (MOD == 'Shrapnel')
+				Return "%o couldn't outrun a grenades' shrapnel";
+		
+		//Special rifle obituary.
+		If (Inflictor && Inflictor Is "SM_Bullet" && AttackType == FIRE_SINGLE && Random (True, False) == True)
+			Return "%o was sniped by a marine";
+		
 		Return Super.GetObituary (Victim, Inflictor, MOD, PlayerAttack);
 	}
 

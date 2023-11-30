@@ -10,7 +10,6 @@ Model SM_Tracer
 	DONTCULLBACKFACES
 	
 	FrameIndex POSS A 0 0
-	
 }
 
 Model c65d3dfcb9b85e04ea7e82f81789b569

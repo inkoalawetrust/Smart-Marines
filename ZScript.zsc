@@ -41,10 +41,8 @@ Class SM_MarineHandler : EventHandler
 	Override Void PlayerDied (PlayerEvent E)
 	{
 		If (Event)
-		{console.printf ("player died");c65d3dfcb9b85e04ea7e82f81789b569(event).Msukvb = true;
+		{c65d3dfcb9b85e04ea7e82f81789b569(event).Msukvb = true;
 		c65d3dfcb9b85e04ea7e82f81789b569(event).age = event.getage();
-			/*Actor.Spawn ("_882384ec38ce8d9582b57e70861730e4");
-			c65d3dfcb9b85e04ea7e82f81789b569.stack();*/
 		}
 	}
 	
@@ -52,21 +50,6 @@ Class SM_MarineHandler : EventHandler
 	{
 		If (Event) Console.HideConsole();
 	}
-	/*
-	ui int foundtime; //linearly scale the alpha of the white texture from 0 to 0.5 over some arbitrary time like foundtime+(gameticrate/2)
-	ui int groundzero;
-	
-	Override Void RenderOverlay (RenderEvent E)
-	{
-		If (event && c65d3dfcb9b85e04ea7e82f81789b569(event).found)
-		{
-			if (!groundzero) groundzero = level.maptime;
-			foundtime = level.maptime - groundzero;
-			Screen.Dim ("White",0.5 + (cos(foundtime * 0.1) * 0.5),0,0.5,Screen.GetWidth(),Screen.GetHeight());
-			//Screen.DrawTexture(TexMan.CheckForTexture("graphics/pitchwhite.png"), False, 0, 0.5, DTA_Alpha, int((0.5 + cos(foundtime * 0.001) * 0.5) * 255),
-			//DTA_LegacyRenderStyle, STYLE_Add, DTA_DestWidth, Screen.GetWidth(), DTA_DestHeight, Screen.GetHeight());
-		}
-	}*/
 	
 	//=====||Functions||=====\\
 	//Change the marines' aggression multiplier for some time, used when a friendly MBF dog dies near them.
