@@ -4,6 +4,7 @@ Extend Class SM_Marine
 	{
 		SMC_NOUSESTATE		= 1 << 0, //The marine will not wait in his interact state after using a line with no threat around.
 		SMC_IGNOREHAZARDS	= 1 << 1, //The marine ignores any nearby hazards.
+		SMC_NOCOVERSTOP		= 1 << 2, //The marine doesn't stop moving when in cover.
 	}
 	//Unlike in the original Smart Marines, this is VERY MUCH a custom function.
 	Void SM_Chase (StateLabel WaitState = Null, StateLabel RetreatState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 25)
@@ -24,7 +25,10 @@ Extend Class SM_Marine
 		Bool MovedAlready;
 		Double MajorThreatRange = 1536*1536;//(RetreatRange*4)*(RetreatRange*4);
 		
-		MovedAlready = SM_RunFromHazards(); //Avoid any major hazards.
+		If (!(ChaseFlags & CHF_DONTMOVE)) MovedAlready = SM_RunFromHazards(); //Avoid any major hazards.
+		
+		If (!(Flags & SMC_NOCOVERSTOP) && MarineState & MARINE_INCOVER) //Don't move when in cover.
+			ChaseFlags |= CHF_DONTMOVE;
 		
 		//Run away from major actor threats.
 		If (bNoFear && Target && !(Goal && bChaseGoal))
@@ -112,9 +116,7 @@ Extend Class SM_Marine
 				
 				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
 				If (Target && !MovedAlready)
-				{
 					KAI_MoveTowards (Target.Pos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|KMT_ZIGZAG|NoStockUse);
-				}
 			}
 		}
 		
@@ -163,6 +165,84 @@ Extend Class SM_Marine
 		}
 		Return False;
 	}
+	
+	Bool SM_UpdateCover (Actor Other, Bool IsCrouchingAlready)
+	{
+		FLineTraceData EyeLevel, HipLevel;
+		Bool EyeLevelUnblocked, HipLevelBlocked;
+		Int HasHit;
+		Actor Mobj;
+		
+		//Don't crouch if Who is invalid or are patrolling.
+		If (!Other || IsPatrolling (Self))
+			{console.printf ("SM_UpdateCover(): no other actor or patrolling");Return False;}
+		
+		//If the other actor is this close to you, you probably can't crouch.
+		If (Distance3DSquared(Other) <= 72*72)
+			{console.printf ("SM_UpdateCover(): other is too close to take cover.");Return False;}
+		
+		/*
+		This fires two raycasts from the marines' eyes and hips. Then the Eye and HipLevelBlocked booleans return true or false.
+		Based on whether or not they hit any level geometry before stopping. The distance that the raycasts travel double when
+		the marine is already crouched, so they don't get out of cover even when their target hasn't breached said cover.
+		*/
+		
+		If (!IsCrouchingAlready)
+			LineTrace (AngleTo (Other),48,PitchTo(Other,50,Other.Height/2),0,50,data:EyeLevel);
+		Else
+			LineTrace (AngleTo (Other),128,PitchTo(Other,50,Other.Height/2),0,50,data:EyeLevel);
+		
+		EyeLevelUnblocked = SM_EyeLevelClear (EyeLevel);
+
+		If (!IsCrouchingAlready)
+			LineTrace (AngleTo (Other),48,PitchTo(Other,18,Other.Height/2),TRF_THRUHITSCAN,18,data:HipLevel);
+		Else //Run a longer range trace when crouched to not go out of cover as easily when behind strangely shaped cover like star shaped fountains.
+			LineTrace (AngleTo (Other),128,PitchTo(Other,18,Other.Height/2),TRF_THRUHITSCAN,18,data:HipLevel);
+		
+		HasHit = HipLevel.HitType;
+		Mobj = HipLevel.HitActor;
+		
+		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),EyeLevel.HitLocation,EyeLevel.Distance);
+		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
+		
+		//Only take cover behind large enough actors that aren't other NPCs or players. And aren't about to break.
+		If ((HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling) ||
+		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height < 40 && Mobj.Health >= 40))
+			HipLevelBlocked = True;
+		
+		Bool OtherInSight = CheckSight (Other,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY);
+		//Only run this if the marine is not crouched already.
+		If (!IsCrouchingAlready)
+			If (EyelevelUnblocked && HipLevelBlocked && OtherInSight)
+				{console.printf ("SM_UpdateCover(): marine can take cover");Return True;}
+		
+		//If you are crouching already and have a line of sight to the other actor.
+		If (IsCrouchingAlready && OtherInSight)
+			//Then return if you can crouch based on whether or not your hips are blocked by cover still.
+			{if (hiplevelblocked) console.printf ("SM_UpdateCover(): marine can no longer hide behind here");Return HipLevelBlocked;}
+		
+		If (!OtherInSight && Random (0,255) < 4) //If the other actor is out of sight, the marine will eventually give up staying behind cover.
+			Return False;
+		
+		//If none of the other checks are true, but you are crouching already, then just assume you can keep doing so.
+		If (IsCrouchingAlready)
+			Return True;
+		console.printf ("SM_UpdateCover(): All checks failed, turning off.");
+		Return False;
+	}
+	
+	//Clean wrapper for the eye level checks, copied from the original code and probably unnecessary.
+	Bool SM_EyeLevelClear (FLineTraceData Data)
+    {
+        Int HasHit;
+        
+        HasHit = Data.HitType;
+		
+        If (Data.HitActor || HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling)
+            Return False;
+        
+        Return True;
+    }
 	
 	Bool SM_CheckFOV (Actor Viewer, Actor Other, Double FOV)
 	{
@@ -330,17 +410,22 @@ Extend Class SM_Marine
 	//Returns true if the marine is down on the ground in some capacity, as opposed to standing up.
 	Bool SM_IsCrouched()
 	{
-		Return (Crouching || MarineState & (MARINE_KNEELING|MARINE_LYINGDOWN));
+		Return (Crouching || MarineState & (MARINE_KNEELING|MARINE_LYINGDOWN|MARINE_INCOVER));
 	}
 	
 	//DECORATE-esque function for use in states.
-	Void SM_SetMarineState (Int Add, Int Remove, Bool RemoveAll = False/*, Int Action = 0*/)
+	Void SM_SetMarineState (Int Add, Int Remove, Bool RemoveAll = False, Int Exceptions = 0/*, Int Action = 0*/)
 	{
-		MarineState |= Add;
 		If (!RemoveAll)
 			MarineState &= ~Remove;
 		Else
-			MarineState = 0;
+		{
+			If (!Exceptions)
+				MarineState = 0;
+			Else
+				MarineState &= Exceptions; //Remove all bits, excepts the ones passed in the Exceptions bitfield.
+		}
+		MarineState |= Add;
 	}
 	
 	//Credit: Lewisk3
@@ -401,8 +486,19 @@ Extend Class SM_Marine
 		If (Random2[pr_monsterrefire]() < Chance)
 			Return State (Null);
 		
-		If (!Target || IsDead (Target) || (Target && !CheckFOV (Target,FOV)) || !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
+		If (!Target || IsDead (Target) || (Target && !CheckFOV (Target,FOV)))
 			{a_log ("marine refire cancelled");Return FindState (AbortState);}
+		
+		Double OldHeight = Height;
+		If (SM_IsCrouched())
+			{console.printf ("uncrouching marine to properly do the refire check");Height = Default.Height;} //Uncrouch for the sight check.
+		
+		If (!CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
+		{
+			Height = OldHeight; a_log ("marine refire cancelled");
+			Return FindState (AbortState);
+		}
+		Height = OldHeight;
 		
 		Return State (Null);
 	}
@@ -440,12 +536,11 @@ Extend Class SM_Marine
 		
 		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
 		
-		Console.printf ("Fired trace for %p at %d %d %d",self,Level.Vec3Offset (Pos,CheckOffsets));
 		FSpawnParticleParams Debug; Debug.Lifetime = 8;
 		KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance,params:Debug);
 		Bool BadLoaf = Check.BadLOF;
 		If (Check.ProjInfo) Check.ProjInfo.Destroy();
-		Check.Destroy();if (!badloaf && !bfriendly) console.printf ("SM_CheckLOF(): %p can shoot",self);
+		Check.Destroy();
 		Return !BadLoaf;
 	}
 	
@@ -499,24 +594,24 @@ Extend Class SM_Marine
 		If (!Against || GrenadeDelay || IsFlying (Against) && Pos.Z+Height < Against.Pos.Z) Return GRENADE_NONE;
 		If (Distance3DSquared (Against) >= 768*768 || !SM_CheckLOF((0,0,Height),0)) //Not in throwing range. Or there is no direct LOF, yes, this doesn't account for arcing, I WILL NOT TRY.
 			Return GRENADE_NONE;
-		console.printf ("in range and in sight, lets decide to throw something, the throw threshold is %d",threshold);
+		
 		Bool ImmuneToBlasts = (Against.bNoRadiusDmg || Against.GetRadiusDamage (Against,256,256,128,False,True) <= 256/8); //The enemy is immune or HIGHLY resistant to blasts.
 		Bool UseHE, UseSmoke;
-		console.printf ("the %s will take %d damage",against.getclassname(),Against.GetRadiusDamage (Against,256,256,128,False,True));
+		
 		//Decide to throw the HE-FRAG grenade without the frag sleeve. Large blast radius and damage, good for strong enemies.
 		//Based on RNG, if the target is super powerful, and if it's not effectively immune to pure explosion damage.
 		If (!ImmuneToBlasts && (Random (0,255) < 96 || AssessThreatLevel (Against) >= ThreatLevelThreshold))
 		{
 			//Randomly decide to throw smoke, as long as the enemy CAN be affected by the smokescreen.
 			If (Random (0,255) < 120 && (!Against.bSeeInvisible || Against.bShadowAim || Against.Player) && (Against.Player || Against.bDoShadowBlock))
-				{UseSmoke = True;a_log ("i have randomly decided to throw smoke");}
+				UseSmoke = True;
 			Else
-				{UseHE = True;a_log ("i have decided to throw a pure HE grenade");}
+				UseHE = True;
 		}
 		
 		//Now, let's check the chance of actually throwing a grenade.
 		Int BulletDamage = Against.ApplyDamageFactor ("SmallRifleBullet",100); //Return how much damage the actor would actually take if 10 bullets did maximum damage.
-		Int GrenChance = (Threshold > 0) ? Random (0,Threshold-24) : INT.MAX;console.printf ("the grenade throwing chance started as %d",grenchance);
+		Int GrenChance = (Threshold > 0) ? Random (0,Threshold-24) : INT.MAX;
 		Int PreGrenChance = GrenChance; //The grenade chance before being incremented by AttackByQuantity.
 		Double BlastRadius = 192;
 		If (Threshold > 0)
@@ -527,7 +622,7 @@ Extend Class SM_Marine
 			Else
 				GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True); //Grenade chance is also based on crowd size.
 		}
-		console.printf ("the grenade throwing chance is now %d",grenchance);
+		
 		If (GrenChance >= Threshold) //Decide if you should throw an HE or frag grenade.
 		{
 			If (UseHE)
@@ -798,7 +893,18 @@ Extend Class SM_Marine
 	Bool SM_HandleDodging (Actor Projectile, Bool DontJump = False)
 	{
 		If (!Projectile || bDormant || IsDead(Self) || Pos.Z > FloorZ+8) Return False;
-		console.printf ("SM_HandleDodgin(): Dodged a %s",projectile.getclassname());
+		console.printf ("SM_HandleDodging(): Dodged a %s",projectile.getclassname());
+		
+		//The marine is behind cover but not crouching, so dodge by going prone.
+		If (MarineState & MARINE_INCOVER)
+		{console.printf ("marine is in cover, dodging by crouching down");
+			Crouching = True;
+			Height = MARINE_CROUCHHEIGHT;
+			GrenadeDelay += GameTicRate/2;
+			NextFireDelay += GameTicRate/2;
+			Return True;
+		}
+		
 		Bool RightSafe, LeftSafe;
 		Double OldAngle = Angle; //Store the current angle before facing the projectile to dodge it.
 		Double OldDropoffHeight = MaxDropoffHeight;
@@ -870,11 +976,12 @@ Extend Class SM_Marine
 	
 	//Find and return a pointer to a projectile for the marine to dodge.
 	//MAYDO: For now I won't make it ignore grenades, but if it looks too stupid to have them dodge grenades, I'll add exceptions for them.
+	//Update: Seems like because the default dodge radius is smaller than the grenade hazard radius, they run from grenades anyway.
 	Actor SM_ShouldDodgeProjectile (Double Range = 384, Int DodgeMode = DODGE_STRONGEST, Actor Ignore = Null)
 	{
 		Array <Actor> Threats;
 		
-		//Actually find
+		//Actually find projectiles.
 		ForEach (Proj : KAIHandler.ProjectileList)
 		{
 			If (!Proj) Continue;
@@ -897,7 +1004,7 @@ Extend Class SM_Marine
 			
 			//Is the projectile about to hit me ? Weird math nonsense written by RaveYard.
 			bool projectile_is_flying_towards_me = (Vec3To(proj).Unit() dot proj.vel.Unit()) < -0.15;
-			double projectileSafeRadius = sqrt(2 * ((proj.radius + radius) ** 2.2));
+			double projectileSafeRadius = sqrt(2 * ((proj.radius + radius) ** 2.5));
 			if(projectile_is_flying_towards_me && KAI_Math.distance3dline(pos, proj.pos, proj.pos + proj.vel) < projectileSafeRadius && CheckSight(Proj,SF_IGNOREWATERBOUNDARY))
 			{
 				If (DodgeMode != DODGE_FIRST)
@@ -905,6 +1012,8 @@ Extend Class SM_Marine
 				Else
 					Return Proj;
 			}
+			else
+				console.printf ("%s isn't dangerous enough for the marine to try dodging",proj.getclassname());
 		}
 		
 		If (DodgeMode == DODGE_RANDOM)
@@ -1023,7 +1132,7 @@ Extend Class SM_Marine
 	//Update height based on marine state, used when the marine is firing while kneeling or lying down, and in the future when crouching.
 	Void SM_UpdateHeight ()
 	{
-		If (Crouching) Return; //Crouching doesn't need updating from here, that's SM_HandlingCrouching()'s job.
+		If (Crouching) Return; //Crouching doesn't need updating from here, that's SM_HandlingCrouching()'s and SM_UpdateCover()'s job.
 		
 		If (MarineState & MARINE_KNEELING)
 			A_SetSize (newheight:32);
@@ -1039,20 +1148,22 @@ Extend Class SM_Marine
 		Double FireHeight = 42;
 		Double Recoil = 0.25;
 		If (MarineState & MARINE_KNEELING)
-		{
+		{console.printf ("firing while kneeling.");
 			FireHeight = 32;
 			Recoil /= 2;
 		}
 		Else If (MarineState & MARINE_LYINGDOWN)
-		{
+		{console.printf ("firing while lying down.");
 			FireHeight = 14;
 			Recoil /= 3;
 		}
-		If (Crouching) //This should probably just be a MarineState instead of a variable lol.
-		{
+		If (Crouching)
+		{if (MarineState & MARINE_INCOVER) console.printf ("im shooting while crouching and in cover");
 			FireHeight = 25;
 			Recoil /= 3;
 		}
+		If (MarineState & MARINE_INCOVER)
+			Recoil = 0;
 		
 		Actor Bullet = A_SpawnProjectile ("SM_Bullet",FireHeight,-6,flags:CMF_AIMDIRECTION,Pitch);
 		Double AccuracyBuff = SM_IsCrouched() ? 0.5 : 1.0; //Double the accuracy if the marine is sitting down and firing.
