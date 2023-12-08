@@ -74,6 +74,7 @@ Class SM_Marine : KAI_Humanoid
 		AttackStates.Push (FindState ("Marine.Jumpkick.Attack",True));
 		AttackStates.Push (FindState ("Marine.Jumpkick.End",True));
 		
+		NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
 		//MeleeState = FindState (""); No melee attacks yet
 	}
 	
@@ -185,7 +186,7 @@ Class SM_Marine : KAI_Humanoid
 		ChaseTimer = 0;
 		bNoFriction = Default.bNoFriction;
 		bNoGravity = Default.bNoGravity;
-		RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
+		RetreatPos = NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
 	}
 	
 	Override Void UserVariableDefaults()
@@ -235,7 +236,7 @@ Class SM_Marine : KAI_Humanoid
 			SM_SetMarineState (MARINE_KNEELING,0);
 			FirePos.Z = 30; //Lower firing height.
 		}
-		if (!SM_CheckLOF (FirePos))console.printf ("SM_CheckLOF: The marine can't begin firing in this position.");
+		
 		//If low on ammo, do a quick melee attack on your enemy instead, if its' close enough and less dangerous than you. And then retreat to reload.
 		QuickMelee = (AmmoCount <= 4 && Threat < Self.ThreatLevel && Dist <= MeleeRange*3);
 		If ((GrenadeType == GRENADE_NONE || Crouching) && !QuickMelee && !NextFireDelay && SM_CheckLOF (FirePos))
@@ -462,7 +463,6 @@ Class SM_Marine : KAI_Humanoid
 	Const MARINE_GRENADECHANCE = 150; //The chance threshold over which the marine will throw a grenade if in range. MAYDO: Make this into a user variable.
 	Const MARINE_JUMPLENGTH = 288;
 	Const MARINE_CROUCHHEIGHT = 30;
-	//Const MARINE_OUTOFCOVERTHRESAHOLD = 175; //How long the target can be out of the marines' sight while behind cover before he leaves.
 	
 	Mixin SM_SplashFunctions;
 	
@@ -644,31 +644,21 @@ Class SM_Marine : KAI_Humanoid
 		See:
 			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True,MARINE_INCOVER/*|MARINE_PATROLLING*/);
 			MARF JJKKLLMM 3
-			{if (!(MarineState & MARINE_chasing)) console.printf ("the marine is not even chasing !");
+			{
 				//Handle taking cover, if you are not already crouching to move.
 				If (!(Crouching && !(MarineState & MARINE_INCOVER) ))
 				{
 					If (SM_UpdateCover (Target,MarineState & MARINE_INCOVER))
-					{//console.printf ("marine cover handling: taking cover");
-						MarineState |= MARINE_INCOVER;
-						Crouching = True;
-						Height = MARINE_CROUCHHEIGHT;
-					}
+						SM_StartCrouch();
 					Else
-					{console.printf ("marine cover handling: getting out of cover");
-						MarineState &= ~(MARINE_INCOVER);
-						Crouching = False;
-						Height = Default.Height;
-					}
+						SM_EndCrouch();
 				}
-				else console.printf ("marine cover handling: the marine is crouching already, but only for movement related reasons");
-				if (!(MarineState & MARINE_INCOVER)) console.printf ("MARINE_INCOVER is not on right now");
-				if (!crouching) console.printf ("marine does not have crouching enabled");
 				
-				If (Crouching) //Remap movement animation, the actual hitbox change is handled by SM_Chase().
+				//Remap movement animation, the actual hitbox change is handled by SM_Chase(). Unless this is for running to cover that is.
+				If (Crouching || !KAI_Math.IsEmptyVector3 (NearbyCoverPos))
 				{
 					If (Crouching) Sprite = GetSpriteIndex ('MARC');
-					Else If (!Crouching && Sprite == GetSpriteIndex ('MARC')) Sprite = GetSpriteIndex ('MARI');
+					Else If (!Crouching && (Sprite == GetSpriteIndex ('MARC') || !KAI_Math.IsEmptyVector3 (NearbyCoverPos)) ) Sprite = GetSpriteIndex ('MARI');
 					If (!(MarineState & MARINE_INCOVER))
 					{
 						//Remap sprite frames, man this shit looks incomprehensible if you don't have like 4 years of experience making GZDoom mods.
@@ -694,7 +684,7 @@ Class SM_Marine : KAI_Humanoid
 						Frame = 0; //Sit still, no movement animation when sitting behind cover.
 				}
 				
-				SM_Chase ("Idle.Decide","RunFromMelee",CHF_DONTIDLE);
+				SM_Chase ("Idle.Decide","RunFromMelee",chaseflags:CHF_DONTIDLE);
 			}
 			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
 			Goto See+1;
@@ -704,6 +694,7 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0 SM_SetMarineState (MARINE_RETREAT,MARINE_IDLING|MARINE_CHASING|MARINE_INCOVER);
 			MARI AAABBBCCCDDD 1
 			{
+				NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
 				If (Crouching) Sprite = GetSpriteIndex ('MARC');
 				Double RealSpeed = Speed;
 				Speed *= 0.85;
