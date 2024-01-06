@@ -35,8 +35,9 @@ Extend Class SM_Marine
 		If (!(Flags & SMC_NOCOVERSTOP) && MarineState & MARINE_INCOVER) //Don't move when in cover.
 			ChaseFlags |= CHF_DONTMOVE;
 		
-		If (Flags & SMC_SEARCHFORCOVER && !(ChaseFlags & CHF_DONTMOVE) && KAI_Math.IsEmptyVector3 (NearbyCoverPos) && Random (0,255) < 64)
-			{console.printf ("are you even fucking running ?");NearbyCoverPos = SM_LocateNearbyCover (Target);} //Search for nearby cover in a 256 MU range.
+		//Search for nearby cover in a 256 MU range. But only some of the time, since it's expensive.
+		If (Flags & SMC_SEARCHFORCOVER && !(ChaseFlags & CHF_DONTMOVE) && KAI_Math.IsEmptyVector3 (NearbyCoverPos)/* && Random (0,255) < 64*/)
+			NearbyCoverPos = SM_LocateNearbyCover (Target);
 		
 		//Run away from major actor threats.
 		If (bNoFear && Target && !(Goal && bChaseGoal) && KAI_Math.IsEmptyVector3 (NearbyCoverPos))
@@ -68,15 +69,25 @@ Extend Class SM_Marine
 		{
 			//Only update the nearest enemy to run from when not focused on a route.
 			If (bAvoidMelee && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //TODO: Unhardcode the retreat range probably.
-			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby.
+			
+			/*Bool MeleeAnyway; //The enemy is weak and nearby, go up to them and kick their ass even without berserk.
+			//Sometimes, be less afraid to do melee if the enemy is weak enough.
+			If (bAvoidMelee && NearestEnemy && !IsIndestructible (NearestEnemy) && !HasGodMode (NearestEnemy))
+			{
+				If (!NearestEnemy.MissileState && NearestEnemy.Health <= 80 || //If they are melee only and weak enough.
+				NearestEnemy.MissileState && NearestEnemy.Health <= 40) //But even if they are ranged, but VERY weak.
+					QuickMelee = True;
+			}*/
+			
+			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby. Get away.
 			If (bAvoidMelee && NearestEnemy)
 			{
 				If (!RetreatState)
 					KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
 				Else
 					SetStateLabel (RetreatState);
+				
 				MovedAlready = True;
-				//Return; //Might still melee you.
 			}
 			//Actual movement handling.
 			Else
@@ -95,16 +106,19 @@ Extend Class SM_Marine
 				}
 				
 				//Crouching comes first.
-				Crouching = KAI_HandleCrouching(Default.Height,MARINE_CROUCHHEIGHT);
+				If (!(MarineState & MARINE_INCOVER)) Crouching = KAI_HandleCrouching(Default.Height,MARINE_CROUCHHEIGHT);
 				
-				If (!Crouching)
+				If (!Crouching &&
+				//DO NOT CLIMB OVER YOUR COVER
+				//BUG: Probably prevents marines from climb at all when running to cover.
+				(!KAI_Math.IsEmptyVector3 (NearbyCoverPos) || Level.Vec3Diff (Pos,NearbyCoverPos).Length() > Radius*1.2))
 				{
 					If (KAI_HandleClimbing(ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
 						MovedAlready = True;
 				}
 				
 				Vector2 JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
-				If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
+				If (JumpPosition == JumpPosition && !Crouching && !(MarineState & MARINE_INCOVER)) //We have a valid position we must jump to, AKA the returned vector isn't null.
 				{
 					JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
 					Bool Reachable = True; //Assume we can jump there by default.
@@ -125,37 +139,13 @@ Extend Class SM_Marine
 				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
 				If (!MovedAlready)
 				{
-					Vector3 MovePos; If (Target) MovePos = Target.Pos;
+					Bool DoZigZag;
+					Vector3 MovePos = (Double.NaN,Double.NaN,Double.NaN);
 					Double RealSpeed = Speed;
-					Int DoZigZag = KMT_ZIGZAG;
-					If (!KAI_Math.IsEmptyVector3 (NearbyCoverPos)) //We have a position to take cover behind, move there.
-					{
-						Vector3 RealPos = Pos;
-						SetXYZ (NearbyCoverPos); //Check from the desired position.
-						//Make sure the target didn't get behind the cover or something while you are still going there !.
-						Bool StillValidCover = SM_UpdateCover (Target,False,256);
-						SetXYZ (RealPos);
-						Bool CanWalkThere = (Random (0,255) < 220) ? True : IsPosReachable (NearbyCoverPos); //Only SOMETIMES check if we can still go there.
-						if (!stillvalidcover) console.printf ("SM_CHASE(): THE COVER THE MARINE IS MOVING TO AT %d %d %d IS NO LONGER VALID",NearbyCoverPos);
-						if (!canwalkthere) console.printf ("SM_CHASE(): THE COVER THE MARINE IS MOVING TO AT %d %d %d IS NOW OUTTA REACH",NearbyCoverPos);
-						If (Level.Vec3Diff (Pos,NearbyCoverPos).Length() > Speed*2.2 && StillValidCover && CanWalkThere)
-						{
-							console.printf ("taking a step towards cover");
-							MovePos = NearbyCoverPos;
-							Speed *= 2; //Hurry up to hide.
-							DoZigZag = 0; //Move in a straight line as well.
-							CancelAttack = True; //Don't attack.
-						}
-						Else //We are basically at our destination, so get rid of the goal and try crouching behind here.
-						{
-							console.printf ("clearing cover pos !");
-							NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
-							If (!StillValidCover) //If we are no longer heading to NearbyCoverPos because it's now unsafe, just abort.
-								SM_StartCrouch(); //Just to be sure, if it's not valid for some reason, the marine uncrouches on his own anyway.
-						}
-					console.printf ("the distance to my cover is %.2f",Level.Vec3Diff (Pos,NearbyCoverPos).Length());
-					}
-					
+					[MovePos, DoZigZag, CancelAttack] = SM_RunToCoverPos (Target,dozigzag:KMT_ZIGZAG);
+					console.printf ("heading to %d %d %d",movepos);
+					If (Crouching)
+						Speed *= 0.7;
 					KAI_MoveTowards (MovePos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|DoZigZag|NoStockUse);
 					Speed = RealSpeed;
 				}
@@ -186,7 +176,7 @@ Extend Class SM_Marine
 			//The amount of loops is the distance to the hazard divided by distance travelled by one retreat sequence + some change.
 			Double RetreatDist = Speed*12; //12 movement calls in one Retreat loop.
 			RetreatPos = GetHazardOriginPos (HazardToAvoid);
-			RetreatLoops = Int(GetHazardDistance(HazardToAvoid) / RetreatDist)+1;
+			RetreatLoops = Int(GetHazardDistance(HazardToAvoid) / RetreatDist);
 			
 			//Run a bit extra further for shrapnel.
 			Bool IsGrenade, HasShrapnel;
@@ -194,7 +184,7 @@ Extend Class SM_Marine
 			{
 				If (CurTag ~== "Grenade")
 					IsGrenade = True;
-				If (CurTag ~== "Shrapenl")
+				If (CurTag ~== "Shrapnel")
 					HasShrapnel = True;
 			}
 			If (IsGrenade && HasShrapnel)
@@ -208,12 +198,55 @@ Extend Class SM_Marine
 		Return False;
 	}
 	
+	//To not have to copy and paste between SM_Chase() and SM_RunAway().
+	Vector3, Bool, Bool SM_RunToCoverPos (Actor Other, Double SpeedMul = 2, Bool DoZigZag = True, Bool StopRetreating = False)
+	{
+		Vector3 MovePos = (Double.NaN, Double.NaN, Double.NaN); If (Other) MovePos = Other.Pos;
+		Bool CancelAttack;
+		If (!KAI_Math.IsEmptyVector3 (NearbyCoverPos)) //We have a position to take cover behind, move there.
+		{
+			Vector3 RealPos = Pos;
+			SetXYZ (NearbyCoverPos); //Check from the desired position.
+			//Make sure the target didn't get behind the cover or something while you are still going there !.
+			Bool StillValidCover = SM_UpdateCover (Other,False,256);
+			SetXYZ (RealPos);
+			Bool CanWalkThere = (Random (0,255) < 220) ? True : IsPosReachable (NearbyCoverPos); //Only SOMETIMES check if we can still go there.
+			if (!stillvalidcover) console.printf ("SM_CHASE(): THE COVER THE MARINE IS MOVING TO AT %d %d %d IS NO LONGER VALID",NearbyCoverPos);
+			if (!canwalkthere) console.printf ("SM_CHASE(): THE COVER THE MARINE IS MOVING TO AT %d %d %d IS NOW OUTTA REACH",NearbyCoverPos);
+			If (Level.Vec3Diff (Pos,NearbyCoverPos).Length() > Radius*1.2 && StillValidCover && CanWalkThere)
+			{
+				console.printf ("taking a step towards cover");
+				MovePos = NearbyCoverPos;
+				Speed *= SpeedMul; //Hurry up to hide.
+				DoZigZag = 0; //Move in a straight line as well.
+				CancelAttack = True; //Don't attack.
+			}
+			Else //We are basically at our destination, so get rid of the goal and try crouching behind here.
+			{
+				console.printf ("clearing cover pos !");
+				NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
+				If (!StillValidCover) //If we are no longer heading to NearbyCoverPos because it's now unsafe, just abort.
+				{
+					SM_StartCrouch(); //Just to be sure, if it's not valid for some reason, the marine uncrouches on his own anyway.
+					If (StopRetreating) //Used when called by SM_RunAway() to put the marine back into the See state with its' special crouch handling.
+					{
+						RetreatLoops = 0;
+						RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
+						SetStateLabel ("See");
+					}
+				}
+			}
+		console.printf ("the distance to my cover is %.2f",Level.Vec3Diff (Pos,NearbyCoverPos).Length());
+		}
+		Return MovePos, DoZigZag, CancelAttack;
+	}
+	
 	//Search for the closest cover between the marine and the target and marine (e.g if there's cover 4 meters towards the target) and the marines' flanks.
 	Vector3 SM_LocateNearbyCover (Actor Other, Double Distance = 256)
 	{
 		If (!Other || Distance <= 0)
 			Return (Double.NaN, Double.NaN, Double.NaN);
-		console.printf ("starting cover search");
+		
 		//Check in front of the marine first.
 		Vector3 FrontCover = (Double.NaN, Double.NaN, Double.NaN);
 		Bool GotFrontCover;
@@ -233,24 +266,24 @@ Extend Class SM_Marine
 		{
 			SetXYZ (Vec3Angle (DistDiv,AngleTo(Other)-90)); //Check left.
 			[GotLeftCover, LeftCover] = SM_UpdateCover (Other,False,Distance);
-			actor point = spawn ("kai_debugpoint",pos);
+			//actor point = spawn ("kai_debugpoint",leftcover);
 			If (GotLeftCover) LeftCover.Z = GetZAt();
 			SetXYZ (RealPos);
 			If (!GotLeftCover) LeftCover = (Double.NaN, Double.NaN, Double.NaN);
-			Else If (GotLeftCover && IsPosReachable (LeftCover))
-				{point.setxyz (point.pos.plusz(64));Break;} //Found a spot to hide behind on the left.
+			Else If (GotLeftCover && IsPosReachable (LeftCover,Radius*1.1))
+				/*{point.setxyz (point.pos.plusz(64));*/Break;//} //Found a spot to hide behind on the left.
 		}
 		
 		For (Int DistDiv = Distance/Spacing; DistDiv < Distance; DistDiv += Spacing)
 		{
 			SetXYZ (Vec3Angle (DistDiv,AngleTo(Other)+90)); //Check Right.
 			[GotRightCover, RightCover] = SM_UpdateCover (Other,False,Distance);
-			actor point = spawn ("kai_debugpoint",pos);
+			//actor point = spawn ("kai_debugpoint",rightcover);
 			If (GotRightCover) RightCover.Z = GetZAt();
 			SetXYZ (RealPos);
 			If (!GotRightCover) RightCover = (Double.NaN, Double.NaN, Double.NaN);
 			Else If (GotRightCover && IsPosReachable (RightCover))
-				{point.setxyz (point.pos.plusz(64));Break;} //Found a spot to hide behind on the right.
+				/*{point.setxyz (point.pos.plusz(64));*/Break;//} //Found a spot to hide behind on the right.
 		}
 		
 		//Get the smallest distance between these 3, and return the closest position.
@@ -262,20 +295,20 @@ Extend Class SM_Marine
 		If (!KAI_Math.IsEmptyVector3 (LeftCover)) LeftDist = Level.Vec3Diff (Pos,LeftCover).Length();
 		If (!KAI_Math.IsEmptyVector3 (RightCover)) RightDist = Level.Vec3Diff (Pos,RightCover).Length();
 		
-		console.printf ("SM_LocateNearbyCover(): The distances to the 3 potential cover spots is %d %d %d",FrontDist,LeftDist,RightDist);
+		//console.printf ("SM_LocateNearbyCover(): The distances to the 3 potential cover spots is %d %d %d",FrontDist,LeftDist,RightDist);
 		
 		Double SmallestDist = Min (FrontDist,LeftDist,RightDist);
 		
 		If (SmallestDist != INT.MAX)
 		{
 			If (SmallestDist == FrontDist)
-				{console.printf ("SM_LocateNearbyCover(): taking front cover %d %d %d",frontcover);Return FrontCover;}
+				/*{console.printf ("SM_LocateNearbyCover(): taking front cover %d %d %d",frontcover);*/Return FrontCover;//}
 			Else If (SmallestDist == LeftDist)
-				{console.printf ("SM_LocateNearbyCover(): taking left cover %d %d %d",leftcover);Return LeftCover;}
+				/*{console.printf ("SM_LocateNearbyCover(): taking left cover %d %d %d",leftcover);*/Return LeftCover;//}
 			Else If (SmallestDist == RightDist)
-				{console.printf ("SM_LocateNearbyCover(): taking right cover %d %d %d",rightcover);Return RightCover;}
+				/*{console.printf ("SM_LocateNearbyCover(): taking right cover %d %d %d",rightcover);*/Return RightCover;//}
 		}
-		console.printf ("SM_LocateNearbyCover(): All checks failed, returning NaN vector.");
+		//console.printf ("SM_LocateNearbyCover(): All checks failed, returning NaN vector.");
 		Return (Double.NaN, Double.NaN, Double.NaN);
 	}
 	
@@ -315,15 +348,14 @@ Extend Class SM_Marine
 		
 		HasHit = HipLevel.HitType;
 		Mobj = HipLevel.HitActor;
-		HipHitPos = HipLevel.HitLocation - HipLevel.HitDir * (Radius);
+		HipHitPos = HipLevel.HitLocation - HipLevel.HitDir * (Radius*1.1);
 		
-		FSpawnParticleParams Debug;
-		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance,params:debug);
-		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance,params:debug);
+		//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
+		//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
 		
 		//Only take cover behind large enough actors that aren't other NPCs or players. And aren't about to break.
 		If ((HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling) ||
-		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height < 40 && Mobj.Health >= 40))
+		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height <= 40 && Mobj.Health >= 40))
 			HipLevelBlocked = True;
 		
 		Bool OtherInSight = CheckSight (Other,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY);
@@ -338,7 +370,7 @@ Extend Class SM_Marine
 			{if (hiplevelblocked) console.printf ("SM_UpdateCover(): marine can no longer hide behind here");Return HipLevelBlocked, HipHitPos;}
 		
 		If (!OtherInSight && Random (0,255) < 4) //If the other actor is out of sight, the marine will eventually give up staying behind cover.
-			Return False, HipHitPos;
+			{console.printf ("SM_UpdateCover(): %p is out of sight",other);Return False, HipHitPos;}
 		
 		//If none of the other checks are true, but you are crouching already, then just assume you can keep doing so.
 		If (IsCrouchingAlready)
@@ -510,31 +542,49 @@ Extend Class SM_Marine
 		Return ((TheLine.V2.P - TheLine.V1.P) * 0.5 + TheLine.V1.P); 
 	}
 	
-	//KAI_MoveAway wrapper.
+	//KAI_MoveAway wrapper, handles running behind cover, as well as parkouring when retreating.
 	//MAYDO: Try and add code to make marines avoid smashing right into obstables ?
 	Void SM_RunAway (Actor Other, Double RunRad = 64, Int MaxSteps = 32, Double TurnRadius = 25, Int ChaseFlags = 0, Int Flags = 0)//, Int KMAFlags = 0)
 	{
-		Crouching = KAI_HandleCrouching(Default.Height,MARINE_CROUCHHEIGHT);
-		
-		If (!Crouching && KAI_HandleClimbing(ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
-			Return;
-		
-		Vector2 JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
-		If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
+		If (!(MarineState & MARINE_INCOVER))
 		{
-			JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
-			//The jump is longer than half the max jump distance, normally we do a running jump, but since we are presumably running for our lives, don't bother.
-			If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/1.5)
+			Crouching = KAI_HandleCrouching (Default.Height,MARINE_CROUCHHEIGHT); //Handle crouching, duh.
+			
+			//Handle climbing
+			If (!Crouching && KAI_HandleClimbing (ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
 				Return;
-			Else
+			
+			//Handle jumping.
+			Vector2 JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
+			If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
 			{
-				SetStateLabel ("Jump");
-				Return;
+				JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
+				//The jump is longer than half the max jump distance, normally we do a running jump, but since we are presumably running for our lives, don't bother.
+				If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/1.5)
+					Return;
+				Else
+				{
+					SetStateLabel ("Jump");
+					Return;
+				}
 			}
-		}		
+		}
 		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
-		
-		KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS, RetreatPos);
+		//console.printf ("SM_RunAway(): NearbyCoverPos is %d %d %d",nearbycoverpos);
+		//If (KAI_Math.IsEmptyVector3 (NearbyCoverPos))
+		//{
+			Double RealSpeed = Speed;
+			If (Crouching)
+				Speed *= 0.7;
+			KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS, RetreatPos);
+			Speed = RealSpeed;
+		/*	If (!HazardToAvoid) NearbyCoverPos = SM_LocateNearbyCover (Other);
+		}
+		Else
+		{console.printf ("SM_RunAway(): %p retreating behind cover at %d %d %d",Self,NearbyCoverPos);
+			SM_RunToCoverPos (Other,1,False); //Handle running to cover, specifically giving up if the cover is no longer good.
+			KAI_MoveTowards (NearbyCoverPos, 0.5, TurnRadius, ChaseFlags);
+		}*/
 	}
 	
 	//Returns true if the marine is down on the ground in some capacity, as opposed to standing up.
@@ -723,7 +773,7 @@ Extend Class SM_Marine
 		//Don't bother if the other actor doesn't exist, it's not time yet, or if the enemy flies and is over your head !
 		If (!Against || GrenadeDelay || IsFlying (Against) && Pos.Z+Height < Against.Pos.Z) Return GRENADE_NONE;
 		If (Distance3DSquared (Against) >= 768*768 || !SM_CheckLOF((0,0,Height),0)) //Not in throwing range. Or there is no direct LOF, yes, this doesn't account for arcing, I WILL NOT TRY.
-			Return GRENADE_NONE;
+			{console.printf ("DecideGrenadeType(): target is too close or the LOF is bad");Return GRENADE_NONE;}
 		
 		Bool ImmuneToBlasts = (Against.bNoRadiusDmg || Against.GetRadiusDamage (Against,256,256,128,False,True) <= 256/8); //The enemy is immune or HIGHLY resistant to blasts.
 		Bool UseHE, UseSmoke;
@@ -752,9 +802,8 @@ Extend Class SM_Marine
 			Else
 				GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True); //Grenade chance is also based on crowd size.
 		}
-		
 		If (GrenChance >= Threshold) //Decide if you should throw an HE or frag grenade.
-		{
+		{console.printf ("DecideGrenadeType(): grenade chance is over the threshold");
 			If (UseHE)
 				Return GRENADE_HE;
 			Else If (UseSmoke)
@@ -828,8 +877,8 @@ Extend Class SM_Marine
 				ViableEnemies++;
 			
 			If (Flags & ABQ_Infight && IsHostile && IsVisible && Mobj.OkayToSwitchTarget (Origin))
-				{Chance += ViableEnemies; //Give an additional bonus if the monster can infight with the target, based on every additional monster in range.
-			console.printf ("%s can infight with %s, so the chance is now %d",mobj.getclassname(),origin.getclassname(),chance);}
+				Chance += ViableEnemies; //Give an additional bonus if the monster can infight with the target, based on every additional monster in range.
+			//console.printf ("%s can infight with %s, so the chance is now %d",mobj.getclassname(),origin.getclassname(),chance);}
 			If (IsHostile && IsVisible && Mobj.Distance3DSquared (Origin) <= Range*Range)
 			{
 				Switch (AssessThreatLevel (Mobj))
@@ -1011,6 +1060,99 @@ Extend Class SM_Marine
 		Return Null;
 	}
 	
+	//Sets what order the marine is currently following.
+	//Order: The order to follow from the MarineOrders enum.
+	//Increment: If true the marine simply moves to the next order in the enum, and loops back around once reaching the end.
+	//Commander: The actor, if any, ordering the marine to change orders. If the order is set to ORDER_FOLLOW, they'll become the marines' master, unless hostile.
+	//IgnoreAllegiance: If true, the marine will accept orders even from enemy actors, but still won't follow them if set to ORDER_FOLLOW.
+	Void SetMarineOrder (MarineOrders Order, Bool Increment, Actor Commander = Null, Bool IgnoreAllegiance = False)
+	{console.printf ("%p HAS RAN SETMARINEORDER()",SELF);
+		Bool EnemyCommand = IsActorHostile (Commander); //The order is being barked by an enemy.
+		Bool LastOrder = CurrentOrder;
+		If (Commander && EnemyCommand && !IgnoreAllegiance)
+			Return;
+		
+		If (Increment)
+			CurrentOrder++;
+		Else
+			CurrentOrder = Order;
+		
+		If (CurrentOrder >= ALLORDERS) //If the marines' current order has reached the end of the list, loop back.
+			CurrentOrder = 1;
+		
+		//If we are set to follow, and we have a commander that is friendly, follow them.
+		If (CurrentOrder == ORDER_FOLLOW)
+		{console.printf ("Okay jolly green retard (%p), is your current order ORDER_FOLLOW ?",self);
+			If (bFriendly && Commander == Players[KAI_GetFriendPlayer()].Mo) //If your commander is your friendplayer, remove your master pointer to follow friendplayer.
+				Master = Null;
+			
+			If (Commander && !EnemyCommand && Commander != Players[KAI_GetFriendPlayer()].Mo) //Only set master pointer for non-player commanders.
+			{console.printf ("set ORDER_FOLLOW and master for %p",self);
+				Master = Commander;
+				If (bFriendly)
+					bDontFollowPlayers = True; //Friendly marine needs to follow an actor that isn't the friendplayer, so turn off player following.
+			}
+			Else If (!Master && !bFriendly && (!Commander || !EnemyCommand)) //We are set to follow but we don't have a (friendly) commander or existing master.
+				{console.printf ("SETTING HOSTILE MARINE %p TO ORDER_WANDER",self);CurrentOrder = ORDER_WANDER;}
+		}
+		
+		If (CurrentOrder == ORDER_WANDER && bFriendly) //Friendly wandering marines don't follow the player.
+			bDontFollowPlayers = True;
+		
+		//If we are set to follow and have no master or our master is our friend player.
+		If (CurrentOrder == ORDER_FOLLOW && bFriendly)
+		{
+			If (!Master || Master == Players[KAI_GetFriendPlayer()].Mo)
+				bDontFollowPlayers = False;
+		}
+	}
+	
+	//This is for map script setups. Used to give orders to marines through ACS. For the ACS callback, the Commander is the activator.
+	Static Void ACS_SetMarineOrder (Actor Activator, Int MarineTID, MarineOrders Order, Bool Increment, Bool IgnoreAllegiance = False)
+	{
+		Let MarineSearch = Level.CreateActorIterator (MarineTID,"SM_Marine"); //Find every marine with the assigned TID and set their order.
+		
+		SM_Marine Marine;
+		While ( (Marine = SM_Marine(MarineSearch.Next())) )
+		{
+			If (!Marine || Marine.IsDead(Marine)) //Ignore nonexistent or dead marines.
+				Continue;
+			
+			console.printf ("SetMarineOrder() was called from ACS, setting order %d for %p",order,marine);
+			Marine.SetMarineOrder (Order, Increment, Activator, IgnoreAllegiance);
+			
+			//Have marine idle to follow whatever actor, or if they are in the spawn state and set to wander aimlessly.
+			If ((Marine.CurrentOrder == Marine.ORDER_FOLLOW || Marine.CurrentOrder == Marine.ORDER_WANDER) && Marine.IsInState (Marine,"Spawn"))
+				Marine.SetStateLabel ("Idle");
+		}
+	}
+	
+	//Return a pointer to the actor the marine should be following, since for friendly marines, the friendplayer takes precedence over the master unless +DONTFOLLOWPLAYERS is enabled.
+	Actor GetMarineFollowTarget (Bool IgnoreDontFollowPlayers = False)
+	{
+		If (!bFriendly) //Hostile marines don't have any friendplayer to begin with, easy peasy.
+			Return Master;
+		Else
+		{
+			If (!IgnoreDontFollowPlayers && bDontFollowPlayers && !(Master && !Master.Player)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
+				Return Master;
+			//console.printf ("GetMarineFollowTarget: I'm fucking stupid and returning the friendplayer");
+			//if (master) console.printf ("GetMarineFollowTarget: Even though I have %p as my master",master);
+			Return Players[KAI_GetFriendPlayer()].Mo;
+		}
+		
+		Return Null;
+	}
+	
+	/*	//As a friendly vehicle, only follow the player until within a certain distance from them, to prevent the player from being dogpiled by vehicles.
+	Void FollowPlayerControl (Double MaxDist = 384)
+	{
+		If (!bFriendly || !Players[KAI_GetFriendPlayer()].Mo || CurrentOrder == ORDER_WANDER)
+			Return;
+		
+		bDontFollowPlayers = (Distance3DSquared (Players[KAI_GetFriendPlayer()].Mo) <= MaxDist*MaxDist);
+	}*/
+	
 	Enum StrafeDirections
 	{
 		STRAFE_RANDOM = -1, //Strafe in a random direction.
@@ -1019,6 +1161,7 @@ Extend Class SM_Marine
 		STRAFE_RIGHT = 2 //Strafe right.
 	};
 	
+	//TODO: Add special dodging type for slow enough homing projectiles, that dodging type is basically trying to run away from the projectile.
 	//After a projectile to dodge is found by SM_ShouldDodgeProjectile, this function handles picking a direction, if any, to dodge out of the way towards.
 	Bool SM_HandleDodging (Actor Projectile, Bool DontJump = False)
 	{
@@ -1236,7 +1379,7 @@ Extend Class SM_Marine
 			Return CurState.Frame;
 		
 		If (MarineState & MARINE_LYINGDOWN)
-			{console.printf ("SM_UpdateElevation(): Marine is lying down.");Return LyingDown;}
+			Return LyingDown;
 		
 		If (!(MarineState & MARINE_KNEELING))
 		{
@@ -1278,17 +1421,17 @@ Extend Class SM_Marine
 		Double FireHeight = 42;
 		Double Recoil = 0.25;
 		If (MarineState & MARINE_LYINGDOWN)
-		{console.printf ("firing while lying down.");
+		{
 			FireHeight = 14;
 			Recoil /= 3;
 		}
 		Else If (MarineState & MARINE_KNEELING)
-		{console.printf ("firing while kneeling.");
+		{
 			FireHeight = 32;
 			Recoil /= 2;
 		}
 		If (Crouching)
-		{if (MarineState & MARINE_INCOVER) console.printf ("im shooting while crouching and in cover");
+		{
 			FireHeight = 25;
 			Recoil /= 3;
 		}

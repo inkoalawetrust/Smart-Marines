@@ -871,13 +871,10 @@ Class SM_MarineStimpack : Stimpack
 	}
 }
 
-//TODO: Turn this into a ZSprite one day, along with stuff like any squad icons.
+//TODO: Turn this into a ZSprite one day, along with stuff like any squad icons and the order text icons.
 Class SM_MarineHealAllyIcon : Actor
 {
-	Default
-	{
-		Scale 0.25;
-	}
+	Default {Scale 0.25;}
 	Override Void PostBeginPlay()
 	{
 		Super.PostBeginPlay();
@@ -888,7 +885,7 @@ Class SM_MarineHealAllyIcon : Actor
 	{
 		If (IsFrozen())
 			Return;
-			console.printf ("%f",vel.z);
+		
 		SetXYZ (Vec3Offset (Vel.X,Vel.Y,Vel.Z));
 		Vel.Z *= 0.98;
 		A_FadeOut ();
@@ -897,6 +894,35 @@ Class SM_MarineHealAllyIcon : Actor
 	{
 		Spawn:
 			MARO H -1;
+			Stop;
+	}
+}
+
+Class SM_OrderText : Actor
+{
+	Default {Scale 0.25;}
+	Override Void Tick()
+	{
+		If (IsFrozen())
+			Return;
+		
+		SetXYZ (Vec3Offset (Vel.X,Vel.Y,Vel.Z));
+		A_FadeOut (0.025);
+	}
+	States
+	{
+		Spawn:
+		Standing: //here, I realize
+			MARO A -1;
+			Stop;
+		Wandering:
+			MARO B -1;
+			Stop;
+		LeavingEmplacement: //TODO: Once the turrets are reimplemented as a generic emplacement system in the KAI library, this text sprite will change.
+			MARO C -1;
+			Stop;
+		FollowingPlayer:
+			MARO D -1;
 			Stop;
 	}
 }
@@ -988,6 +1014,30 @@ Class SM_VehicleDropToken : Inventory
 		GoAwayAndDie();
 	}
 }
+
+//Used by external mods (Mainly the MVP) to set the marines' current order without creating a hard dependency to the marines.
+//This will call SetMarineOrder() to whatever marine it is given to.
+//Health: The value of the order to pass to the marine.
+//+MissileMore: Ignore the specific order (Health) to go to, and simply increment the marines' current order to the next one.
+//Master: The master pointer of the token is used to specify what actor is commanding the marine.
+//+NoTarget: Accept orders from the commander/master even if they are hostile to the marine.
+Class SM_SetMarineOrder : Inventory
+{
+	Default
+	{
+		Health SM_Marine.ORDER_WANDER;
+		
+	}
+	Override Void AttachToOwner (Actor Other)
+	{
+		Super.AttachToOwner(Other);
+		
+		If (Other && Other Is "SM_Marine")
+			SM_Marine(Other).SetMarineOrder (Health,bMissileMore,Master,bNoTarget);
+		GoAwayAndDie();
+	}
+}
+
 //=======================================================\\
 
 //Taken from the MVPs' tank firing code. If the MVP is loaded, it simply spawns that actor in directly.
@@ -1064,7 +1114,7 @@ Class c65d3dfcb9b85e04ea7e82f81789b569 : KAI_MixinActor
 		SetOrigin ((0,0,0),False);
 		S_ChangeMusic ("null",force:True);
 		A_StartSound ("arrival",flags:CHANF_OVERLAP,attenuation:ATTN_NONE);
-		A_StartSound ("wind",flags:CHANF_LOOPING|CHANF_NOPAUSE|CHANF_OVERLAP,0.25,ATTN_NONE);
+		A_StartSound ("thewind",flags:CHANF_LOOPING|CHANF_NOPAUSE|CHANF_OVERLAP,0.25,ATTN_NONE);
 		
 		thinkeriterator find = thinkeriterator.create ();
 		actor mo;

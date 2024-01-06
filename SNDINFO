@@ -1,7 +1,8 @@
 //Marine sounds
 Marine/Death1 "Sounds/Vanilla/DSPLDETH.wav"
 Marine/Death2 "Sounds/Vanilla/DSPDIEHI.wav"
-Marine/XDeath  "Sounds/Vanilla/DSSLOP.wav"
+Marine/XDeath "Sounds/Vanilla/DSSLOP.wav"
+Marine/Radio  "Sounds/Vanilla/DSRADIO.wav"
 Marine/Gone "Sounds/Vanish.ogg" //Gone, reduced to atoms.
 Marine/GoneAlt "Sounds/AltVanish.ogg" //🏱︎☟︎⚐︎❄︎⚐︎☠︎ ☼︎☜︎✌︎👎︎✋︎☠︎☝︎💧︎ ☠︎☜︎☝︎✌︎❄︎✋︎✞︎☜︎
 Marine/Pain  "Sounds/Vanilla/DSPLPAIN.wav"
@@ -99,7 +100,7 @@ $Limit Marine/MeleeMiss 0
 $Limit Marine/WhatDaDogDoin 0
 
 arrival "sounds/vanilla/arrival.ogg"
-wind "sounds/vanilla/wind.ogg"
+thewind "sounds/vanilla/wind.ogg"
 near "sounds/vanilla/near.ogg"
 fatal "sounds/vanilla/fatal.ogg"
 yelp1 "sounds/vanilla/yelp1.ogg"

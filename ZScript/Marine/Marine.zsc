@@ -59,8 +59,17 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.PostBeginPlay();
 		MarineState = MARINE_IDLING;
+		//CurrentOrder = bFriendly ? ORDER_FOLLOW : ORDER_WANDER; //By default, friendly marines follow the player, hostile ones wander aimlessly.
+		/*BUG: Unfortunately, hostile marines are highly retarded, so if their default order is set to ORDER_WANDER and a vehicle from the MVP
+		they are supposed to follow spawns them. They will initially have ORDER_FOLLOW, but then go back to ORDER_WANDER for genuinely no reason whatsoever.
+		It's so fucked that even giving hostile marines a CurrentOrder of 0 makes them do that. Amazing.*/
+		If (bFriendly) CurrentOrder = ORDER_FOLLOW;
+		console.printf ("%p spawned with order %d",self,currentorder);
+		WanderFollowDist = 128+Random (-16,48);
+		WanderFollowDist = Clamp (WanderFollowDist,0, INT.MAX); //In case the variable becomes configurable.
 		AmmoCount = 30;
 		MissileState = FindState ("Fire",True);
+		MeleeState = FindState ("Melee",True);
 		//The melee state should be passed automatically, since I have a state just called "Melee"
 		AttackStates.Push (FindState ("Fire",True));
 		AttackStates.Push (FindState ("Fire.Loop",True));
@@ -75,7 +84,6 @@ Class SM_Marine : KAI_Humanoid
 		AttackStates.Push (FindState ("Marine.Jumpkick.End",True));
 		
 		NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
-		//MeleeState = FindState (""); No melee attacks yet
 	}
 	
 	Override Void Tick()
@@ -129,17 +137,20 @@ Class SM_Marine : KAI_Humanoid
 		If (NextFireDelay && !(MarineState & MARINE_FIRING)) //Decrement the firing delay, if any, for as long as the marine is not shooting.
 			NextFireDelay--;
 		
-		If (JumpKickDelay && !(MarineState & MARINE_MELEE))
+		If (JumpKickDelay && !(MarineState & MARINE_MELEE)) //Time before the marine does a flying kick again.
 			JumpKickDelay--;
 		
-		If (GrenadeDelay && !(MarineState & MARINE_FIRING))
+		If (GrenadeDelay && !(MarineState & MARINE_FIRING)) //Time until next grenade throw.
 			GrenadeDelay--;
 		
-		If (HealDelay)
+		If (HealDelay) //Time until next heal.
 			HealDelay--;
 		
-		If (DeadDogTimer)
+		If (DeadDogTimer) //RAAAAAAH
 			DeadDogTimer--;
+		
+		If (MeleeTime) //How long the marine does melee without running away.
+			MeleeTime--;
 		
 		//Update primary hazard to avoid every 4 ticks.
 		//IDEA: This should probably be the highest level hazard in range instead of the closest.
@@ -169,10 +180,21 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Int Dam = Super.TakeSpecialDamage (Inflictor, Source, Damage, DamageType);
 		
-		If (MarineState & MARINE_INCOVER || HasBerserk && DeadDogTimer) //Take less damage when John Wick, opr when crouching.
+		If (MarineState & MARINE_INCOVER || HasBerserk && DeadDogTimer) //Take less damage when John Wick, or when crouching.
 			Dam *= 0.8;
 		
 		Return Dam;
+	}
+	
+	Override Bool OkayToSwitchTarget (Actor Other)
+	{
+		Bool DoSwitch = Super.OkayToSwitchTarget (Other);
+		
+		//If behind cover and damaged by an enemy that's not already your target, be very likely to switch to them, to get out of cover.
+		If (MarineState & MARINE_INCOVER && Other != Target && IsActorHostile (Other) && Random (0,255) < 200)
+			Return True;
+		
+		Return DoSwitch;
 	}
 	
 	Override Void Die (Actor Source, Actor Inflictor,Int DMGFlags,Name MeansOfDeath)
@@ -207,7 +229,7 @@ Class SM_Marine : KAI_Humanoid
 		If (!Target || Target == Goal) Return False; //Don't attack if you have no target or just following a goal.
 		If (!CanAttack()) Return False;
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
-		Int Threat = AssessThreatLevel (Target);
+		Int Threat = AssessThreatLevel (Target,False);
 		
 		//console.printf ("fire delay is %d tics",nextfiredelay);
 		
@@ -253,7 +275,11 @@ Class SM_Marine : KAI_Humanoid
 				//If the target is dangerous, or it's at least above normal, and you'd hit it at least 8 times (Counts multiple enemies too, for "crowd control").
 				//Fire a burst instead too sometimes.
 				Int FullAutoThreshold = (Health <= SpawnHealth()/6) ? 6 : 12; //If low on health, the marines will more desperately fire full auto.
-				Bool DoFullAuto = (Random (0, 255) < 200);
+				
+				Int AutoChance = 128;
+				If (Dist >= 8192) AutoChance -= 64; //Lower chance of firing full auto even at dangerous enemies, if they are too far.
+				Bool DoFullAuto = (Random (0, 255) < AutoChance);
+				
 				If ((DoFullAuto && Threat >= THREAT_DANGEROUS ||
 				DetermineHitChance (Target,!SM_DumbHitCheck,Dist,2.2,15,FirePos,FSpread,MaxTargetRange,GetAimPosOffset(),DHC_THRUHOSTILES) >= FullAutoThreshold))
 				{//https://youtu.be/LPAEgHsJYxk?si=4EdaE-oCczn5ehDD&t=75
@@ -295,8 +321,10 @@ Class SM_Marine : KAI_Humanoid
 		Int MeleeChance = bAvoidMelee ? 32 : 128;
 		If (QuickMelee && Health < SpawnHealth()/4) //Additional melee chance if you are low on ammo but not on health.
 			MeleeChance += 32;
-		If (Health >= SpawnHealth()/4)
+		If (!HasBerserk && Health >= SpawnHealth()/3)
 			MeleeChance -= 32; //Lower melee chance if you are low on health.
+		If (HasBerserk && Health <= SpawnHealth ()/3) //Unless you have berserk, in which case be MORE likely to melee because it does more damage.
+			MeleeChance += 64;
 		If (!Crouching && Random (0,255) < MeleeChance && Threat < THREAT_DANGEROUS)
 		{
 			Bool CanSee = CheckSight(Target,SF_IGNOREWATERBOUNDARY);
@@ -358,6 +386,13 @@ Class SM_Marine : KAI_Humanoid
 	Override Bool OnWander()
 	{
 		Super.OnWander();
+		
+		If (CurrentOrder == ORDER_STAY)
+		{
+			SetStateLabel ("Spawn");
+			Return False;
+		}
+		
 		Bool UsedLine;
 		//If (!IsDangerNearby())
 			UsedLine = SM_MarineUseLine(faceline:True); //Check if there's a line in front of us to use.
@@ -433,8 +468,83 @@ Class SM_Marine : KAI_Humanoid
 			Return False;
 		}
 		
+		//if (master)
+		//	console.printf ("%p's master is %p, current order %d",self,master,currentorder);
+		
+		//Marine is set to follow. Following the friendplayer is already handled by KAI_Wander() itself, so we just need to handle following the master.
+		If (CurrentOrder == ORDER_FOLLOW && Master)
+		{//console.printf ("%p OnWander(): Marine already has a master %s and ORDER_FOLLOW",self,master.getclassname());
+			//Only follow if you aren't too close to the master already, to avoid crowding..
+			If (Distance3DSquared(Master) >= WanderFollowDist*WanderFollowDist)
+			{
+				If (!bFriendly || bFriendly && bDontFollowPlayers)
+				{//console.printf ("following %s instead of friendplayer",master.getclassname());
+					KAI_MoveTowards (Master.Pos,anglelimit:20);
+					Return False;
+				}
+			}
+		}
+		
+		//Friendly marine is too close to the friendplayer. So just wander instead to avoid overcrowding.
+		If (WanderFollowDist && CurrentOrder == ORDER_FOLLOW && bFriendly && !Master)
+			{
+			bDontFollowPlayers = (Distance3DSquared(GetMarineFollowTarget(True)) <= WanderFollowDist*WanderFollowDist);
+			//CONSOLE.PRINTF ("OnWander(): Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
+			}
+		
+		//DEBUG: Check if DONTFOLLOWPLAYERS SHOULD BE ON OR NOT !
+			//if (GetMarineFollowTarget(True) && !(Distance3DSquared(GetMarineFollowTarget(True)) <= WanderFollowDist*WanderFollowDist))
+			//	console.printf ("so true bestie");
+			//else
+			//	console.printf ("FAKE NEWS");
+		
 		//If (UsedLine) 
 			//SetStateLabel ("Interact");
+		
+		Return True;
+	}
+	
+	Override Bool Used (Actor User)
+	{
+		Super.Used(User); //IDEA: In the future, when I add generic player and NPC usable emplacements in the KAI, add "use to get NPC off" handling here.
+		
+		If (!User || bDormant || IsPatrolling (Self) || User_IgnoreOrders) //Ignore commands when busy patrolling or dormant.
+			Return False;
+		
+		//Marines attack anyone (Almost certainly an enemy player.) trying to boss them by pressing use on them.
+		If (!Target && MarineState & MARINE_IDLING && IsActorHostile (User) && CanBeTargeted (Self,User))
+		{
+			Target = User;
+			Return True;
+		}
+		
+		SetMarineOrder (0,True,User); //Loop through the order list.
+		console.printf ("%p: my order is now %d",self,currentorder);
+		A_StartSound ("Marine/Radio",CHAN_AUTO);
+		
+		//Begin idling to follow the player, or if you are in the spawn state and set to wander aimlessly.
+		If ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState (Self,"Spawn"))
+			SetStateLabel ("Idle");
+		
+		Actor Text = Spawn ("SM_OrderText",Pos.PlusZ(Height));
+		If (Text)
+		{
+			Switch (CurrentOrder)
+			{
+				Case ORDER_STAY:
+					Text.SetStateLabel ("Standing");
+					Break;
+				Case ORDER_WANDER:
+					Text.SetStateLabel ("Wandering");
+					Break;
+				Case ORDER_FOLLOW:
+					Text.SetStateLabel ("FollowingPlayer");
+					Break;
+				Default: //Only got lines for the above commands.
+					Text.Destroy();
+					Break;
+			}
+		}
 		
 		Return True;
 	}
@@ -455,24 +565,38 @@ Class SM_Marine : KAI_Humanoid
 		//MARINE_PATROL	= 1 << 10, //Patrolling
 	}
 	
+	Enum MarineOrders
+	{
+		ORDER_FOLLOW	= 1, //The marine follows their friendly player (If friendly), or if they are hostile or have +DONTFOLLOWPLAYERS, their master.
+		ORDER_STAY		= 2, //The marine stays in place when idle instead of following anyone.
+		ORDER_WANDER	= 3, //The marine wanders around when idle.
+		//ORDER_GOTO	
+		
+		ALLORDERS, //Used to get how many orders there are to loop around.
+	}
+	
 	Const MARINE_HEARDIST = 4096; //How far can the marine hear.
 	Const MARINE_FOV = 120; //How wide the marine can see.
 	Const MAGAZINE_SIZE = 30; //How much ammo does the marine have per magazine ?
 	Const MARINE_USEPATIENCE = 10; //How long the marine stays in the interact state.
 	Const MARINE_CHASETIME = 350; //Chase your target for approximately 30 seconds after he has gone out of sight or died, before going to your idle state.
-	Const MARINE_GRENADECHANCE = 150; //The chance threshold over which the marine will throw a grenade if in range. MAYDO: Make this into a user variable.
+	Const MARINE_GRENADECHANCE = 130; //The chance threshold over which the marine will throw a grenade if in range. TODO: Make this into a user variable.
 	Const MARINE_JUMPLENGTH = 288;
 	Const MARINE_CROUCHHEIGHT = 30;
 	
 	Mixin SM_SplashFunctions;
 	
+	//AI variables
 	Int MarineState; //What the marine doin'.
+	Int CurrentOrder; //What order is the marine currently following ?
+	Double WanderFollowDist; //If the actor the marine is following with ORDER_FOLLOW is within this range + the actors' radius, then the marine will just wander around instead.
 	Actor NearestEnemy; //The marines' closest enemy, used to stay away from enemies.
 	Int RetreatLoops; //How many times the retreat state should be called.
 	UInt8 InteractWaits; //Keeps track of how many times the interact state loops before the marine gives up waiting on the sector he used to stop.
 	Int AimPos; //Where is the marine aiming ? Similar to the TurretAimPos on the vehicles.
 	Int AimTimer; //If the marine has been trying to aim and fire at the target for this long, then it's not working.
 	Int ChaseTimer; //How long has the marines' target being dead or out of sight ?
+	Int MeleeTime; //When on, the marine will be less scared of entering melee, like if the other enemy is weak and nearby, and by extension more likely to do it.
 	Vector3 ClimbPos; //Where the marine will move at after climbing up a sector in his climb state.
 	Vector3 JumpPos; //Where the marine must jump to in his jump state.
 	Vector3 PreJumpPos; //Where the marine started his running jump. Used to make the marine walk back and run forward to jump over very big gaps.
@@ -524,6 +648,7 @@ Class SM_Marine : KAI_Humanoid
 	
 	String User_Armor; //The name of the armor the marine should be equipped with upon spawning. Default is the vanilla green armor.
 	String User_Color; //What color is the marine ?
+	Bool User_IgnoreOrders;
 	
 	States
 	{
@@ -567,20 +692,22 @@ Class SM_Marine : KAI_Humanoid
 			{
 				If (Crouching) Sprite = GetSpriteIndex ('MARC');
 				Else If (!Crouching && Sprite == GetSpriteIndex ('MARC')) Sprite = GetSpriteIndex ('MARI');
+				
 				Double NormalSpeed = Speed;
-				If (HealTarget)
-					Speed *= 1.5;
-				KAI_Wander(8,768,anglelimit:20);
+				If (HealTarget || CurrentOrder == ORDER_FOLLOW) //Run to heal someone, or if following someone.
+					Tics = 2;
+				KAI_Wander(8,768,anglelimit:20); //See the OnWander() override.
 				Speed = NormalSpeed;
+				
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 			}
 			MARI D 0 
 			{
-				//Dumb the heal target if it's out of reachable.
+				//Dump the heal target if it's out of reachable.
 				If (!HealDelay && HealTarget && (!CheckSight (HealTarget,SF_IGNOREWATERBOUNDARY) || SM_IsPosReachable(HealTarget.Pos,ignoreactors:True)))
 					HealTarget = Null;
 				
-				If (!Crouching && !HealTarget && !IsPatrolling (Self)) //Might stand around if not busy.
+				If (!Crouching && !HealTarget && !IsPatrolling (Self) && (CurrentOrder != ORDER_FOLLOW && (Master || bFriendly))) //Might stand around if not busy.
 					Return A_Jump (4,"Idle.Stay","Idle.Stay.Alert"/*,"Idle.Stay.Kneel"*/);
 				
 				If (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2 && !Crouching && !HealTarget) //Go and pre-emptively reload.
@@ -689,12 +816,29 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
 			Goto See+1;
 		RunFromMelee:
-			TNT1 A 0 {RetreatLoops = 2;}
+			TNT1 A 0
+			{
+				If (Health > SpawnHealth()/3)
+					RetreatLoops = 2;
+				Else
+					RetreatLoops = 4;
+				
+				If (Target)
+				{
+					If (Target.MeleeState && !Target.MissileState)
+						RetreatLoops += 2; //Run extra far for melee-only monsters.
+					
+					RetreatLoops += Int (Target.Speed/5); //Also add additional retreats for each additional bit of speed the target has, to run further from faster monsters.
+				}
+			}
 		Retreat: //Run away a certain number of steps.
-			TNT1 A 0 SM_SetMarineState (MARINE_RETREAT,MARINE_IDLING|MARINE_CHASING|MARINE_INCOVER);
+			TNT1 A 0
+			{
+				SM_SetMarineState (MARINE_RETREAT,MARINE_IDLING|MARINE_CHASING|MARINE_INCOVER);
+				NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
+			}
 			MARI AAABBBCCCDDD 1
 			{
-				NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
 				If (Crouching) Sprite = GetSpriteIndex ('MARC');
 				Double RealSpeed = Speed;
 				Speed *= 0.85;
@@ -725,6 +869,8 @@ Class SM_Marine : KAI_Humanoid
 			{
 				If (Crouching && MarineState & MARINE_INCOVER) //Marine is taking cover, but get up to actually shoot.
 					Crouching = False;
+				
+				bNoFriction = Default.bNoFriction; //Just in case the marine somehow started firing mid-jump.
 			}
 			MARF JJJ 2 SM_RunFromHazards();
 			MARF A 2 //Wait until you can actually aim properly at the enemy.
@@ -771,6 +917,48 @@ Class SM_Marine : KAI_Humanoid
 				If (AttackType == FIRE_FULLAUTO && !Target || IsDead (Target))
 					LookForPlayers (True); //Look for a new target.
 				
+				//When firing, be likely to engage in melee if an enemy got too close.
+				//The target itself is out of range, so search for some other nearby enemy we may need to melee.
+				If (!Target || !KAI_CheckMeleeRange (Target))
+				{
+					Actor Nearest = FindNearestEnemy (MeleeRange);
+					
+					If (Nearest) //If there is a monster that got too close, just begin targeting that.
+					{
+						Target = Nearest;
+						console.printf ("FOUND NEW MELEE TARGET");
+					}
+				}
+				
+				If (Target && KAI_CheckMeleeRange (Target))
+				{
+					If (AssessThreatLevel (Target) >= ThreatLevelThreshold) //Target is WAY too dangerous.
+					{
+						RetreatLoops = 5;
+						Return FindState ("Retreat",True);
+					}
+					
+					//We don't have berserk and are at half health with an enemy very close.
+					If ( !HasBerserk && Health <= SpawnHealth ()/2 && Random (0,255) < 128)
+					{
+						console.printf ("i'm trying to fire but an enemy is too close for comfort, and I'm low on health");
+						SM_EndFiring();
+						Return FindState ("RunFromMelee",True);
+					}
+					
+					Double BerserkMul = (Health <= SpawnHealth ()/3) ? 2 : 1; //More likely to melee if berserking and low on health.
+					Double FacMul = (Target.ApplyDamageFactor ("Melee",80) < 30) ? 0.5 : 1; //Take melee penalty if the target is too resilient against it.
+					
+					If (bAvoidMelee && Random (0,255) < 12*FacMul || HasBerserk && Random (0,255) < 32*BerserkMul*FacMul)
+					{
+						console.printf ("%p got too close, doing a quick melee",target);
+						QuickMelee = True;
+						SM_EndFiring();
+						Return FindState ("Melee",True);
+					}
+				}
+				//====================================================================
+				
 				BurstCounter++;console.printf ("fired %d rounds",burstcounter);
 				//Run line of fire checks.
 				Vector3 CheckPos = (0,-6,42);
@@ -783,6 +971,7 @@ Class SM_Marine : KAI_Humanoid
 				
 				If (!SM_CheckLOF (CheckPos)) //The default parameters for this function are for marines firing bursts.
 					Return FindState ("Fire.End",True);
+				
 				Return SM_CheckRefire (10,"Fire.End",MARINE_FOV); //Since we are firing a short burst, be very likely to stop if anything is in the way.
 			}
 			MARF A 0 A_JumpIf (BurstCounter >= BurstSize,"Fire.End");
@@ -849,6 +1038,23 @@ Class SM_Marine : KAI_Humanoid
 				RemovedOldMag = False;
 			}
 			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");
+			TNT1 A 0 //If your target is weak enough and within melee range after reloading, have a chance to decide to smack 'em.
+			{
+				If (bAvoidMelee && Random (0,255) < 220 || (!bAvoidMelee || HasBerserk) && Random (0,255) < 128) //Don't always do this, especially if your melee is weak.
+					Return State (Null);
+				
+				//Just reloaded, and the target is in melee range and vulnerable.
+				If (Target && (!Target.MissileState && Target.Health <= 60 || Target.MissileState && Target.Health <= 30) )
+				{
+					Int Chance = HasBerserk ? 128 : 64;
+					If (Random (0,255) < Chance && KAI_CheckMeleeRange (Target))
+					{console.printf ("just reloaded, doing a quick melee");
+						QuickMelee = True;
+						Return FindState ("Melee",True);
+					}
+				}
+				Return State (Null);
+			}
 			Goto See;
 		Grenade: //https://www.youtube.com/watch?v=BJrxKiW5f-4
 			TNT1 A 0 SM_SetMarineState (MARINE_THROWING,MARINE_MELEE|MARINE_IDLING|MARINE_FIRING|MARINE_IDLING);
@@ -1089,6 +1295,7 @@ Class SM_Marine : KAI_Humanoid
 				{
 					QuickMelee = False;
 					RetreatLoops += Random (2,6);
+					console.printf ("did my quick melee attack, retreating");
 					Return FindState ("Retreat",True);
 				}
 				Return State (Null);
@@ -1171,6 +1378,7 @@ Class SM_Marine : KAI_Humanoid
 				bNoGravity = Default.bNoGravity;
 				GiveInventory ("SM_DropoffToken",1); //HACK: Zandronum Moment
 			}
+			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");
 			Goto See;
 		Jump:
 			MARA H 1
@@ -1316,5 +1524,48 @@ Class SM_Marine : KAI_Humanoid
 			MARA E 0 A_JumpIf ((MarineState & MARINE_FIRING),"Fire.End"); //End shooting now that you flinched.
 			MARA E 0 A_JumpIf ((MarineState & MARINE_MELEE),"Melee.End"); //End beating the shit out of your enemy too.
 			Goto See;
+	}
+}
+
+//Marine with berserk pack (Much stronger and less anemic melee)
+Class SM_Marine_Berserk : SM_Marine
+{
+	Override Void PostBeginPlay ()
+	{
+		Super.PostBeginPlay();
+		GiveInventory ("PowerStrength",1);
+	}
+}
+
+//Marine with no green armor.
+Class SM_Marine_Unarmored : SM_Marine
+{
+	Override Void PostBeginPlay ()
+	{
+		User_Armor = "None";
+		Super.PostBeginPlay();
+	}
+}
+
+//Extra durable marine.
+Class SM_Marine_BlueArmor : SM_Marine
+{
+	Override Void PostBeginPlay ()
+	{
+		User_Armor = "BlueArmor";
+		Super.PostBeginPlay();
+	}
+}
+
+//https://www.youtube.com/watch?v=18rZxvB5rDA
+Class SM_GigaMarine : SM_Marine
+{
+	Override Void PostBeginPlay ()
+	{
+		User_Color = "Blue";
+		User_Armor = "BlueArmor";
+		GiveInventory ("PowerStrength",1);
+		Health = 200;
+		Super.PostBeginPlay();
 	}
 }
