@@ -106,18 +106,19 @@ Extend Class SM_Marine
 				}
 				
 				//Crouching comes first.
-				If (!(MarineState & MARINE_INCOVER)) Crouching = KAI_HandleCrouching(Default.Height,MARINE_CROUCHHEIGHT);
+				If (!(MarineState & MARINE_INCOVER) && !SM_IsRestricted (RESTRICT_CROUCHING)) Crouching = KAI_HandleCrouching(Default.Height,MARINE_CROUCHHEIGHT);
 				
-				If (!Crouching &&
+				If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) &&
 				//DO NOT CLIMB OVER YOUR COVER
-				//BUG: Probably prevents marines from climb at all when running to cover.
+				//BUG: Probably prevents marines from climbing at all when running to cover.
 				(!KAI_Math.IsEmptyVector3 (NearbyCoverPos) || Level.Vec3Diff (Pos,NearbyCoverPos).Length() > Radius*1.2))
 				{
 					If (KAI_HandleClimbing(ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
 						MovedAlready = True;
 				}
 				
-				Vector2 JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
+				Vector2 JumpPosition = (Double.NaN,Double.NaN);
+				If (!SM_IsRestricted (RESTRICT_JUMPING)) JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
 				If (JumpPosition == JumpPosition && !Crouching && !(MarineState & MARINE_INCOVER)) //We have a valid position we must jump to, AKA the returned vector isn't null.
 				{
 					JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
@@ -244,7 +245,7 @@ Extend Class SM_Marine
 	//Search for the closest cover between the marine and the target and marine (e.g if there's cover 4 meters towards the target) and the marines' flanks.
 	Vector3 SM_LocateNearbyCover (Actor Other, Double Distance = 256)
 	{
-		If (!Other || Distance <= 0)
+		If (!Other || Distance <= 0 || SM_IsRestricted (RESTRICT_TAKECOVER))
 			Return (Double.NaN, Double.NaN, Double.NaN);
 		
 		//Check in front of the marine first.
@@ -312,6 +313,8 @@ Extend Class SM_Marine
 		Return (Double.NaN, Double.NaN, Double.NaN);
 	}
 	
+	Bool HipFalsePositive; //HACK: Sometimes traces go full retard and return the the marines' hip level isn't blocked, so only uncrouch if TWO hip checks are false.
+	
 	Bool, Vector3 SM_UpdateCover (Actor Other, Bool IsCrouchingAlready, Double TraceDist = 48)
 	{
 		FLineTraceData EyeLevel, HipLevel;
@@ -320,8 +323,8 @@ Extend Class SM_Marine
 		Actor Mobj;
 		Vector3 HipHitPos = (Double.NaN, Double.NaN, Double.NaN);
 		
-		//Don't crouch if Who is invalid or are patrolling.
-		If (!Other || IsPatrolling (Self))
+		//Don't crouch if Who is invalid, you are patrolling, or it's just restricted.
+		If (!Other || IsPatrolling (Self) || SM_IsRestricted (RESTRICT_TAKECOVER))
 			Return False, HipHitPos;
 		
 		//If the other actor is this close to you, you probably can't crouch.
@@ -349,14 +352,17 @@ Extend Class SM_Marine
 		HasHit = HipLevel.HitType;
 		Mobj = HipLevel.HitActor;
 		HipHitPos = HipLevel.HitLocation - HipLevel.HitDir * (Radius*1.1);
+		IF (MOBJ)CONSOLE.PRINTF ("SM_UPDATECOVER: DEBUG: HIP CHECK HIT ACTOR %s %p",MOBJ.GETCLASSNAME(),MOBJ);
 		
-		//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
-		//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
+		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
+		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
 		
-		//Only take cover behind large enough actors that aren't other NPCs or players. And aren't about to break.
+		//Only take cover behind level geometry, and large enough actors that aren't other NPCs or players. And aren't about to break.
 		If ((HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling) ||
 		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height <= 40 && Mobj.Health >= 40))
 			HipLevelBlocked = True;
+			
+		console.printf ("SM_UPDATECOVER YADDA YADDA FUCK OFF: HIPLEVELBLOCKED IS %d",hiplevelblocked);
 		
 		Bool OtherInSight = CheckSight (Other,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY);
 		//Only run this if the marine is not crouched already.
@@ -367,14 +373,26 @@ Extend Class SM_Marine
 		//If you are crouching already and have a line of sight to the other actor.
 		If (IsCrouchingAlready && OtherInSight)
 			//Then return if you can crouch based on whether or not your hips are blocked by cover still.
-			{if (hiplevelblocked) console.printf ("SM_UpdateCover(): marine can no longer hide behind here");Return HipLevelBlocked, HipHitPos;}
+		{if (!hiplevelblocked) console.printf ("SM_UpdateCover(): marine can no longer hide behind here");
+			If (!HipLevelBlocked && !HipFalsePositive) //HACK: Catch retarded false positives from the trace.
+			{console.printf ("SM_UPDATECOVER: CAUGHT RETARDED MALFORMED FALSE POSITIVE");
+				HipFalsePositive = True;
+				HipLevelBlocked = True;
+			}
+			If (!HipLevelBlocked && HipFalsePositive) //If it returns false a second time, it's probably for real.
+				{console.printf ("SM_UPDATECOVER: PROBABLY NOT A FALSE POSITIVE, COVER REALLY IS BROKEN");HipFalsePositive = False;}
+			Return HipLevelBlocked, HipHitPos; //Then return if you can crouch based on whether or not your hips are blocked by cover still.
+		}
 		
 		If (!OtherInSight && Random (0,255) < 4) //If the other actor is out of sight, the marine will eventually give up staying behind cover.
 			{console.printf ("SM_UpdateCover(): %p is out of sight",other);Return False, HipHitPos;}
 		
 		//If none of the other checks are true, but you are crouching already, then just assume you can keep doing so.
 		If (IsCrouchingAlready)
+		{
+			HipFalsePositive = True; //HACK: We need two false hip checks in a row to consider it to not be a fluke.
 			Return True, HipHitPos;
+		}
 		
 		Return False, HipHitPos;
 	}
@@ -548,14 +566,15 @@ Extend Class SM_Marine
 	{
 		If (!(MarineState & MARINE_INCOVER))
 		{
-			Crouching = KAI_HandleCrouching (Default.Height,MARINE_CROUCHHEIGHT); //Handle crouching, duh.
+			If (!SM_IsRestricted (RESTRICT_CROUCHING)) Crouching = KAI_HandleCrouching (Default.Height,MARINE_CROUCHHEIGHT); //Handle crouching, duh.
 			
 			//Handle climbing
-			If (!Crouching && KAI_HandleClimbing (ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
+			If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) && KAI_HandleClimbing (ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
 				Return;
 			
 			//Handle jumping.
-			Vector2 JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
+			Vector2 JumpPosition = (Double.NaN,Double.NaN);
+			If (!SM_IsRestricted (RESTRICT_JUMPING)) JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
 			If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
 			{
 				JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
@@ -1065,7 +1084,7 @@ Extend Class SM_Marine
 	//Increment: If true the marine simply moves to the next order in the enum, and loops back around once reaching the end.
 	//Commander: The actor, if any, ordering the marine to change orders. If the order is set to ORDER_FOLLOW, they'll become the marines' master, unless hostile.
 	//IgnoreAllegiance: If true, the marine will accept orders even from enemy actors, but still won't follow them if set to ORDER_FOLLOW.
-	Void SetMarineOrder (MarineOrders Order, Bool Increment, Actor Commander = Null, Bool IgnoreAllegiance = False)
+	Void SetMarineOrder (MarineOrders Order, Bool Increment = False, Actor Commander = Null, Bool IgnoreAllegiance = False)
 	{console.printf ("%p HAS RAN SETMARINEORDER()",SELF);
 		Bool EnemyCommand = IsActorHostile (Commander); //The order is being barked by an enemy.
 		Bool LastOrder = CurrentOrder;
@@ -1082,7 +1101,7 @@ Extend Class SM_Marine
 		
 		//If we are set to follow, and we have a commander that is friendly, follow them.
 		If (CurrentOrder == ORDER_FOLLOW)
-		{console.printf ("Okay jolly green retard (%p), is your current order ORDER_FOLLOW ?",self);
+		{//console.printf ("Okay jolly green retard (%p), is your current order ORDER_FOLLOW ?",self);
 			If (bFriendly && Commander == Players[KAI_GetFriendPlayer()].Mo) //If your commander is your friendplayer, remove your master pointer to follow friendplayer.
 				Master = Null;
 			
@@ -1144,15 +1163,6 @@ Extend Class SM_Marine
 		Return Null;
 	}
 	
-	/*	//As a friendly vehicle, only follow the player until within a certain distance from them, to prevent the player from being dogpiled by vehicles.
-	Void FollowPlayerControl (Double MaxDist = 384)
-	{
-		If (!bFriendly || !Players[KAI_GetFriendPlayer()].Mo || CurrentOrder == ORDER_WANDER)
-			Return;
-		
-		bDontFollowPlayers = (Distance3DSquared (Players[KAI_GetFriendPlayer()].Mo) <= MaxDist*MaxDist);
-	}*/
-	
 	Enum StrafeDirections
 	{
 		STRAFE_RANDOM = -1, //Strafe in a random direction.
@@ -1165,7 +1175,7 @@ Extend Class SM_Marine
 	//After a projectile to dodge is found by SM_ShouldDodgeProjectile, this function handles picking a direction, if any, to dodge out of the way towards.
 	Bool SM_HandleDodging (Actor Projectile, Bool DontJump = False)
 	{
-		If (!Projectile || bDormant || IsDead(Self) || Pos.Z > FloorZ+8) Return False;
+		If (!Projectile || bDormant || IsDead(Self) || Pos.Z > FloorZ+8 || SM_IsRestricted (RESTRICT_DODGING)) Return False;
 		console.printf ("SM_HandleDodging(): Dodged a %s",projectile.getclassname());
 		
 		//The marine is behind cover but not crouching, so dodge by going prone.
@@ -1175,6 +1185,8 @@ Extend Class SM_Marine
 			Height = MARINE_CROUCHHEIGHT;
 			GrenadeDelay += GameTicRate/2;
 			NextFireDelay += GameTicRate/2;
+			If (MarineState & MARINE_FIRING)
+				SetStateLabel ("Fire.End");
 			Return True;
 		}
 		
@@ -1443,13 +1455,13 @@ Extend Class SM_Marine
 		Switch (AttackType)
 		{
 			Case FIRE_BURST:
-				AddProjectileSpread (Bullet,(1.1,-1.1)*AccuracyBuff,(1.1,-1.1)*AccuracyBuff);
+				AddProjectileSpread (Bullet,(0.7,-0.7)*AccuracyBuff,(0.7,-0.7)*AccuracyBuff);
 				Break;
 			Case FIRE_SINGLE:
 				AddProjectileSpread (Bullet,(0.4,-0.4)*AccuracyBuff,(0.4,-0.4)*AccuracyBuff);
 				Break;
 			Case FIRE_FULLAUTO:
-				AddProjectileSpread (Bullet,(2.2,-2.2)*AccuracyBuff,(2.2,-2.2)*AccuracyBuff);
+				AddProjectileSpread (Bullet,(1.75,-1.75)*AccuracyBuff,(1.75,-1.75)*AccuracyBuff);
 				A_Recoil (Recoil);
 				Break;
 		}
@@ -1461,10 +1473,62 @@ Extend Class SM_Marine
 	Void SM_EndFiring()
 	{
 		SM_SetMarineState (0,MARINE_FIRING|MARINE_THROWING|MARINE_MELEE|MARINE_KNEELING|MARINE_LYINGDOWN);
-		If (!IsDead(Self)) NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
+		SM_UpdateHeight();
+		
+		If (!IsDead(Self))
+		{
+			NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
+			If (MarineState == MARINE_INCOVER)
+				NextFireDelay /= 2; //Fire more frequently when hiding.
+		}
+		
 		AimTimer = BurstCounter = BurstSize = 0; //Reset aim and burst counters.
 		AttackType = FIRE_BURST; //Reset to default fire mode.
-		SM_UpdateHeight();
+	}
+	
+	Enum RestrictableActions
+	{
+		RESTRICT_NOACTION, //We aren't checking any action ?
+		RESTRICT_TAKECOVER, //Marine hiding behind cover.
+		RESTRICT_CLIMBING, //Marine climbs over obstacles.
+		RESTRICT_JUMPING, //Marine jumps over gaps.
+		RESTRICT_CROUCHING, //Marine crouching under tight spaces.
+		RESTRICT_SWIMMING, //Marine swimming over swimmable 3D floors.
+		RESTRICT_DODGING, //Marine dodging incoming projectiles.
+		RESTRICT_HEALING, //Marine occasionally giving stimpacks to allies.
+		RESTRICT_WARNALLIES, //Marine warning nearby friendly marines.
+	}
+	
+	//Check if the following action is restricted by a token given from a restriction zone, or a user variable.
+	Bool SM_IsRestricted (Int MarineAction)
+	{
+		If (MarineAction == RESTRICT_NOACTION)
+			{console.printf ("SM_IsRestricted(): No action to check ?");Return False;}
+		
+		Let Token = SM_RestrictionToken(FindInventory ("SM_RestrictionToken"));
+		If (!Token)
+			Return False; //None of these actions are restricted, until I add user variables to restrict them anyway.
+		
+		//TODO: In the future, handle restricting these action types with their user variables too, using this syntax.
+		//If (MarineAction == RESTRICT_TAKECOVER && (Token && Token.NoCover || User_NoCover))
+		If (MarineAction == RESTRICT_TAKECOVER && Token && Token.NoCover)
+			Return True;
+		If (MarineAction == RESTRICT_CLIMBING && Token && Token.NoClimb)
+			Return True;
+		If (MarineAction == RESTRICT_JUMPING && Token && Token.NoJump)
+			Return True;
+		If (MarineAction == RESTRICT_CROUCHING && Token && Token.NoCrouch)
+			Return True;
+		If (MarineAction == RESTRICT_SWIMMING && Token && Token.NoSwim)
+			Return True;
+		If (MarineAction == RESTRICT_DODGING && Token && Token.NoDodge)
+			Return True;
+		If (MarineAction == RESTRICT_HEALING && Token && Token.NoHeal)
+			Return True;
+		If (MarineAction == RESTRICT_WARNALLIES && Token && Token.NoWarn)
+			Return True;
+		
+		Return False;
 	}
 	
 	//Ask what the dog is doing.

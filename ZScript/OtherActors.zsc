@@ -1,3 +1,155 @@
+//Restrict what actions the marine can perform when in range of this special zone.
+//Useful for turning off certain features in specific parts of the map. Like restricting climbing in interiors to avoid having marines get stuck.
+//The limited custom arguments are used for the moves the marine can perform. User variables are for more minor actions like healing allies and dodging.
+Class SM_ActionRestrictor : KAI_MixinActor
+{
+	Default
+	{
+		Scale 0.25;
+		+NoInteraction;
+		
+		//$Title Marine Restriction Zone
+		//$Sprite MAROZ0
+		//$Category Marines
+		//$NotAngled
+		
+		//$Arg0 Range
+		//$Arg0Tooltip "The range in which marines have to be to listen to the restrictor.\nA negative range affects all marines in the sector the zone is in."
+		//$Arg0Default 256
+		//$Arg1 Don't Take Cover
+		//$Arg1Tooltip "Marines won't take cover when in range."
+		//$Arg1Type 11
+		//$Arg1Enum falsetrue
+		//$Arg2 Don't Climb
+		//$Arg2Tooltip "Marines won't climb over obstacles when in range."
+		//$Arg2Type 11
+		//$Arg2Enum falsetrue
+		//$Arg3 Don't Jump
+		//$Arg3Tooltip "Marines won't jump over gaps when in range."
+		//$Arg3Type 11
+		//$Arg3Enum falsetrue
+		//$Arg4 Don't Crouch
+		//$Arg4Tooltip "Marines won't crouch to go under tight spaces when in range."
+		//$Arg4Type 11
+		//$Arg4Enum falsetrue
+	}
+	
+	Enum ArgNames
+	{
+		ARG_RANGE 	= 0,
+		ARG_NOCOVER = 1,
+		ARG_NOCLIMB = 2,
+		ARG_NOJUMP	= 3,
+		ARG_NOCROUCH= 4,
+		//ARG_NOSWIM	= 5, //The args array isn't that big. And I don't want to use the angle to determine the restriction range or some stupid shit.
+	}
+	
+	//More minor restrictions.
+	Bool User_NoDodging; //Do not dodge when in range.
+	Bool User_NoHealing; //Do not heal nearby allies when in range.
+	//Bool User_NoSwimming;//Do not swim in and out of swimmable 3D floors.
+	//Bool User_DontWarn;//Do not alert nearby marines of enemies.
+	
+	//Other settings
+	Bool User_CheckSight;//In addition to only restricting marines in range, also only restrict them if they are in sight as well.
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (IsFrozen())
+			Return;
+		
+		If (!Args[ARG_RANGE]) //Range is negative, so find all marines in the sector we are in instead.
+		{
+			For (Actor CurMo = CurSector.ThingList; CurMo != Null; CurMo = CurMo.SNext)
+				RunRestrictor (CurMo);
+			Return;
+		}
+		
+		Let MarineSearch = BlockThingsIterator.Create (Self,Args[ARG_RANGE]);
+		
+		While (MarineSearch.Next())
+			RunRestrictor (MarineSearch.Thing);
+	}
+	
+	Void RunRestrictor (Actor Marine)
+	{
+		If (!Marine || !(Marine Is "SM_Marine") || Marine.bDormant || IsDead (Marine))
+			Return;
+		
+		If (Marine.FindInventory ("SM_RestrictionToken")) //Already have a token.
+			Return;
+		
+		If (Distance3DSquared (Marine) > Args[ARG_RANGE]*Args[ARG_RANGE])
+			Return;
+		
+		If (User_CheckSight && !CheckSight (Marine,SF_IGNOREWATERBOUNDARY)) //Outta sight outta mind.
+			Return;
+		
+		//Since the token is remade every tick, it allows the restrictions to be changed, like to only prevent a certain action after a scripted event.
+		SM_RestrictionToken Restrictor = SM_RestrictionToken(Spawn("SM_RestrictionToken"));
+		
+		If (Restrictor)
+		{
+			Restrictor.NoCover	= Args[ARG_NOCOVER];
+			Restrictor.NoClimb	= Args[ARG_NOCLIMB];
+			Restrictor.NoJump	= Args[ARG_NOJUMP];
+			Restrictor.NoCrouch	= Args[ARG_NOCROUCH];
+			//Restrictor.NoSwim	= User_NoSwimming;
+			Restrictor.NoDodge	= User_NoDodging;
+			Restrictor.NoHeal	= User_NoHealing;
+			//Restrictor.NoWarn	= User_DontWarn;
+			
+			Restrictor.CheckSight=User_CheckSight;
+			Restrictor.MaxTargetRange = Args[ARG_RANGE];
+			Restrictor.Master = Self;
+		}
+		console.printf ("restricting %p",marine);
+		Restrictor.CallTryPickup (Marine); //Pick up the token
+	}
+}
+
+Class SM_RestrictionToken : Inventory
+{
+	Default
+	{
+		Inventory.MaxAmount 1;
+		ReactionTime 1; //This only needs to be given every tick to marines in range, no need for it to last longer than that.
+	}
+	
+	//The naughty list. Check by SM_IsRestricted().
+	Bool NoCover, NoClimb, NoJump, NoCrouch, NoSwim, NoDodge, NoHeal, NoWarn;
+	
+	Bool CheckSight;
+	
+	Override Void AttachToOwner (Actor Other)
+	{
+		Super.AttachToOwner(Other);
+		If (Other && !(Other Is "SM_Marine"))
+			GoAwayAndDie();
+		
+		console.printf ("gave token %p to a %s",self,other.getclassname());
+	}
+	
+	Override Void DoEffect ()
+	{
+		Super.DoEffect();
+		
+		If (Master && Owner && Random (0, 255) < 88) //Don't check every tick, for performance.
+		{
+			//Too far from the zone or the zone is out of sight.
+			If (Owner.Distance3DSquared (Master) > MaxTargetRange*MaxTargetRange || (CheckSight && !Owner.CheckSight (Master,SF_IGNOREWATERBOUNDARY)))
+			{console.printf ("The restrictor tokens' owner is too far from the tokens' spawner or out of its' sight.");
+				GoAwayAndDie();
+			}
+		}
+		
+		//If (GetAge() > ReactionTime)
+		//	{console.printf ("token too old");GoAwayAndDie();}
+	}
+}
+
 Class SM_Bullet : KAI_BaseProjectile
 {
 	Default
@@ -6,7 +158,7 @@ Class SM_Bullet : KAI_BaseProjectile
 		Height 6;
 		Speed 170;
 		FastSpeed 200;
-		DamageFunction (Random (7,10));
+		DamageFunction (Random (10,20));
 		XScale 0.2;
 		YScale 0.166666; //0.2 / 1.2
 		ProjectileKickback 10;

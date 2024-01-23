@@ -1,7 +1,8 @@
 DoomEdNums
 {
 	8573 = SM_Marine
-	8575 = VanillaRifle
+	8575 = SM_Rifle
+	8576 = SM_ActionRestrictor
 }
 
 GameInfo

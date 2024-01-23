@@ -245,7 +245,7 @@ Class SM_Marine : KAI_Humanoid
 		//Random chance that the marine might decide to fire lying down. Like kneeling, this scales with distance as well, but less, for even larger distances.
 		Bool MightLie = (Random (0,255) < 24 + KAI_Math.LinearMap(Dist,0,MaxTargetRange,0,255));
 		Vector3 LiePos = FirePos; LiePos.Z = 14;
-		If (MightLie && PitchTo (Target,Height/2,Target.Height/2) >= -15 && SM_CheckLOF (LiePos)) //If you decided to lie down and can do so, then we are good.
+		If (!(MarineState & MARINE_INCOVER) && MightLie && PitchTo (Target,Height/2,Target.Height/2) >= -15 && SM_CheckLOF (LiePos)) //If you decided to lie down and can do so, then we are good.
 		{a_log ("i have decided to lie down");
 			SM_SetMarineState (MARINE_LYINGDOWN,0);
 			FirePos = LiePos;
@@ -397,12 +397,13 @@ Class SM_Marine : KAI_Humanoid
 		//If (!IsDangerNearby())
 			UsedLine = SM_MarineUseLine(faceline:True); //Check if there's a line in front of us to use.
 		
-		Crouching = KAI_HandleCrouching (Default.Height,MARINE_CROUCHHEIGHT);
+		If (!SM_IsRestricted (RESTRICT_CROUCHING)) Crouching = KAI_HandleCrouching (Default.Height,MARINE_CROUCHHEIGHT);
 		
-		If (!Crouching && KAI_HandleClimbing(ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
+		If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) && KAI_HandleClimbing(ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
 			Return False;
 		
-		Vector2 JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
+		Vector2 JumpPosition = (Double.NaN,Double.NaN);
+		If (!SM_IsRestricted (RESTRICT_JUMPING)) JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
 		If (JumpPosition == JumpPosition && !Crouching) //We have a valid position we must jump to, AKA the returned vector isn't null.
 		{
 			JumpPos = (JumpPosition,Double.NaN); //The GetJumpPosition function is only concerned with 2D coordinates.
@@ -479,7 +480,14 @@ Class SM_Marine : KAI_Humanoid
 			{
 				If (!bFriendly || bFriendly && bDontFollowPlayers)
 				{//console.printf ("following %s instead of friendplayer",master.getclassname());
-					KAI_MoveTowards (Master.Pos,anglelimit:20);
+					//URGENT: This is probably a temp fix until I add the order system as a KAI component. So that vehicle spawned marines stop following them when they die.
+					If (IsDead (Master))
+					{CONSOLE.PRINTF ("my master (%s) died, going back to wandering if hostile or following the player if friendly",master.getclassname());
+						Master = Null;
+						If (!bFriendly) SetMarineOrder (ORDER_WANDER);
+						Else SetMarineOrder (ORDER_FOLLOW); //Friendly marines just begin follow their player.
+					}
+					If (Master) KAI_MoveTowards (Master.Pos,anglelimit:20);
 					Return False;
 				}
 			}
@@ -648,7 +656,8 @@ Class SM_Marine : KAI_Humanoid
 	
 	String User_Armor; //The name of the armor the marine should be equipped with upon spawning. Default is the vanilla green armor.
 	String User_Color; //What color is the marine ?
-	Bool User_IgnoreOrders;
+	Bool User_IgnoreOrders; //Marine ignores orders given to them by players trying to press use on them.
+	Bool User_NoWeaponDrop; //The marines never drop their rifles. When I implement other marine types, they won't drop their respective weapons either.
 	
 	States
 	{
@@ -959,16 +968,17 @@ Class SM_Marine : KAI_Humanoid
 				}
 				//====================================================================
 				
-				BurstCounter++;console.printf ("fired %d rounds",burstcounter);
+				BurstCounter++;
 				//Run line of fire checks.
 				Vector3 CheckPos = (0,-6,42);
-				If (MarineState & MARINE_KNEELING)
-					CheckPos.Z = 32;
-				Else If (MarineState & MARINE_LYINGDOWN)
+				If (MarineState & MARINE_LYINGDOWN)
 					CheckPos.Z = 14;
 				Else If (Crouching)
-					CheckPos.Z = 25;
+					CheckPos.Z = 25;	
+				Else If(MarineState & MARINE_KNEELING)
+					CheckPos.Z = 32;
 				
+				console.printf ("fired %d rounds, checking at fire height %d",burstcounter,checkpos.z);
 				If (!SM_CheckLOF (CheckPos)) //The default parameters for this function are for marines firing bursts.
 					Return FindState ("Fire.End",True);
 				
@@ -1407,7 +1417,7 @@ Class SM_Marine : KAI_Humanoid
 		Jump.Loop: //Not sure if this should really be interruptable by pain or if I should add a new marine state for jumping/falling. But I'm leaning to no.
 			MARA H 1
 			{
-				KAI_HandleClimbing(ClimbPos,Null,"Climb",Null,1.1,1.75);
+				If (!SM_IsRestricted (RESTRICT_CLIMBING)) KAI_HandleClimbing(ClimbPos,Null,"Climb",Null,1.1,1.75);
 				If (bOnMobj || Pos.Z <= GetZAt ()) //The eagle has landed.
 				{
 					bNoFriction = Default.bNoFriction;
@@ -1560,6 +1570,7 @@ Class SM_Marine_BlueArmor : SM_Marine
 //https://www.youtube.com/watch?v=18rZxvB5rDA
 Class SM_GigaMarine : SM_Marine
 {
+	Default {KAI_Actor.ThreatLevel THREAT_DANGEROUS;}
 	Override Void PostBeginPlay ()
 	{
 		User_Color = "Blue";
