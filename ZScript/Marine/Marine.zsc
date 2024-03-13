@@ -84,6 +84,7 @@ Class SM_Marine : KAI_Humanoid
 		AttackStates.Push (FindState ("Marine.Jumpkick.End",True));
 		
 		NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
+		LastSeenPos = (Double.NaN, Double.NaN, Double.NaN);
 	}
 	
 	Override Void Tick()
@@ -227,7 +228,7 @@ Class SM_Marine : KAI_Humanoid
 	Override Bool ShouldAttack (Bool NoStateJump)
 	{
 		If (!Target || Target == Goal) Return False; //Don't attack if you have no target or just following a goal.
-		If (!CanAttack()) Return False;
+		If (!CanAttack() || !CanBeTargeted(Self,Target)) Return False;
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
 		Int Threat = AssessThreatLevel (Target,False);
 		
@@ -400,6 +401,9 @@ Class SM_Marine : KAI_Humanoid
 		If (!SM_IsRestricted (RESTRICT_CROUCHING)) Crouching = KAI_HandleCrouching (Default.Height,MARINE_CROUCHHEIGHT);
 		
 		If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) && KAI_HandleClimbing(ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
+			Return False;
+		
+		If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) && SM_HandleClimbDown(Height*1.75)) //Handle jumping down any ledges that you can still climb up to if you want.
 			Return False;
 		
 		Vector2 JumpPosition = (Double.NaN,Double.NaN);
@@ -612,6 +616,7 @@ Class SM_Marine : KAI_Humanoid
 	HazardInfo HazardToAvoid; //What hazard from his Hazards array should the marine be currently trying to avoid ?
 	Vector3 RetreatPos; //The position the marine retreats from, if this is not NaN, the retreat state runs from this coordinate instead of the target actor.
 	Actor LastDodged; //The last projectile the marine dodged.
+	Vector3 LastSeenPos; //The last position the target was seen at while chased by the marine. Used to make them head there first before resuming normal chasing.
 	
 	//Healing variables
 	Actor HealTarget; //Who to walk up to and heal.
@@ -658,6 +663,9 @@ Class SM_Marine : KAI_Humanoid
 	String User_Color; //What color is the marine ?
 	Bool User_IgnoreOrders; //Marine ignores orders given to them by players trying to press use on them.
 	Bool User_NoWeaponDrop; //The marines never drop their rifles. When I implement other marine types, they won't drop their respective weapons either.
+	Bool User_NoParkour; //Marine only has normal monster movement.
+	Bool User_NoHealing; //Marines do not give stimpacks to friends.
+	Bool User_NoCover; //Marines never take cover from enemies.
 	
 	States
 	{
@@ -1381,13 +1389,19 @@ Class SM_Marine : KAI_Humanoid
 				bNoGravity = True;
 			}
 			MARA G 5 A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
-			TNT1 A 0 A_SetAngle (GetAngleToPos(Vec3Angle (Speed,Angle))); //Face in front of where you climbed to.
-			TNT1 A 0 SetOrigin ((Vec2Angle(Radius+1,Angle),ClimbPos.Z),True); //And at last. Go to the climbing position and resume walking or whatever.
+			TNT1 A 0
+			{
+				WorldOffset.Z = -31; //MARAG has the mid-climb sprite offset, so when the marine actually moves to the climb pos, it looks like he's flying without this.
+				A_SetAngle (GetAngleToPos(Vec3Angle (Speed,Angle))); //Face in front of where you climbed to.
+				SetOrigin (ClimbPos,False); //There's a slight delay in the worldoffset with interpolation on.
+			}
+			//TNT1 A 0 SetOrigin ((Vec2Angle(Radius+1,Angle),ClimbPos.Z),True); //And at last. Go to the climbing position and resume walking or whatever.
 			MARA G 1
 			{
 				bNoGravity = Default.bNoGravity;
 				GiveInventory ("SM_DropoffToken",1); //HACK: Zandronum Moment
 			}
+			TNT1 A 0 {WorldOffset = (0,0,0);}
 			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");
 			Goto See;
 		Jump:
@@ -1445,9 +1459,9 @@ Class SM_Marine : KAI_Humanoid
 			Goto Jump.Loop;
 		Jump.Running:
 			MARI AABBCCDDAABBCCDDAABBCCDD 2 //Move back.
-			{
+			{console.printf ("MARINE IS TRYING TO DO A RUNNING JUMP BECAUSE HE'S STUPID !");
 				KAI_MoveTowards (PreJumpPos, 0.5, 0); 
-				If (BlockingLine || BlockingMobj) //Something is in the way.
+				If (!CheckMove (Vec2Angle(Speed,Angle))) //Something is in the way.
 				{
 					If (MarineState & MARINE_IDLING)
 						Return FindState ("Idle",True);
@@ -1460,7 +1474,7 @@ Class SM_Marine : KAI_Humanoid
 			MARI AAABBBCCCDDDAAABBBCCCDDD 1
 			{
 				KAI_MoveTowards ((JumpPos.XY,GetZAt (JumpPos.X,JumpPos.Y)), 0.5, 0);
-				If (BlockingLine || BlockingMobj) //Something is in the way.
+				If (!CheckMove (Vec2Angle(Speed,Angle))) //Something is in the way.
 				{
 					If (MarineState & MARINE_IDLING)
 						Return FindState ("Idle",True);
@@ -1518,6 +1532,7 @@ Class SM_Marine : KAI_Humanoid
 				DaDog = Null;
 				ChaseTimer = 0;
 				RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
+				WorldOffset = (0,0,0);
 				If ((MarineState & MARINE_RELOAD)) //We were reloading before retreating.
 				{
 					If (!RetreatLoops) //Go to reloading, like if the marine was hurt mid reload. But do run away a bit first.

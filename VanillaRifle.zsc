@@ -59,7 +59,7 @@ Class SM_Rifle : Weapon
 			{
 				A_Overlay (PSP_SCANLINES,"Scanlines");
 				A_OverlayAlpha (PSP_SCANLINES,0.0);
-				A_OverlayFlags (PSP_SCANLINES,PSPF_ALPHA|PSPF_RENDERSTYLE|PSPF_FORCEALPHA|PSPF_FORCESTYLE,True);
+				A_OverlayFlags (PSP_SCANLINES,PSPF_ALPHA|PSPF_RENDERSTYLE|PSPF_FORCESTYLE,True);
 				A_OverlayFlags (PSP_SCANLINES,PSPF_ADDWEAPON|PSPF_ADDBOB,False);
 				A_OverlayRenderStyle (PSP_SCANLINES,Style_Add);
 				A_OverlayOffset (PSP_SCANLINES,-112.0,0.0);
@@ -217,10 +217,10 @@ Class SM_Rifle : Weapon
 			VRIF JK 6;
 			Loop;
 		Scanlines: //Set up the animated vertical movement.
-			VRIG ABCDEFGHIKLMNOPQRSTVXYZ 2 {If (Health <= 0) {A_OverlayAlpha (PSP_SCANLINES,0.0);}}
-			VRIH ABCDEFGHIKLMNOPQRSTVXYZ 2 {If (Health <= 0) {A_OverlayAlpha (PSP_SCANLINES,0.0);}}
-			VRII ABCDEFGHIKLMNOPQRSTVXYZ 2 {If (Health <= 0) {A_OverlayAlpha (PSP_SCANLINES,0.0);}}
-			VRIJ ABCDEFGHIKLMNOPQRSTV 2 {If (Health <= 0) {A_OverlayAlpha (PSP_SCANLINES,0.0);}}
+			VRIG ABCDEFGHIKLMNOPQRSTVXYZ 2 {If (Health <= 0) {A_OverlayAlpha (PSP_SCANLINES,0.0); A_OverlayRenderStyle (PSP_SCANLINES,Style_Add);}}
+			VRIH ABCDEFGHIKLMNOPQRSTVXYZ 2 {If (Health <= 0) {A_OverlayAlpha (PSP_SCANLINES,0.0); A_OverlayRenderStyle (PSP_SCANLINES,Style_Add);}}
+			VRII ABCDEFGHIKLMNOPQRSTVXYZ 2 {If (Health <= 0) {A_OverlayAlpha (PSP_SCANLINES,0.0); A_OverlayRenderStyle (PSP_SCANLINES,Style_Add);}}
+			VRIJ ABCDEFGHIKLMNOPQRSTV 2 {If (Health <= 0) {A_OverlayAlpha (PSP_SCANLINES,0.0); A_OverlayRenderStyle (PSP_SCANLINES,Style_Add);}}
 			Loop;
 		FakeRifle: //This has to exist because pivot alignment doesn't work on PSP_WEAPON.
 			VRIF AABB 3;

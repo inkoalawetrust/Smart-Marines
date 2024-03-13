@@ -15,7 +15,7 @@ Class SM_MarineHandler : EventHandler
 	Override Void WorldThingSpawned (WorldEvent E)
 	{
 		If (E.Thing Is "c65d3dfcb9b85e04ea7e82f81789b569")
-			{Event = e.thing;console.printf ("it begins");}
+			Event = e.thing;
 		
 		If (Event && E.thing && !E.Thing.Player && e.thing != event &&
 		!(e.thing.bmissile && e.thing.target && e.thing.target.player)) //allow players to kill themselves :)

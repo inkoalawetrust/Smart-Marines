@@ -117,6 +117,9 @@ Extend Class SM_Marine
 						MovedAlready = True;
 				}
 				
+				If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) && SM_HandleClimbDown(Height*1.75)) //Handle jumping down any ledges that you can still climb up to if you want.
+					MovedAlready = True;
+				
 				Vector2 JumpPosition = (Double.NaN,Double.NaN);
 				If (!SM_IsRestricted (RESTRICT_JUMPING)) JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
 				If (JumpPosition == JumpPosition && !Crouching && !(MarineState & MARINE_INCOVER)) //We have a valid position we must jump to, AKA the returned vector isn't null.
@@ -144,9 +147,24 @@ Extend Class SM_Marine
 					Vector3 MovePos = (Double.NaN,Double.NaN,Double.NaN);
 					Double RealSpeed = Speed;
 					[MovePos, DoZigZag, CancelAttack] = SM_RunToCoverPos (Target,dozigzag:KMT_ZIGZAG);
-					console.printf ("heading to %d %d %d",movepos);
+					
+					If (!KAI_Math.IsEmptyVector3(LastSeenPos)) //Out of sight, walk to last seen pos instead.
+					{
+						If (Level.Vec3Diff (Pos,LastSeenPos).Length() >= Radius*1.2)
+						{
+							If (!CheckSight (Target,SF_IGNOREWATERBOUNDARY)) //Run the actual sight check last to save on performance a little.
+								MovePos = LastSeenPos;
+						}
+						Else
+							LastSeenPos = (Double.NaN, Double.NaN, Double.NaN); //We're in position, begin chasing normally again.
+					}
+					
+					//console.printf ("heading to %d %d %d",movepos);
 					If (Crouching)
 						Speed *= 0.7;
+					If (MovePos == LastSeenPos)
+						Speed *= 1.25;
+					
 					KAI_MoveTowards (MovePos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|DoZigZag|NoStockUse);
 					Speed = RealSpeed;
 				}
@@ -313,19 +331,20 @@ Extend Class SM_Marine
 		Return (Double.NaN, Double.NaN, Double.NaN);
 	}
 	
-	Bool HipFalsePositive; //HACK: Sometimes traces go full retard and return the the marines' hip level isn't blocked, so only uncrouch if TWO hip checks are false.
+	Bool HipFalsePositive; //HACK: Sometimes traces go full retard and return that the marines' hip level isn't blocked, so only uncrouch if TWO hip checks are false.
 	
 	Bool, Vector3 SM_UpdateCover (Actor Other, Bool IsCrouchingAlready, Double TraceDist = 48)
 	{
-		FLineTraceData EyeLevel, HipLevel;
-		Bool EyeLevelUnblocked, HipLevelBlocked;
-		Int HasHit;
-		Actor Mobj;
 		Vector3 HipHitPos = (Double.NaN, Double.NaN, Double.NaN);
 		
 		//Don't crouch if Who is invalid, you are patrolling, or it's just restricted.
 		If (!Other || IsPatrolling (Self) || SM_IsRestricted (RESTRICT_TAKECOVER))
 			Return False, HipHitPos;
+		
+		FLineTraceData EyeLevel, HipLevel;
+		Bool EyeLevelUnblocked, HipLevelBlocked;
+		Int HasHit;
+		Actor Mobj;
 		
 		//If the other actor is this close to you, you probably can't crouch.
 		If (Distance3DSquared(Other) <= 72*72)
@@ -397,6 +416,25 @@ Extend Class SM_Marine
 		Return False, HipHitPos;
 	}
 	
+	//Makes marines able to enter their climb down sequence if their next step is down a short enough dropoff.
+	//MAYDO: I should probably look for a way to integrate this into KAI_HandleClimbing() ?
+	Bool SM_HandleClimbDown (Double DropoffHeight = 56)
+	{
+		Vector2 Ahead = Vec2Angle(Radius*2.2,Angle);
+		Double ZAt = GetZAt (Ahead.X,Ahead.Y,0,GZF_ABSOLUTEPOS);
+		console.printf ("SM_HandleClimbDown: Running function, dropoff height is %.2f, ZAt is %.2f",(Pos.Z - DropoffHeight),ZAt);
+		If (DropoffHeight > Pos.Z - ZAt && MaxDropoffHeight < Pos.Z - ZAt) //The dropoff height is as tall or shorter than the specified MaxDropoff.
+		{
+			JumpPos = (Vec2Angle (104,Angle),ZAt);
+			spawn ("kai_debugpoint",jumppos);
+			console.printf ("SM_HandleClimbDown: The ledge is only %.2f units tall, so I'm jumping down to pos %d %d %d",(Pos.Z - DropoffHeight),JumpPos);
+			SetStateLabel ("Jump"); //So jump down.
+			Return True;
+		}
+		
+		Return False;
+	}
+	
 	//Clean wrapper for the eye level checks, copied from the original code and probably unnecessary.
 	Bool SM_EyeLevelClear (FLineTraceData Data)
     {
@@ -463,15 +501,24 @@ Extend Class SM_Marine
 	}
 	
 	//Increment the chase timer as long as the target is nonexistent, dead, or out of sight. And reset it if any of these conditions are false.
+	//Also handles updating LastSeenPos.
 	Void SM_UpdateChaseTimer()
 	{
 		If (IsPatrolling(Self)) //Ignore this if we are following a goal.
 			ChaseTimer = 0;
 		Bool Dead = IsDead(Target);
-		If (!Target || Target && (Dead || !CheckSight(Target,SF_IGNOREWATERBOUNDARY)))
+		Bool OuttaSight;
+		If (!Target || Target && (Dead || (OuttaSight = !CheckSight(Target,SF_IGNOREWATERBOUNDARY))  ) )
 			ChaseTimer++;
 		Else
 			ChaseTimer = 0;
+		
+		//Update LastSeenPos.
+		If (Target && !OuttaSight && !Dead)
+			LastSeenPos = Target.Pos;
+		Else If (!Target || Dead)
+			LastSeenPos = (Double.NaN, Double.NaN, Double.NaN); //The target is dead or gone.
+		
 		If (!Target || Dead) ChaseTimer++; //Decrement the timer extra fast if the target is just flat out gone.
 		//Console.Printf ("SM_UpdateChaseTimer(): Time is %d",ChaseTimer);
 	}
@@ -570,6 +617,9 @@ Extend Class SM_Marine
 			
 			//Handle climbing
 			If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) && KAI_HandleClimbing (ClimbPos,JumpPos,"Climb","Jump.Up",1.1,1.75))
+				Return;
+			
+			If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) && SM_HandleClimbDown(Height*1.75)) //Handle jumping down any ledges that you can still climb up to if you want.
 				Return;
 			
 			//Handle jumping.
@@ -1026,6 +1076,8 @@ Extend Class SM_Marine
 	//IDEA: Maybe add some kind of health sort, to pick the most frail or powerful ally ?
 	Actor SM_FindAllyToHelp (Double Range = 1024, Int HealthThreshold = 7)
 	{
+		If (SM_IsRestricted(RESTRICT_HEALING)) Return Null;
+		
 		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
 		Array <Actor> Friends; //Store nearby allies to potentially heal.
 		Array <Actor> Marines; //And friendly marines too, to ignore allies another marine is going to anyway.
@@ -1043,7 +1095,7 @@ Extend Class SM_Marine
 				Continue;
 			
 			If (IsActorHostile (Mobj)) //Duh
-				Continue;
+				{console.printf ("%s %p is hostile",mobj.getclassname(),mobj);Continue;}
 			
 			//Out of range, sight, or reach, in order of cost.
 			If (Distance3DSquared (Mobj) > Range*Range || !CheckSight (Mobj,SF_IGNOREWATERBOUNDARY) || !SM_IsPosReachable (Mobj.Pos,ignoreactors:True))
@@ -1503,27 +1555,23 @@ Extend Class SM_Marine
 	Bool SM_IsRestricted (Int MarineAction)
 	{
 		If (MarineAction == RESTRICT_NOACTION)
-			{console.printf ("SM_IsRestricted(): No action to check ?");Return False;}
+			Return False;
 		
 		Let Token = SM_RestrictionToken(FindInventory ("SM_RestrictionToken"));
-		If (!Token)
-			Return False; //None of these actions are restricted, until I add user variables to restrict them anyway.
 		
-		//TODO: In the future, handle restricting these action types with their user variables too, using this syntax.
-		//If (MarineAction == RESTRICT_TAKECOVER && (Token && Token.NoCover || User_NoCover))
-		If (MarineAction == RESTRICT_TAKECOVER && Token && Token.NoCover)
+		If (MarineAction == RESTRICT_TAKECOVER && (User_NoCover || Token && Token.NoCover))
 			Return True;
-		If (MarineAction == RESTRICT_CLIMBING && Token && Token.NoClimb)
+		If (MarineAction == RESTRICT_CLIMBING && (User_NoParkour || Token && Token.NoClimb))
 			Return True;
-		If (MarineAction == RESTRICT_JUMPING && Token && Token.NoJump)
+		If (MarineAction == RESTRICT_JUMPING && (User_NoParkour || Token && Token.NoJump))
 			Return True;
-		If (MarineAction == RESTRICT_CROUCHING && Token && Token.NoCrouch)
+		If (MarineAction == RESTRICT_CROUCHING && (User_NoParkour || Token && Token.NoCrouch))
 			Return True;
-		If (MarineAction == RESTRICT_SWIMMING && Token && Token.NoSwim)
+		If (MarineAction == RESTRICT_SWIMMING && (User_NoParkour || Token && Token.NoSwim))
 			Return True;
 		If (MarineAction == RESTRICT_DODGING && Token && Token.NoDodge)
 			Return True;
-		If (MarineAction == RESTRICT_HEALING && Token && Token.NoHeal)
+		If (MarineAction == RESTRICT_HEALING && (User_NoHealing || Token && Token.NoHeal))
 			Return True;
 		If (MarineAction == RESTRICT_WARNALLIES && Token && Token.NoWarn)
 			Return True;
