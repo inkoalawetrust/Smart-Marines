@@ -1,10 +1,10 @@
 Model SM_Tracer
 {
 	Path "Models/"
-	Model 0 "Tracer.obj"
+	Model 0 "Tracer.md3"
 	Skin 0 "Tracer.png"
-	Scale 1200.0 500.0 500.0
-	AngleOffset 90
+	//Scale 1200.0 500.0 500.0
+	//AngleOffset 90
 	USEACTORPITCH
 	USEACTORROLL
 	DONTCULLBACKFACES

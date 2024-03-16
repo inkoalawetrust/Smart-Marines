@@ -205,7 +205,7 @@ Class SM_Bullet : KAI_BaseProjectile
 	{
 		Super.TrailSpawn (Trail);
 		
-		KAI_Tracer(Trail).WarpOffsets = (-30,0,0);
+		KAI_Tracer(Trail).WarpOffsets = (-35,0,0);
 		Trail.Master = Self;
 	}
 	

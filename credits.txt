@@ -28,7 +28,7 @@ Vanilla assault rifle sprites by Mik12. Slightly edited by inkoalawetrust https:
 Digital sight scanlines and crosshairs made by inkoalawetrust
 First person turret sprites and muzzle flash made by Sergeant_Mark_IV. Overlay glow and light graphics made by inkoalawetrust
 Friendly marine command text made using the Doom Text Generator: https://c.eev.ee/doom-text-generator/
-Bullet tracers made by inkoalawetrust
+Bullet tracers made by DennisBelmondo
 Smoke sprites are from unknown source, ripped from Project Brutality and edited by me.
 Giant blast sprites made by inkoalawetrust.
 
