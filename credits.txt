@@ -1,13 +1,13 @@
 Code written by inkoalawetrust.
 
 ======|Actor sprites|======
-Marine aiming rifle sprites made by Sergeant_Mark_IV, aiming and firing sprites made by Tabijaky.
+Marine aiming rifle sprites made by TG5, including up and down and kneeling fire sprites.
 Alternate marine hip-firing sprites made by Sergeant_Mark_IV.
 Standing idle sprites made by Das M.
 Standing alert sprites made by Superdave938.
 Grenade throwing sprites by Mryayayify.
 Twerking sprites by Craneo.
-Rifle reloading sprites made by Tabijaky.
+Rifle reloading sprites made by TG5.
 Rifle melee sprites made by TG5.
 Kick sprites made by Captain Toenail and edited by Sergeant_Mark_IV.
 Grenade air blast sprites by Gorman Freebmane.

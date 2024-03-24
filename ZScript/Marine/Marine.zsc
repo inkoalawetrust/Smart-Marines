@@ -1042,18 +1042,53 @@ Class SM_Marine : KAI_Humanoid
 		Reload: //Reload the rifle.
 			TNT1 A 0 SM_SetMarineState (MARINE_RELOAD,0);
 			TNT1 A 0 A_JumpIf (RemovedOldMag,5); //We probably flinched mid reload or some shit, so go right to the end of the reload sequence.
-			MARA ABC 6 SM_RunFromHazards();
-			MARA D 4 {A_SpawnItemEx ("SM_EmptyMagazine",0,-16,27,0,FRandom(-2,-5),FRandom(-1,-0.5)); RemovedOldMag = True;}
-			MARA C 6;
+			MARA ABC 6
+			{
+				SM_UpdateHeight();
+				SM_RunFromHazards();
+				If (MarineState & MARINE_KNEELING || MarineState & MARINE_INCOVER)
+				{
+					Switch (Frame)
+					{
+						Default:
+							Break;
+						Case 1: //Frame A
+							Frame = 13; //Frame N
+							Break;
+						Case 2: //Frame B
+							Frame = 14; //Frame O
+							Break;
+						Case 3: //Frame C
+							Frame = 15; //Frame P
+							Break;
+					}
+				}
+			}
+			MARA D 4
+			{
+				A_SpawnItemEx ("SM_EmptyMagazine",0,-16,27,0,FRandom(-2,-5),FRandom(-1,-0.5));
+				RemovedOldMag = True;
+				If (MarineState & MARINE_KNEELING || MarineState & MARINE_INCOVER)
+					Frame = 16; //Frame Q
+			}
+			MARA C 6
+			{
+				If (MarineState & MARINE_KNEELING || MarineState & MARINE_INCOVER)
+					Frame = 15; //Frame P
+			}
 			MARA B 6
 			{
 				A_StartSound ("Marine/Reload",CHAN_WEAPON);
 				AmmoCount = MAGAZINE_SIZE; //Reset counter to the magazine size.
+				If (MarineState & MARINE_KNEELING || MarineState & MARINE_INCOVER)
+					Frame = 14; //Frame O
 			}
 			MARA A 4
 			{
 				SM_SetMarineState (0,MARINE_RELOAD); //We're done here.
 				RemovedOldMag = False;
+				If (MarineState & MARINE_KNEELING || MarineState & MARINE_INCOVER)
+					Frame = 13; //Frame N
 			}
 			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");
 			TNT1 A 0 //If your target is weak enough and within melee range after reloading, have a chance to decide to smack 'em.

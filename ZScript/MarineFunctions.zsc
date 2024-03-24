@@ -422,12 +422,9 @@ Extend Class SM_Marine
 	{
 		Vector2 Ahead = Vec2Angle(Radius*2.2,Angle);
 		Double ZAt = GetZAt (Ahead.X,Ahead.Y,0,GZF_ABSOLUTEPOS);
-		console.printf ("SM_HandleClimbDown: Running function, dropoff height is %.2f, ZAt is %.2f",(Pos.Z - DropoffHeight),ZAt);
 		If (DropoffHeight > Pos.Z - ZAt && MaxDropoffHeight < Pos.Z - ZAt) //The dropoff height is as tall or shorter than the specified MaxDropoff.
 		{
 			JumpPos = (Vec2Angle (104,Angle),ZAt);
-			spawn ("kai_debugpoint",jumppos);
-			console.printf ("SM_HandleClimbDown: The ledge is only %.2f units tall, so I'm jumping down to pos %d %d %d",(Pos.Z - DropoffHeight),JumpPos);
 			SetStateLabel ("Jump"); //So jump down.
 			Return True;
 		}
@@ -1349,8 +1346,6 @@ Extend Class SM_Marine
 				Else
 					Return Proj;
 			}
-			else
-				console.printf ("%s isn't dangerous enough for the marine to try dodging",proj.getclassname());
 		}
 		
 		If (DodgeMode == DODGE_RANDOM)
@@ -1474,6 +1469,8 @@ Extend Class SM_Marine
 		If (MarineState & MARINE_LYINGDOWN)
 			A_SetSize (newheight:8);
 		Else If (MarineState & MARINE_KNEELING)
+			A_SetSize (newheight:32);
+		Else If (MarineState & MARINE_INCOVER && MarineState & MARINE_RELOAD) //Marine is loading while behind cover, so he's reloading kneeling down.
 			A_SetSize (newheight:32);
 		Else
 			A_SetSize (newheight:Default.Height);
