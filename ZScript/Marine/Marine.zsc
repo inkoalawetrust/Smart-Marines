@@ -228,7 +228,8 @@ Class SM_Marine : KAI_Humanoid
 	Override Bool ShouldAttack (Bool NoStateJump)
 	{
 		If (!Target || Target == Goal) Return False; //Don't attack if you have no target or just following a goal.
-		If (!CanAttack() || !CanBeTargeted(Self,Target)) Return False;
+		console.printf ("SM_Marine: Calling ShouldAttack()");
+		If (!CanAttack() || !CanBeTargeted(Self,Target) || IsInanimateObject (Target)) Return False;
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
 		Int Threat = AssessThreatLevel (Target,False);
 		
@@ -476,22 +477,24 @@ Class SM_Marine : KAI_Humanoid
 		//if (master)
 		//	console.printf ("%p's master is %p, current order %d",self,master,currentorder);
 		
-		//Marine is set to follow. Following the friendplayer is already handled by KAI_Wander() itself, so we just need to handle following the master.
-		If (CurrentOrder == ORDER_FOLLOW && Master)
-		{//console.printf ("%p OnWander(): Marine already has a master %s and ORDER_FOLLOW",self,master.getclassname());
-			//Only follow if you aren't too close to the master already, to avoid crowding..
-			If (Distance3DSquared(Master) >= WanderFollowDist*WanderFollowDist)
+		Actor FollowTarget = Master;
+		
+		//Marine is set to follow. Following the friendplayer is already handled by KAI_Wander() itself, so we just need to handle following the followtarget.
+		If (CurrentOrder == ORDER_FOLLOW && FollowTarget)
+		{//console.printf ("%p OnWander(): Marine already has a FollowTarget %s and ORDER_FOLLOW",self,master.getclassname());
+			//Only follow if you aren't too close to the FollowTarget already, to avoid crowding..
+			If (Distance3DSquared(FollowTarget) >= WanderFollowDist*WanderFollowDist)
 			{
 				If (!bFriendly || bFriendly && bDontFollowPlayers)
-				{//console.printf ("following %s instead of friendplayer",master.getclassname());
+				{//console.printf ("following %s instead of friendplayer",FollowTarget.getclassname());
 					//URGENT: This is probably a temp fix until I add the order system as a KAI component. So that vehicle spawned marines stop following them when they die.
-					If (IsDead (Master))
-					{CONSOLE.PRINTF ("my master (%s) died, going back to wandering if hostile or following the player if friendly",master.getclassname());
-						Master = Null;
+					If (IsDead (FollowTarget))
+					{CONSOLE.PRINTF ("my FollowTarget (%s) died, going back to wandering if hostile or following the player if friendly",FollowTarget.getclassname());
+						FollowTarget = Null;
 						If (!bFriendly) SetMarineOrder (ORDER_WANDER);
 						Else SetMarineOrder (ORDER_FOLLOW); //Friendly marines just begin follow their player.
 					}
-					If (Master) KAI_MoveTowards (Master.Pos,anglelimit:20);
+					If (FollowTarget) KAI_MoveTowards (FollowTarget.Pos,anglelimit:20);
 					Return False;
 				}
 			}
@@ -499,16 +502,10 @@ Class SM_Marine : KAI_Humanoid
 		
 		//Friendly marine is too close to the friendplayer. So just wander instead to avoid overcrowding.
 		If (WanderFollowDist && CurrentOrder == ORDER_FOLLOW && bFriendly && !Master)
-			{
-			bDontFollowPlayers = (Distance3DSquared(GetMarineFollowTarget(True)) <= WanderFollowDist*WanderFollowDist);
-			//CONSOLE.PRINTF ("OnWander(): Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
-			}
-		
-		//DEBUG: Check if DONTFOLLOWPLAYERS SHOULD BE ON OR NOT !
-			//if (GetMarineFollowTarget(True) && !(Distance3DSquared(GetMarineFollowTarget(True)) <= WanderFollowDist*WanderFollowDist))
-			//	console.printf ("so true bestie");
-			//else
-			//	console.printf ("FAKE NEWS");
+		{
+		bDontFollowPlayers = (Distance3DSquared(GetMarineFollowTarget(True)) <= WanderFollowDist*WanderFollowDist);
+		//CONSOLE.PRINTF ("OnWander(): Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
+		}
 		
 		//If (UsedLine) 
 			//SetStateLabel ("Interact");
@@ -617,6 +614,7 @@ Class SM_Marine : KAI_Humanoid
 	Vector3 RetreatPos; //The position the marine retreats from, if this is not NaN, the retreat state runs from this coordinate instead of the target actor.
 	Actor LastDodged; //The last projectile the marine dodged.
 	Vector3 LastSeenPos; //The last position the target was seen at while chased by the marine. Used to make them head there first before resuming normal chasing.
+	SM_MarineGroup PlayerGroup; //The group of the player you're following.
 	
 	//Healing variables
 	Actor HealTarget; //Who to walk up to and heal.

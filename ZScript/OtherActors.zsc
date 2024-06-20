@@ -150,6 +150,47 @@ Class SM_RestrictionToken : Inventory
 	}
 }
 
+//$GZDB_SKIP
+//Custom group structure for marine NPCs.
+//TODO:
+//Here's an idea, change the cosmetic name of the group based on size when the member count updates. i.e updating it fron "(player)'s squad" to "(player)'s platoon"
+//Update the IsPlayerGroup variable when the leader is set to a player, alongside the group name.
+Class SM_MarineGroup : KAI_NPCGroup
+{
+	//Override Void HandleGroupEvent (Int EventType, Actor Affected)
+	Bool NoSpecialPlayerTreatment; //When the leader dies or vanishes, and the group tries assigning a new one, players aren't automatically assumed to be stronger.
+	Bool IsPlayerGroup; //The group is formed by the player ordering marines around.
+	
+	Override Actor LeaderFallback ()
+	{
+		If (!Members.Size()) //Don't even have any members.
+		{
+			Destroy();
+			Return Null;
+		}
+		
+		Return GetStrongestMember (NoSpecialPlayerTreatment);
+	}
+	
+	Override Void HandleGroupEvent (Int EventType, Actor Affected)
+	{
+		Super.HandleGroupEvent(EventType,Affected);
+		
+		If (EventType == GRPEVNT_NEWLEADER)
+		{
+			IsPlayerGroup = Affected.Player;
+			If (Affected.Player)
+				GroupName = String.Format ("%s's %s",Affected.Player.GetUsername(),GetGroupSizeType());
+		}
+	}
+	
+	//Return a string that matches the size of the marine group, i.e if the group has 20 members, it'll be called a platoon, if less than 5 a fireteam, etc.
+	String GetGroupSizeType ()
+	{
+		Return "fireteam";
+	}
+}
+
 Class SM_Bullet : KAI_BaseProjectile
 {
 	Default
@@ -624,7 +665,6 @@ Class SM_SmokeGrenade : KAI_BaseProjectile
 		BounceSound "Grenade/Bounce";
 		DamageType "Grenade";
 		-NoGravity;
-		-NoBlockmap; //So marines can find and run from them. MAYDO: Remove this probably, not sure how relevant it'll be once I add a VJ Base esque hazard system to the KAI.
 		+RollSprite;
 		+FloorClip;
 		+CanBounceWater;

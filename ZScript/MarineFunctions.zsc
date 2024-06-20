@@ -158,8 +158,10 @@ Extend Class SM_Marine
 						Else
 							LastSeenPos = (Double.NaN, Double.NaN, Double.NaN); //We're in position, begin chasing normally again.
 					}
+					Else
+						MovePos = HandleGroupFollowLogic (MovePos);
 					
-					//console.printf ("heading to %d %d %d",movepos);
+					console.printf ("heading to %d %d %d",movepos);
 					If (Crouching)
 						Speed *= 0.7;
 					If (MovePos == LastSeenPos)
@@ -184,6 +186,14 @@ Extend Class SM_Marine
 			ChaseTimer = 0;
 			SetIdle();
 		}
+	}
+	
+	Vector3 HandleGroupFollowLogic (Vector3 BasePos)
+	{
+		Actor Follow;
+		If (CurrentOrder != ORDER_FOLLOW || (Follow = GetMarineFollowTarget()) == Null) //Only follow when ORDER_FOLLOW is true, duh.
+			Return BasePos;
+		Return GetMarineFollowTarget().Pos;
 	}
 	
 	//Marine will run away from major hazards.
@@ -371,7 +381,7 @@ Extend Class SM_Marine
 		HasHit = HipLevel.HitType;
 		Mobj = HipLevel.HitActor;
 		HipHitPos = HipLevel.HitLocation - HipLevel.HitDir * (Radius*1.1);
-		IF (MOBJ)CONSOLE.PRINTF ("SM_UPDATECOVER: DEBUG: HIP CHECK HIT ACTOR %s %p",MOBJ.GETCLASSNAME(),MOBJ);
+		//IF (MOBJ)CONSOLE.PRINTF ("SM_UPDATECOVER: DEBUG: HIP CHECK HIT ACTOR %s %p",MOBJ.GETCLASSNAME(),MOBJ);
 		
 		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
 		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
@@ -381,7 +391,7 @@ Extend Class SM_Marine
 		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height <= 40 && Mobj.Health >= 40))
 			HipLevelBlocked = True;
 			
-		console.printf ("SM_UPDATECOVER YADDA YADDA FUCK OFF: HIPLEVELBLOCKED IS %d",hiplevelblocked);
+		//console.printf ("SM_UPDATECOVER YADDA YADDA FUCK OFF: HIPLEVELBLOCKED IS %d",hiplevelblocked);
 		
 		Bool OtherInSight = CheckSight (Other,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY);
 		//Only run this if the marine is not crouched already.
@@ -1134,11 +1144,37 @@ Extend Class SM_Marine
 	//Commander: The actor, if any, ordering the marine to change orders. If the order is set to ORDER_FOLLOW, they'll become the marines' master, unless hostile.
 	//IgnoreAllegiance: If true, the marine will accept orders even from enemy actors, but still won't follow them if set to ORDER_FOLLOW.
 	Void SetMarineOrder (MarineOrders Order, Bool Increment = False, Actor Commander = Null, Bool IgnoreAllegiance = False)
-	{console.printf ("%p HAS RAN SETMARINEORDER()",SELF);
+	{
 		Bool EnemyCommand = IsActorHostile (Commander); //The order is being barked by an enemy.
 		Bool LastOrder = CurrentOrder;
 		If (Commander && EnemyCommand && !IgnoreAllegiance)
 			Return;
+		
+		//We are being commanded by a player, so join their NPC group if you aren't in already, if the player doesn't have a group yet, make one for them.
+		If (Commander && Commander.Player)
+		{
+			Array <KAI_NPCGroup> OtherGroups;
+			Bool HasNoPlayerGroup = True;
+			KAI_NPCGroup.FindGroupsImIn (Commander,OtherGroups);
+			ForEach (Group : OtherGroups)
+			{
+				If (Group Is "SM_MarineGroup" && SM_MarineGroup(Group).IsPlayerGroup) //Player has a group for us to join.
+				{
+					PlayerGroup = SM_MarineGroup(Group);
+					Group.AddNPCToGroup (Self);
+					HasNoPlayerGroup = False;
+					Break;
+				}
+			}
+			
+			If (HasNoPlayerGroup)
+			{
+				Array <Actor> Members; Members.Push(Commander); Members.Push (Self); //Start by adding the player and ordered marine to the group.
+				String TheName = Commander.Player.GetUsername ();
+				TheName.AppendFormat ("'s fireteam"); //Default group name is "(Player names)'s fireteam", the fireteam string updates based on group size.
+				KAI_NPCGroup.CreateGroup (TheName,Members,Commander,0,"SM_MarineGroup");
+			}
+		}
 		
 		If (Increment)
 			CurrentOrder++;
@@ -1195,14 +1231,42 @@ Extend Class SM_Marine
 		}
 	}
 	
+	//Get the primary NPC group the marine is in that he should pay attention to.
+	KAI_NPCGroup SM_GetPrimaryNPCGroup (Bool IgnorePlayerLeaders = False)
+	{
+		If (!Groups.Size())
+			Return Null;
+		
+		If (!IgnorePlayerLeaders)
+		{
+			ForEach (Group : Groups) //Focus on the first group you find whose leader is a player. AKA player groups take precedence.
+			{
+				If (Group && Group.Leader && Group.Leader.Player)
+					Return Group;
+			}
+		}
+		
+		Return Groups[0]; //Fallback to just following the first group in the list.
+	}
+	
 	//Return a pointer to the actor the marine should be following, since for friendly marines, the friendplayer takes precedence over the master unless +DONTFOLLOWPLAYERS is enabled.
 	Actor GetMarineFollowTarget (Bool IgnoreDontFollowPlayers = False)
 	{
 		If (!bFriendly) //Hostile marines don't have any friendplayer to begin with, easy peasy.
+		{
+			If (Groups.Size())
+				Return SM_GetPrimaryNPCGroup().Leader;
 			Return Master;
+		}
 		Else
 		{
-			If (!IgnoreDontFollowPlayers && bDontFollowPlayers && !(Master && !Master.Player)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
+			Bool IgnoringPlayers = (!IgnoreDontFollowPlayers && bDontFollowPlayers);
+			//Handle making marines follow group leaders, player-led groups take special precedence, such as the one players create when they order a marine to do something.
+			KAI_NPCGroup MainGroup;
+			If ((MainGroup = SM_GetPrimaryNPCGroup(IgnoringPlayers)) && MainGroup)
+				Return MainGroup.Leader;
+			
+			If (IgnoringPlayers && !(Master && !Master.Player)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
 				Return Master;
 			//console.printf ("GetMarineFollowTarget: I'm fucking stupid and returning the friendplayer");
 			//if (master) console.printf ("GetMarineFollowTarget: Even though I have %p as my master",master);
