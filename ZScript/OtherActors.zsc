@@ -105,7 +105,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 			Restrictor.MaxTargetRange = Args[ARG_RANGE];
 			Restrictor.Master = Self;
 		}
-		console.printf ("restricting %p",marine);
+		If (KAI_DebugPrintMessages)console.printf ("restricting %p",marine);
 		Restrictor.CallTryPickup (Marine); //Pick up the token
 	}
 }
@@ -129,7 +129,7 @@ Class SM_RestrictionToken : Inventory
 		If (Other && !(Other Is "SM_Marine"))
 			GoAwayAndDie();
 		
-		console.printf ("gave token %p to a %s",self,other.getclassname());
+		If (KAI_DebugPrintMessages)console.printf ("gave token %p to a %s",self,other.getclassname());
 	}
 	
 	Override Void DoEffect ()
@@ -140,7 +140,7 @@ Class SM_RestrictionToken : Inventory
 		{
 			//Too far from the zone or the zone is out of sight.
 			If (Owner.Distance3DSquared (Master) > MaxTargetRange*MaxTargetRange || (CheckSight && !Owner.CheckSight (Master,SF_IGNOREWATERBOUNDARY)))
-			{console.printf ("The restrictor tokens' owner is too far from the tokens' spawner or out of its' sight.");
+			{If (KAI_DebugPrintMessages)console.printf ("The restrictor tokens' owner is too far from the tokens' spawner or out of its' sight.");
 				GoAwayAndDie();
 			}
 		}
@@ -439,7 +439,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		If (FFloor) //Scale the splash down based on depth.
 		{
 			Size *= KAI_Math.LinearMap (WaterDepth,0,256,1.0,0.0);
-			console.printf ("swimmable floor falloff is %.3f",KAI_Math.LinearMap (WaterDepth,0,256,1.0,0.0));
+			If (KAI_DebugPrintMessages)console.printf ("swimmable floor falloff is %.3f",KAI_Math.LinearMap (WaterDepth,0,256,1.0,0.0));
 		}
 		If (HEGrenade) Size *= 1.5;
 		Splash.Scale.X = Splash.Scale.Y = (UpsideDown ? -Size : Size);
@@ -545,7 +545,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 			{
 				F3DFloor F3D = GetSwimmable3DFloor (Self); //Check if we are IN a swimmable floor.
 				If (!F3D)
-					{F3D = FindWaterBelow();console.printf ("we aren't IN water, but maybe it's right under our feet ?");}
+					{F3D = FindWaterBelow();If (KAI_DebugPrintMessages)console.printf ("we aren't IN water, but maybe it's right under our feet ?");}
 				If (!F3D)
 				{
 					//NOTE: Only handles solid liquid flats, swimmable 3D floors require different handling !
@@ -748,7 +748,7 @@ Class SM_SmokeGrenade : KAI_BaseProjectile
 			SMGR F 1
 			{
 				If (ReactionTime <= 0) Return State (Null);
-				console.printf ("smoke counter is %d",reactiontime);
+				If (KAI_DebugPrintMessages)console.printf ("smoke counter is %d",reactiontime);
 				
 				Actor Smoke;
 				For (Int I = 2; I > 0; I--)
@@ -1130,7 +1130,7 @@ Class SM_DropoffToken : Inventory
 	{
 		Super.AttachToOwner(Other);
 		If (Other && !Other.bDropoff)
-		{console.printf ("gave %s the dropoff flag temporarily",other.getclassname());
+		{If (KAI_DebugPrintMessages)console.printf ("gave %s the dropoff flag temporarily",other.getclassname());
 			PrevDropoff = Other.bDropoff;
 			Other.bDropoff = True;
 		}
@@ -1142,7 +1142,7 @@ Class SM_DropoffToken : Inventory
 		Super.DoEffect();
 		
 		If (GetAge() >= ReactionTime)
-		{console.printf ("took the dropoff flag from %s",owner.getclassname());
+		{If (KAI_DebugPrintMessages)console.printf ("took the dropoff flag from %s",owner.getclassname());
 			If (Owner) Owner.bDropoff = PrevDropoff;
 			GoAwayAndDie();
 		}
@@ -1198,7 +1198,7 @@ Class SM_VehicleDropToken : Inventory
 		//Does no further checks, it has to be used right after the marine spawns, if you use it while he's doing something, use it at your own peril.
 		If (Other && Other Is "SM_Marine")
 		{
-			console.printf ("SM_VehicleDropToken: Made marine run from himself right after spawning, going away now.");
+			If (KAI_DebugPrintMessages)console.printf ("SM_VehicleDropToken: Made marine run from himself right after spawning, going away now.");
 			SM_Marine(Other).RetreatPos = Other.Pos;
 			SM_Marine(Other).RetreatLoops = ReactionTime;
 			Other.SetStateLabel ("Retreat");

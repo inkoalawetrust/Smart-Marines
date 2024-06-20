@@ -64,7 +64,7 @@ Class SM_Marine : KAI_Humanoid
 		they are supposed to follow spawns them. They will initially have ORDER_FOLLOW, but then go back to ORDER_WANDER for genuinely no reason whatsoever.
 		It's so fucked that even giving hostile marines a CurrentOrder of 0 makes them do that. Amazing.*/
 		If (bFriendly) CurrentOrder = ORDER_FOLLOW;
-		console.printf ("%p spawned with order %d",self,currentorder);
+		If (KAI_DebugPrintMessages)console.printf ("%p spawned with order %d",self,currentorder);
 		WanderFollowDist = 128+Random (-16,48);
 		WanderFollowDist = Clamp (WanderFollowDist,0, INT.MAX); //In case the variable becomes configurable.
 		AmmoCount = 30;
@@ -132,7 +132,7 @@ Class SM_Marine : KAI_Humanoid
 			}
 		}
 		
-		//Console.Printf ("Current marine velocity %.2f %.2f %.2f, gravity %.3f, altitude %.2f, height %.2f",Vel,GetGravity(),GetZAt (),pos.z);
+		//If (KAI_DebugPrintMessages)Console.Printf ("Current marine velocity %.2f %.2f %.2f, gravity %.3f, altitude %.2f, height %.2f",Vel,GetGravity(),GetZAt (),pos.z);
 		
 		//The clocks.
 		If (NextFireDelay && !(MarineState & MARINE_FIRING)) //Decrement the firing delay, if any, for as long as the marine is not shooting.
@@ -228,12 +228,11 @@ Class SM_Marine : KAI_Humanoid
 	Override Bool ShouldAttack (Bool NoStateJump)
 	{
 		If (!Target || Target == Goal) Return False; //Don't attack if you have no target or just following a goal.
-		console.printf ("SM_Marine: Calling ShouldAttack()");
 		If (!CanAttack() || !CanBeTargeted(Self,Target) || IsInanimateObject (Target)) Return False;
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
 		Int Threat = AssessThreatLevel (Target,False);
 		
-		//console.printf ("fire delay is %d tics",nextfiredelay);
+		//If (KAI_DebugPrintMessages)console.printf ("fire delay is %d tics",nextfiredelay);
 		
 		//Check if you should fire your gun.
 		Double Dist = Distance3D (Target);
@@ -242,13 +241,13 @@ Class SM_Marine : KAI_Humanoid
 		
 		Double OldHeight = Height;
 		If (Crouching && MarineState & MARINE_INCOVER)
-			{console.printf ("ShouldAttack(): Uncrouching marine to be able to fire at crouched players.");Height = Default.Height;} //Uncrouch marine for the firing check if he's behind cover.
+			{If (KAI_DebugPrintMessages)console.printf ("ShouldAttack(): Uncrouching marine to be able to fire at crouched players.");Height = Default.Height;} //Uncrouch marine for the firing check if he's behind cover.
 		
 		//Random chance that the marine might decide to fire lying down. Like kneeling, this scales with distance as well, but less, for even larger distances.
 		Bool MightLie = (Random (0,255) < 24 + KAI_Math.LinearMap(Dist,0,MaxTargetRange,0,255));
 		Vector3 LiePos = FirePos; LiePos.Z = 14;
 		If (!(MarineState & MARINE_INCOVER) && MightLie && PitchTo (Target,Height/2,Target.Height/2) >= -15 && SM_CheckLOF (LiePos)) //If you decided to lie down and can do so, then we are good.
-		{a_log ("i have decided to lie down");
+		{If (KAI_DebugPrintMessages)a_log ("i have decided to lie down");
 			SM_SetMarineState (MARINE_LYINGDOWN,0);
 			FirePos = LiePos;
 		}
@@ -256,7 +255,7 @@ Class SM_Marine : KAI_Humanoid
 		//If (Random (0,255) < 192 && DetermineHitChance (Target,False,Dist,1.1,10,FirePos,range:MaxTargetRange,GetAimPosOffset()) <= Random (6,9))
 		//Decide to sometimes fire kneeling down, particularly scaling linearly with distance.
 		If (!(MarineState & MARINE_LYINGDOWN) && Random (0,255) < 32 + KAI_Math.LinearMap(Dist,0,MaxTargetRange/2,0,255) && SM_CheckLOF ((0,0,30)))
-		{a_log ("i have decided to kneel");
+		{If (KAI_DebugPrintMessages)a_log ("i have decided to kneel");
 			SM_SetMarineState (MARINE_KNEELING,0);
 			FirePos.Z = 30; //Lower firing height.
 		}
@@ -287,7 +286,7 @@ Class SM_Marine : KAI_Humanoid
 				{//https://youtu.be/LPAEgHsJYxk?si=4EdaE-oCczn5ehDD&t=75
 					BurstSize = MAGAZINE_SIZE;
 					AttackType = FIRE_FULLAUTO;
-					a_log ("i have decided to fire in full auto");
+					If (KAI_DebugPrintMessages)a_log ("i have decided to fire in full auto");
 				}
 				//If your enemy is weak.
 				Else If (Random (0, 255) >= 3 && (/*Threat < THREAT_ABOVENORMAL ||*/
@@ -296,13 +295,13 @@ Class SM_Marine : KAI_Humanoid
 				{//Then fire a burst.
 					BurstSize = 3;
 					AttackType = FIRE_BURST;
-					a_log ("i have decided to fire a burst");
+					If (KAI_DebugPrintMessages)a_log ("i have decided to fire a burst");
 				}
 				Else
 				{//Fall back to single accurate shots if neither full auto or bursts would work. Or just fire single shots instead sometimes.
 					BurstSize = 1;
 					AttackType = FIRE_SINGLE;
-					a_log ("i have decided to fire a single shot");
+					If (KAI_DebugPrintMessages)a_log ("i have decided to fire a single shot");
 				}
 				
 				ChaseTimer = 0;
@@ -415,7 +414,7 @@ Class SM_Marine : KAI_Humanoid
 			Bool Reachable = True; //Assume we can jump there by default.
 			//The jump destination is longer than half the jump distance, so do a long jump if there's space behind you for it.
 			If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/1.5 && (Reachable = SM_CanRunBack()))
-			{console.printf ("doing a long jump over a distance of %.2f threshold is %d",Level.Vec2Diff (Pos.XY,JumpPosition).Length(),MARINE_JUMPLENGTH/1.5);
+			{If (KAI_DebugPrintMessages)console.printf ("doing a long jump over a distance of %.2f threshold is %d",Level.Vec2Diff (Pos.XY,JumpPosition).Length(),MARINE_JUMPLENGTH/1.5);
 				PreJumpPos = Vec3Angle(256,Angle-180);
 				SetStateLabel ("Jump.Running");
 				Return False;
@@ -434,7 +433,7 @@ Class SM_Marine : KAI_Humanoid
 		//Handle walking around minor hazards.
 		RunAwayTypes HazardAvoidType = SM_ShouldRunFromHazard (HazardToAvoid);
 		If (HazardAvoidType == RUN_WALK)
-		{console.printf ("walking around minor threat %p at %d %d %d while idle",HazardToAvoid,GetHazardOriginPos(HazardToAvoid));
+		{If (KAI_DebugPrintMessages)console.printf ("walking around minor threat %p at %d %d %d while idle",HazardToAvoid,GetHazardOriginPos(HazardToAvoid));
 			KAI_MoveAway (Null,anglelimit:20,TargPos:GetHazardOriginPos(HazardToAvoid));
 			Return False;
 		}
@@ -474,22 +473,22 @@ Class SM_Marine : KAI_Humanoid
 			Return False;
 		}
 		
-		//if (master)
+		//if (master&&KAI_DebugPrintMessages)
 		//	console.printf ("%p's master is %p, current order %d",self,master,currentorder);
 		
 		Actor FollowTarget = Master;
 		
 		//Marine is set to follow. Following the friendplayer is already handled by KAI_Wander() itself, so we just need to handle following the followtarget.
 		If (CurrentOrder == ORDER_FOLLOW && FollowTarget)
-		{//console.printf ("%p OnWander(): Marine already has a FollowTarget %s and ORDER_FOLLOW",self,master.getclassname());
+		{//If (KAI_DebugPrintMessages)console.printf ("%p OnWander(): Marine already has a FollowTarget %s and ORDER_FOLLOW",self,master.getclassname());
 			//Only follow if you aren't too close to the FollowTarget already, to avoid crowding..
 			If (Distance3DSquared(FollowTarget) >= WanderFollowDist*WanderFollowDist)
 			{
 				If (!bFriendly || bFriendly && bDontFollowPlayers)
-				{//console.printf ("following %s instead of friendplayer",FollowTarget.getclassname());
+				{//If (KAI_DebugPrintMessages)console.printf ("following %s instead of friendplayer",FollowTarget.getclassname());
 					//URGENT: This is probably a temp fix until I add the order system as a KAI component. So that vehicle spawned marines stop following them when they die.
 					If (IsDead (FollowTarget))
-					{CONSOLE.PRINTF ("my FollowTarget (%s) died, going back to wandering if hostile or following the player if friendly",FollowTarget.getclassname());
+					{If (KAI_DebugPrintMessages)CONSOLE.PRINTF ("my FollowTarget (%s) died, going back to wandering if hostile or following the player if friendly",FollowTarget.getclassname());
 						FollowTarget = Null;
 						If (!bFriendly) SetMarineOrder (ORDER_WANDER);
 						Else SetMarineOrder (ORDER_FOLLOW); //Friendly marines just begin follow their player.
@@ -504,7 +503,7 @@ Class SM_Marine : KAI_Humanoid
 		If (WanderFollowDist && CurrentOrder == ORDER_FOLLOW && bFriendly && !Master)
 		{
 		bDontFollowPlayers = (Distance3DSquared(GetMarineFollowTarget(True)) <= WanderFollowDist*WanderFollowDist);
-		//CONSOLE.PRINTF ("OnWander(): Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
+		//If (KAI_DebugPrintMessages)CONSOLE.PRINTF ("OnWander(): Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
 		}
 		
 		//If (UsedLine) 
@@ -528,7 +527,7 @@ Class SM_Marine : KAI_Humanoid
 		}
 		
 		SetMarineOrder (0,True,User); //Loop through the order list.
-		console.printf ("%p: my order is now %d",self,currentorder);
+		If (KAI_DebugPrintMessages)console.printf ("%p: my order is now %d",self,currentorder);
 		A_StartSound ("Marine/Radio",CHAN_AUTO);
 		
 		//Begin idling to follow the player, or if you are in the spawn state and set to wander aimlessly.
@@ -863,7 +862,7 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0
 			{
 				RetreatLoops--;
-				console.printf ("%d retreats left",retreatloops);
+				If (KAI_DebugPrintMessages)console.printf ("%d retreats left",retreatloops);
 				If (RetreatLoops <= 0 || !Target) //Once we are done running like a bitch. Or if there's no target left.
 				{
 					RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
@@ -941,7 +940,7 @@ Class SM_Marine : KAI_Humanoid
 					If (Nearest) //If there is a monster that got too close, just begin targeting that.
 					{
 						Target = Nearest;
-						console.printf ("FOUND NEW MELEE TARGET");
+						If (KAI_DebugPrintMessages)console.printf ("FOUND NEW MELEE TARGET");
 					}
 				}
 				
@@ -956,7 +955,7 @@ Class SM_Marine : KAI_Humanoid
 					//We don't have berserk and are at half health with an enemy very close.
 					If ( !HasBerserk && Health <= SpawnHealth ()/2 && Random (0,255) < 128)
 					{
-						console.printf ("i'm trying to fire but an enemy is too close for comfort, and I'm low on health");
+						If (KAI_DebugPrintMessages)console.printf ("i'm trying to fire but an enemy is too close for comfort, and I'm low on health");
 						SM_EndFiring();
 						Return FindState ("RunFromMelee",True);
 					}
@@ -966,7 +965,7 @@ Class SM_Marine : KAI_Humanoid
 					
 					If (bAvoidMelee && Random (0,255) < 12*FacMul || HasBerserk && Random (0,255) < 32*BerserkMul*FacMul)
 					{
-						console.printf ("%p got too close, doing a quick melee",target);
+						If (KAI_DebugPrintMessages)console.printf ("%p got too close, doing a quick melee",target);
 						QuickMelee = True;
 						SM_EndFiring();
 						Return FindState ("Melee",True);
@@ -984,7 +983,7 @@ Class SM_Marine : KAI_Humanoid
 				Else If(MarineState & MARINE_KNEELING)
 					CheckPos.Z = 32;
 				
-				console.printf ("fired %d rounds, checking at fire height %d",burstcounter,checkpos.z);
+				If (KAI_DebugPrintMessages)console.printf ("fired %d rounds, checking at fire height %d",burstcounter,checkpos.z);
 				If (!SM_CheckLOF (CheckPos)) //The default parameters for this function are for marines firing bursts.
 					Return FindState ("Fire.End",True);
 				
@@ -1007,11 +1006,11 @@ Class SM_Marine : KAI_Humanoid
 						{
 							Case THREAT_UNSTOPPABLE:
 							Case THREAT_SUPERDANGER:
-								//RetreatLoops = Random (32,48);a_log ("now this is an avengers level threat");
+								//RetreatLoops = Random (32,48);If (KAI_DebugPrintMessages)a_log ("now this is an avengers level threat");
 								//Break;
 							Case THREAT_VERYDANGEROUS:
 							Case THREAT_DANGEROUS:
-								RetreatLoops = Random (12,24);a_log ("this is dangerous");
+								RetreatLoops = Random (12,24);If (KAI_DebugPrintMessages)a_log ("this is dangerous");
 								Break;
 							Default:
 								RetreatLoops = Random (6,12);
@@ -1027,7 +1026,7 @@ Class SM_Marine : KAI_Humanoid
 						//Might instead quickly throw a smoke grenade before backing off, especially after firing full auto.
 						Int SmokeChance = Random (0,255)+((AttackType == FIRE_FULLAUTO) ? 64 : 0);
 						If (PrepareForSmokeThrow (SmokeChance))
-							{a_log ("throw a smokescreen and dip");Return FindState ("Grenade");}
+							{If (KAI_DebugPrintMessages)a_log ("throw a smokescreen and dip");Return FindState ("Grenade");}
 						
 						Return FindState ("Retreat"); //Run either far enough or out of sight, to reload.
 					}
@@ -1099,7 +1098,7 @@ Class SM_Marine : KAI_Humanoid
 				{
 					Int Chance = HasBerserk ? 128 : 64;
 					If (Random (0,255) < Chance && KAI_CheckMeleeRange (Target))
-					{console.printf ("just reloaded, doing a quick melee");
+					{If (KAI_DebugPrintMessages)console.printf ("just reloaded, doing a quick melee");
 						QuickMelee = True;
 						Return FindState ("Melee",True);
 					}
@@ -1247,14 +1246,13 @@ Class SM_Marine : KAI_Humanoid
 					If (DeadDogTimer)
 						DmgMul += 5;
 					Sound HitSound = HasBerserk ? "Marine/PowerMelee" : "Marine/Melee";
-					a_log ("THIS IS SPARTA");
 					A_StartSound (HitSound,CHAN_WEAPON);
 					Int Dmg = BlockingMobj.DamageMobj (Self,Self,Random[Punch](8,12)*DmgMul,'Melee');
 					BlockingMobj.TraceBleed (Dmg,Self);
 					If (!bDontThrust) //Push the enemy back.
 					{
 						Double MassMul = KAI_Math.LinearMap (BlockingMobj.Mass,1000,0,0.0,1.0);
-						console.printf ("mass %d, mass multiplier %.2f",blockingmobj.mass,massmul);
+						If (KAI_DebugPrintMessages)console.printf ("mass %d, mass multiplier %.2f",blockingmobj.mass,massmul);
 						Double XVel , YVel, ZVel;
 						XVel = YVel = 8*MassMul;
 						ZVel = 4*MassMul;
@@ -1289,7 +1287,7 @@ Class SM_Marine : KAI_Humanoid
 			{
 				PreOnePunchPos = Pos;
 				Vector3 TeleportPos = (Target.Vec2Angle (Target.Radius + MeleeRange,Target.Angle-180),Target.Pos.Z);
-				console.printf ("my target is %s, i will teleport to %d %d %d",target.getclassname(),teleportpos);
+				If (KAI_DebugPrintMessages)console.printf ("my target is %s, i will teleport to %d %d %d",target.getclassname(),teleportpos);
 				Teleport (TeleportPos,Angle,TELF_SOURCEFOG|TELF_DESTFOG);
 			}
 			MARM D 5;
@@ -1309,7 +1307,7 @@ Class SM_Marine : KAI_Humanoid
 				
 				//Send the enemy flying, regardless of bDontThrust.
 				Double MassMul = KAI_Math.LinearMap (Target.Mass,100000,0,0.0,1.0);
-				console.printf ("mass %d, mass multiplier %.2f",Target.mass,massmul);
+				If (KAI_DebugPrintMessages)console.printf ("mass %d, mass multiplier %.2f",Target.mass,massmul);
 				Double XVel , YVel, ZVel;
 				XVel = YVel = 64*MassMul;
 				ZVel = 24*MassMul;
@@ -1346,7 +1344,7 @@ Class SM_Marine : KAI_Humanoid
 				{
 					QuickMelee = False;
 					RetreatLoops += Random (2,6);
-					console.printf ("did my quick melee attack, retreating");
+					If (KAI_DebugPrintMessages)console.printf ("did my quick melee attack, retreating");
 					Return FindState ("Retreat",True);
 				}
 				Return State (Null);
@@ -1392,16 +1390,17 @@ Class SM_Marine : KAI_Humanoid
 		Interact:
 			MARI EEEEFFFFGGGGHHHH 3
 			{
-				A_Log ("waiting in the interact state for the sector to finish moving.");
+				If (KAI_DebugPrintMessages)A_Log ("waiting in the interact state for the sector to finish moving.");
 				LookExParams MarineSight;
 				MarineSight.FOV = MARINE_FOV;
 				//Wait until you either run out of patience, the sector stops moving!
 				If (InteractWaits >= MARINE_USEPATIENCE || UseSec && (!UseSec.PlaneMoving(Sector.Floor) && !UseSec.PlaneMoving(Sector.Ceiling)) ||
 				//Or you can see your target again.
 				Target && IsVisible (Target,False,MarineSight))
-				{if (interactwaits >= MARINE_USEPATIENCE) a_log ("too much waiting");
-				if (!SM_SectorInMotion (UseSec)) a_log ("sector finished");
-				if (Target && IsVisible (Target,False,MarineSight)) a_log ("enemy spotted");
+				{
+					if (interactwaits >= MARINE_USEPATIENCE&&KAI_DebugPrintMessages) a_log ("too much waiting");
+					if (!SM_SectorInMotion (UseSec)&&KAI_DebugPrintMessages) a_log ("sector finished");
+					if (Target && IsVisible (Target,False,MarineSight)&&KAI_DebugPrintMessages) a_log ("enemy spotted");
 					InteractWaits = 0;
 					If (Target) //Had a target, go back to chasing.
 						Return SeeState;
@@ -1492,7 +1491,7 @@ Class SM_Marine : KAI_Humanoid
 			Goto Jump.Loop;
 		Jump.Running:
 			MARI AABBCCDDAABBCCDDAABBCCDD 2 //Move back.
-			{console.printf ("MARINE IS TRYING TO DO A RUNNING JUMP BECAUSE HE'S STUPID !");
+			{If (KAI_DebugPrintMessages)console.printf ("MARINE IS TRYING TO DO A RUNNING JUMP BECAUSE HE'S STUPID !");
 				KAI_MoveTowards (PreJumpPos, 0.5, 0); 
 				If (!CheckMove (Vec2Angle(Speed,Angle))) //Something is in the way.
 				{
