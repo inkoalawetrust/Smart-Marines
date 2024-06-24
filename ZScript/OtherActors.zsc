@@ -182,12 +182,30 @@ Class SM_MarineGroup : KAI_NPCGroup
 			If (Affected.Player)
 				GroupName = String.Format ("%s's %s",Affected.Player.GetUsername(),GetGroupSizeType());
 		}
+		
+		//Update group name to reflect the size of it. Only used if the groups' leader is a player.
+		If (Leader && Leader.Player && (EventType == GRPEVNT_JOIN || EventType == GRPEVNT_LEFT))
+			GroupName = String.Format ("%s's %s",Leader.Player.GetUsername(),GetGroupSizeType());
 	}
 	
 	//Return a string that matches the size of the marine group, i.e if the group has 20 members, it'll be called a platoon, if less than 5 a fireteam, etc.
 	String GetGroupSizeType ()
 	{
-		Return "fireteam";
+		Int Size = Members.Size()+1;
+		If (Size >= 1000)
+			Return "Regiment";
+		Else If (Size >= 300)
+			Return "Batallion";
+		Else If (Size >= 100) //Realistically, this is the absolute most marines or other friendly NPCs any map will give the player. Even a platoon may be too much.
+			Return "Company";
+		Else If (Size >= 30)
+			Return "Platoon";
+		Else If (Size >= 8)
+			Return "Squad";
+		Else
+			Return "Fireteam";
+		
+		Return "Group"; //Generic fallback
 	}
 }
 

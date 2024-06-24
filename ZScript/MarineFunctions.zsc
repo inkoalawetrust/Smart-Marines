@@ -1165,22 +1165,24 @@ Extend Class SM_Marine
 		If (Commander && Commander.Player)
 		{
 			Array <KAI_NPCGroup> OtherGroups;
-			Bool HasNoPlayerGroup = True;
+			Bool HasPlayerGroup;
 			KAI_NPCGroup.FindGroupsImIn (Commander,OtherGroups);
 			ForEach (Group : OtherGroups)
 			{
 				If (Group Is "SM_MarineGroup" && SM_MarineGroup(Group).IsPlayerGroup) //Player has a group for us to join.
 				{
+					If (KAI_DebugPrintMessages) Console.Printf ("SetMarineOrder(): I was ordered by a player who already has their own group, so I'll join it.");
 					PlayerGroup = SM_MarineGroup(Group);
 					Group.AddNPCToGroup (Self);
-					HasNoPlayerGroup = False;
+					HasPlayerGroup = True;
 					Break;
 				}
 			}
 			
-			If (HasNoPlayerGroup)
+			If (!HasPlayerGroup)
 			{
-				Array <Actor> Members; Members.Push(Commander); Members.Push (Self); //Start by adding the player and ordered marine to the group.
+				If (KAI_DebugPrintMessages) Console.Printf ("SetMarineOrder(): I was ordered by a player with no group, creating one for them.");
+				Array <Actor> Members; Members.Push (Self); //Start by adding the ordered marine to the group.
 				String TheName = Commander.Player.GetUsername ();
 				TheName.AppendFormat ("'s fireteam"); //Default group name is "(Player names)'s fireteam", the fireteam string updates based on group size.
 				KAI_NPCGroup.CreateGroup (TheName,Members,Commander,0,"SM_MarineGroup");
