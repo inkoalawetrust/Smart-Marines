@@ -159,7 +159,7 @@ Extend Class SM_Marine
 							LastSeenPos = (Double.NaN, Double.NaN, Double.NaN); //We're in position, begin chasing normally again.
 					}
 					Else
-						MovePos = HandleGroupFollowLogic (MovePos);
+						MovePos = HandleFollowingActor (MovePos); //Check if we should be following anyone, if not, just focus on chasing the target or whatever.
 					
 					If (KAI_DebugPrintMessages)console.printf ("heading to %d %d %d",movepos);
 					If (Crouching)
@@ -186,14 +186,6 @@ Extend Class SM_Marine
 			ChaseTimer = 0;
 			SetIdle();
 		}
-	}
-	
-	Vector3 HandleGroupFollowLogic (Vector3 BasePos)
-	{
-		Actor Follow;
-		If (CurrentOrder != ORDER_FOLLOW || (Follow = GetMarineFollowTarget()) == Null) //Only follow when ORDER_FOLLOW is true, duh.
-			Return BasePos;
-		Return GetMarineFollowTarget().Pos;
 	}
 	
 	//Marine will run away from major hazards.
@@ -394,8 +386,8 @@ Extend Class SM_Marine
 		HipHitPos = HipLevel.HitLocation - HipLevel.HitDir * (Radius*1.1);
 		//IF (MOBJ&&KAI_DebugPrintMessages)CONSOLE.PRINTF ("SM_UPDATECOVER: DEBUG: HIP CHECK HIT ACTOR %s %p",MOBJ.GETCLASSNAME(),MOBJ);
 		
-		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
-		KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
+		//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
+		//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
 		
 		//Only take cover behind level geometry, and large enough actors that aren't other NPCs or players. And aren't about to break.
 		If ((HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling) ||
@@ -1145,146 +1137,6 @@ Extend Class SM_Marine
 		
 		If (Friends.Size() > 0)
 			Return Friends[Random (0,Friends.Size()-1)];
-		
-		Return Null;
-	}
-	
-	//Sets what order the marine is currently following.
-	//Order: The order to follow from the MarineOrders enum.
-	//Increment: If true the marine simply moves to the next order in the enum, and loops back around once reaching the end.
-	//Commander: The actor, if any, ordering the marine to change orders. If the order is set to ORDER_FOLLOW, they'll become the marines' master, unless hostile.
-	//IgnoreAllegiance: If true, the marine will accept orders even from enemy actors, but still won't follow them if set to ORDER_FOLLOW.
-	Void SetMarineOrder (MarineOrders Order, Bool Increment = False, Actor Commander = Null, Bool IgnoreAllegiance = False)
-	{
-		Bool EnemyCommand = IsActorHostile (Commander); //The order is being barked by an enemy.
-		Bool LastOrder = CurrentOrder;
-		If (Commander && EnemyCommand && !IgnoreAllegiance)
-			Return;
-		
-		//We are being commanded by a player, so join their NPC group if you aren't in already, if the player doesn't have a group yet, make one for them.
-		If (Commander && Commander.Player)
-		{
-			Array <KAI_NPCGroup> OtherGroups;
-			Bool HasPlayerGroup;
-			KAI_NPCGroup.FindGroupsImIn (Commander,OtherGroups);
-			ForEach (Group : OtherGroups)
-			{
-				If (Group Is "SM_MarineGroup" && SM_MarineGroup(Group).IsPlayerGroup) //Player has a group for us to join.
-				{
-					If (KAI_DebugPrintMessages) Console.Printf ("SetMarineOrder(): I was ordered by a player who already has their own group, so I'll join it.");
-					PlayerGroup = SM_MarineGroup(Group);
-					Group.AddNPCToGroup (Self);
-					HasPlayerGroup = True;
-					Break;
-				}
-			}
-			
-			If (!HasPlayerGroup)
-			{
-				If (KAI_DebugPrintMessages) Console.Printf ("SetMarineOrder(): I was ordered by a player with no group, creating one for them.");
-				Array <Actor> Members; Members.Push (Self); //Start by adding the ordered marine to the group.
-				String TheName = Commander.Player.GetUsername ();
-				TheName.AppendFormat ("'s fireteam"); //Default group name is "(Player names)'s fireteam", the fireteam string updates based on group size.
-				KAI_NPCGroup.CreateGroup (TheName,Members,Commander,0,"SM_MarineGroup");
-			}
-		}
-		
-		If (Increment)
-			CurrentOrder++;
-		Else
-			CurrentOrder = Order;
-		
-		If (CurrentOrder >= ALLORDERS) //If the marines' current order has reached the end of the list, loop back.
-			CurrentOrder = 1;
-		
-		//If we are set to follow, and we have a commander that is friendly, follow them.
-		If (CurrentOrder == ORDER_FOLLOW)
-		{//If (KAI_DebugPrintMessages)console.printf ("Okay jolly green retard (%p), is your current order ORDER_FOLLOW ?",self);
-			If (bFriendly && Commander == Players[KAI_GetFriendPlayer()].Mo) //If your commander is your friendplayer, remove your master pointer to follow friendplayer.
-				Master = Null;
-			
-			If (Commander && !EnemyCommand && Commander != Players[KAI_GetFriendPlayer()].Mo) //Only set master pointer for non-player commanders.
-			{If (KAI_DebugPrintMessages)console.printf ("set ORDER_FOLLOW and master for %p",self);
-				Master = Commander;
-				If (bFriendly)
-					bDontFollowPlayers = True; //Friendly marine needs to follow an actor that isn't the friendplayer, so turn off player following.
-			}
-			Else If (!Master && !bFriendly && (!Commander || !EnemyCommand)) //We are set to follow but we don't have a (friendly) commander or existing master.
-				{If (KAI_DebugPrintMessages)console.printf ("SETTING HOSTILE MARINE %p TO ORDER_WANDER",self);CurrentOrder = ORDER_WANDER;}
-		}
-		
-		If (CurrentOrder == ORDER_WANDER && bFriendly) //Friendly wandering marines don't follow the player.
-			bDontFollowPlayers = True;
-		
-		//If we are set to follow and have no master or our master is our friend player.
-		If (CurrentOrder == ORDER_FOLLOW && bFriendly)
-		{
-			If (!Master || Master == Players[KAI_GetFriendPlayer()].Mo)
-				bDontFollowPlayers = False;
-		}
-	}
-	
-	//This is for map script setups. Used to give orders to marines through ACS. For the ACS callback, the Commander is the activator.
-	Static Void ACS_SetMarineOrder (Actor Activator, Int MarineTID, MarineOrders Order, Bool Increment, Bool IgnoreAllegiance = False)
-	{
-		Let MarineSearch = Level.CreateActorIterator (MarineTID,"SM_Marine"); //Find every marine with the assigned TID and set their order.
-		
-		SM_Marine Marine;
-		While ( (Marine = SM_Marine(MarineSearch.Next())) )
-		{
-			If (!Marine || Marine.IsDead(Marine)) //Ignore nonexistent or dead marines.
-				Continue;
-			
-			If (KAI_DebugPrintMessages)console.printf ("SetMarineOrder() was called from ACS, setting order %d for %p",order,marine);
-			Marine.SetMarineOrder (Order, Increment, Activator, IgnoreAllegiance);
-			
-			//Have marine idle to follow whatever actor, or if they are in the spawn state and set to wander aimlessly.
-			If ((Marine.CurrentOrder == Marine.ORDER_FOLLOW || Marine.CurrentOrder == Marine.ORDER_WANDER) && Marine.IsInState (Marine,"Spawn"))
-				Marine.SetStateLabel ("Idle");
-		}
-	}
-	
-	//Get the primary NPC group the marine is in that he should pay attention to.
-	KAI_NPCGroup SM_GetPrimaryNPCGroup (Bool IgnorePlayerLeaders = False)
-	{
-		If (!Groups.Size())
-			Return Null;
-		
-		If (!IgnorePlayerLeaders)
-		{
-			ForEach (Group : Groups) //Focus on the first group you find whose leader is a player. AKA player groups take precedence.
-			{
-				If (Group && Group.Leader && Group.Leader.Player)
-					Return Group;
-			}
-		}
-		
-		Return Groups[0]; //Fallback to just following the first group in the list.
-	}
-	
-	//Return a pointer to the actor the marine should be following, since for friendly marines, the friendplayer takes precedence over the master unless +DONTFOLLOWPLAYERS is enabled.
-	Actor GetMarineFollowTarget (Bool IgnoreDontFollowPlayers = False)
-	{
-		If (!bFriendly) //Hostile marines don't have any friendplayer to begin with, easy peasy.
-		{
-			If (Groups.Size())
-				Return SM_GetPrimaryNPCGroup().Leader;
-			Return Master;
-		}
-		Else
-		{
-			Bool IgnoringPlayers = (!IgnoreDontFollowPlayers && bDontFollowPlayers);
-			//Handle making marines follow group leaders, player-led groups take special precedence, such as the one players create when they order a marine to do something.
-			KAI_NPCGroup MainGroup;
-			If ((MainGroup = SM_GetPrimaryNPCGroup(IgnoringPlayers)) && MainGroup)
-				Return MainGroup.Leader;
-			
-			If (IgnoringPlayers && !(Master && !Master.Player)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
-				Return Master;
-			//If (KAI_DebugPrintMessages)console.printf ("GetMarineFollowTarget: I'm fucking stupid and returning the friendplayer");
-			//if (master&&KAI_DebugPrintMessages) console.printf ("GetMarineFollowTarget: Even though I have %p as my master",master);
-			Return Players[KAI_GetFriendPlayer()].Mo;
-		}
 		
 		Return Null;
 	}

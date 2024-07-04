@@ -65,8 +65,8 @@ Class SM_Marine : KAI_Humanoid
 		It's so fucked that even giving hostile marines a CurrentOrder of 0 makes them do that. Amazing.*/
 		If (bFriendly) CurrentOrder = ORDER_FOLLOW;
 		If (KAI_DebugPrintMessages)console.printf ("%p spawned with order %d",self,currentorder);
-		WanderFollowDist = 128+Random (-16,48);
-		WanderFollowDist = Clamp (WanderFollowDist,0, INT.MAX); //In case the variable becomes configurable.
+		FollowDist = 128+Random (-16,48);
+		FollowDist = Clamp (FollowDist,0, INT.MAX); //In case the variable becomes configurable.
 		AmmoCount = 30;
 		MissileState = FindState ("Fire",True);
 		MeleeState = FindState ("Melee",True);
@@ -476,13 +476,15 @@ Class SM_Marine : KAI_Humanoid
 		//if (master&&KAI_DebugPrintMessages)
 		//	console.printf ("%p's master is %p, current order %d",self,master,currentorder);
 		
-		Actor FollowTarget = Master;
+		Actor FollowTarget;
+		Vector3 FollowPos;
+		[FollowPos, FollowTarget] = HandleFollowingActor(FollowPos);
 		
 		//Marine is set to follow. Following the friendplayer is already handled by KAI_Wander() itself, so we just need to handle following the followtarget.
 		If (CurrentOrder == ORDER_FOLLOW && FollowTarget)
 		{//If (KAI_DebugPrintMessages)console.printf ("%p OnWander(): Marine already has a FollowTarget %s and ORDER_FOLLOW",self,master.getclassname());
 			//Only follow if you aren't too close to the FollowTarget already, to avoid crowding..
-			If (Distance3DSquared(FollowTarget) >= WanderFollowDist*WanderFollowDist)
+			If (Distance3DSquared(FollowTarget) >= FollowDist*FollowDist)
 			{
 				If (!bFriendly || bFriendly && bDontFollowPlayers)
 				{//If (KAI_DebugPrintMessages)console.printf ("following %s instead of friendplayer",FollowTarget.getclassname());
@@ -490,19 +492,22 @@ Class SM_Marine : KAI_Humanoid
 					If (IsDead (FollowTarget))
 					{If (KAI_DebugPrintMessages)CONSOLE.PRINTF ("my FollowTarget (%s) died, going back to wandering if hostile or following the player if friendly",FollowTarget.getclassname());
 						FollowTarget = Null;
-						If (!bFriendly) SetMarineOrder (ORDER_WANDER);
-						Else SetMarineOrder (ORDER_FOLLOW); //Friendly marines just begin follow their player.
+						If (!bFriendly) SetNPCOrder (ORDER_WANDER);
+						Else SetNPCOrder (ORDER_FOLLOW); //Friendly marines just begin following their player.
 					}
-					If (FollowTarget) KAI_MoveTowards (FollowTarget.Pos,anglelimit:20);
-					Return False;
+					If (FollowTarget)
+					{
+						KAI_MoveTowards (FollowPos,anglelimit:20);
+						Return False;
+					}
 				}
 			}
 		}
 		
 		//Friendly marine is too close to the friendplayer. So just wander instead to avoid overcrowding.
-		If (WanderFollowDist && CurrentOrder == ORDER_FOLLOW && bFriendly && !Master)
+		If (FollowDist && FollowTarget && CurrentOrder == ORDER_FOLLOW && bFriendly && !Master)
 		{
-		bDontFollowPlayers = (Distance3DSquared(GetMarineFollowTarget(True)) <= WanderFollowDist*WanderFollowDist);
+		bDontFollowPlayers = (Distance3DSquared (FollowTarget) <= FollowDist*FollowDist);
 		//If (KAI_DebugPrintMessages)CONSOLE.PRINTF ("OnWander(): Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
 		}
 		
@@ -510,6 +515,48 @@ Class SM_Marine : KAI_Humanoid
 			//SetStateLabel ("Interact");
 		
 		Return True;
+	}
+	
+	Override Bool OnOrderChange(NPCOrders NewOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS)
+	{
+		//We are being commanded by a player, so join their NPC group if you aren't in already, if the player doesn't have a group yet, make one for them.
+		If (Commander && Commander.Player)
+		{
+			Array <KAI_NPCGroup> OtherGroups;
+			Bool HasPlayerGroup;
+			KAI_NPCGroup.FindGroupsImIn (Commander,OtherGroups);
+			ForEach (Group : OtherGroups)
+			{
+				If (Group Is "SM_MarineGroup" && SM_MarineGroup(Group).IsPlayerGroup) //Player has a group for us to join.
+				{
+					If (KAI_DebugPrintMessages) Console.Printf ("SetMarineOrder(): I was ordered by a player who already has their own group, so I'll join it.");
+					PlayerGroup = SM_MarineGroup(Group);
+					Group.AddNPCToGroup (Self);
+					HasPlayerGroup = True;
+					Break;
+				}
+			}
+			
+			If (!HasPlayerGroup)
+			{
+				If (KAI_DebugPrintMessages) Console.Printf ("SetMarineOrder(): I was ordered by a player with no group, creating one for them.");
+				Array <Actor> Members; Members.Push (Self); //Start by adding the ordered marine to the group.
+				String TheName = Commander.Player.GetUsername ();
+				TheName.AppendFormat ("'s fireteam"); //Default group name is "(Player names)'s fireteam", the fireteam string updates based on group size.
+				KAI_NPCGroup.CreateGroup (TheName,Members,Commander,0,"SM_MarineGroup");
+			}
+		}
+		Return True;
+	}
+	
+	Override Void AfterOrderChange (NPCOrders OldOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS)
+	{
+		If (FromACS) //If SetNPCOrder is called from ACS, marines have their state switched.
+		{
+			//Have marine idle to follow whatever actor, or if they are in the spawn state and set to wander aimlessly.
+			If ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState (Self,"Spawn"))
+				SetStateLabel ("Idle");
+		}
 	}
 	
 	Override Bool Used (Actor User)
@@ -526,7 +573,7 @@ Class SM_Marine : KAI_Humanoid
 			Return True;
 		}
 		
-		SetMarineOrder (0,True,User); //Loop through the order list.
+		SetNPCOrder (0,True,User); //Loop through the order list.
 		If (KAI_DebugPrintMessages)console.printf ("%p: my order is now %d",self,currentorder);
 		A_StartSound ("Marine/Radio",CHAN_AUTO);
 		
@@ -573,16 +620,6 @@ Class SM_Marine : KAI_Humanoid
 		//MARINE_PATROL	= 1 << 10, //Patrolling
 	}
 	
-	Enum MarineOrders
-	{
-		ORDER_FOLLOW	= 1, //The marine follows their friendly player (If friendly), or if they are hostile or have +DONTFOLLOWPLAYERS, their master.
-		ORDER_STAY		= 2, //The marine stays in place when idle instead of following anyone.
-		ORDER_WANDER	= 3, //The marine wanders around when idle.
-		//ORDER_GOTO	
-		
-		ALLORDERS, //Used to get how many orders there are to loop around.
-	}
-	
 	Const MARINE_HEARDIST = 4096; //How far can the marine hear.
 	Const MARINE_FOV = 120; //How wide the marine can see.
 	Const MAGAZINE_SIZE = 30; //How much ammo does the marine have per magazine ?
@@ -596,8 +633,6 @@ Class SM_Marine : KAI_Humanoid
 	
 	//AI variables
 	Int MarineState; //What the marine doin'.
-	Int CurrentOrder; //What order is the marine currently following ?
-	Double WanderFollowDist; //If the actor the marine is following with ORDER_FOLLOW is within this range + the actors' radius, then the marine will just wander around instead.
 	Actor NearestEnemy; //The marines' closest enemy, used to stay away from enemies.
 	Int RetreatLoops; //How many times the retreat state should be called.
 	UInt8 InteractWaits; //Keeps track of how many times the interact state loops before the marine gives up waiting on the sector he used to stop.

@@ -1231,7 +1231,7 @@ Class SM_VehicleDropToken : Inventory
 //+MissileMore: Ignore the specific order (Health) to go to, and simply increment the marines' current order to the next one.
 //Master: The master pointer of the token is used to specify what actor is commanding the marine.
 //+NoTarget: Accept orders from the commander/master even if they are hostile to the marine.
-Class SM_SetMarineOrder : Inventory
+/*Class SM_SetMarineOrder : Inventory
 {
 	Default
 	{
@@ -1246,7 +1246,7 @@ Class SM_SetMarineOrder : Inventory
 			SM_Marine(Other).SetMarineOrder (Health,bMissileMore,Master,bNoTarget);
 		GoAwayAndDie();
 	}
-}
+}*/
 
 //=======================================================\\
 
