@@ -618,7 +618,6 @@ Extend Class SM_Marine
 	}
 	
 	//KAI_MoveAway wrapper, handles running behind cover, as well as parkouring when retreating.
-	//MAYDO: Try and add code to make marines avoid smashing right into obstables ?
 	Void SM_RunAway (Actor Other, Double RunRad = 64, Int MaxSteps = 32, Double TurnRadius = 25, Int ChaseFlags = 0, Int Flags = 0)//, Int KMAFlags = 0)
 	{
 		If (!(MarineState & MARINE_INCOVER))
@@ -655,7 +654,12 @@ Extend Class SM_Marine
 			Double RealSpeed = Speed;
 			If (Crouching)
 				Speed *= 0.7;
-			KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, KMA_USECORNERS, RetreatPos);
+			KAIMoveParams Data;
+			Data.CornerDist = 384;
+			Data.CornerDiv = 12; //Check every 32 MU, seems reasonable.
+			Data.ObstacleDist = 128;
+			Data.ObstacleSlices = 16;
+			KAI_MoveAway (Other, 16, RunRad, MaxSteps, 0.5, TurnRadius, ChaseFlags, Flags, 0, RetreatPos, extraparams:Data);
 			Speed = RealSpeed;
 		/*	If (!HazardToAvoid) NearbyCoverPos = SM_LocateNearbyCover (Other);
 		}
@@ -1497,7 +1501,7 @@ Extend Class SM_Marine
 			Return True;
 		If (MarineAction == RESTRICT_DODGING && Token && Token.NoDodge)
 			Return True;
-		If (MarineAction == RESTRICT_HEALING && (User_NoHealing || Token && Token.NoHeal))
+		If (MarineAction == RESTRICT_HEALING && (User_HealCooldown == 0 || Token && Token.NoHeal))
 			Return True;
 		If (MarineAction == RESTRICT_WARNALLIES && Token && Token.NoWarn)
 			Return True;

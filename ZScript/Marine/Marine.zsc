@@ -1,7 +1,6 @@
 //IDEA:
 //Give them Flashbangs.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
-//Reimplement taking cover, the original system of 2 LineTraces' seemed to basically work already, but this time make them account for pitch too.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -98,8 +97,9 @@ Class SM_Marine : KAI_Humanoid
 		If (/*GetAge() % 4 == 0 && */!(MarineState & MARINE_MELEE) && IsInAttackState())
 			AimAtTarget (8/**4*/,8/**4*/,attackspeed:170,200);
 		
+		Int Age = GetAge();
 		//Update on whether or not the marine is berserking.
-		If (GetAge() % GameTicRate == 0)
+		If (Age % GameTicRate == 0)
 		{
 			If (DeadDogTimer || CountInv("PowerStrength"))
 			{
@@ -112,7 +112,6 @@ Class SM_Marine : KAI_Humanoid
 				bAvoidMelee = True;
 			}
 		}
-		
 		
 		If (CountInv("SM_DogRageToken") && IsInState (Self,"AskDog"))
 		{
@@ -155,11 +154,11 @@ Class SM_Marine : KAI_Humanoid
 		
 		//Update primary hazard to avoid every 4 ticks.
 		//IDEA: This should probably be the highest level hazard in range instead of the closest.
-		If (GetAge() % 4 == 0)
+		If (Age % 4 == 0)
 			HazardToAvoid = GetNearestHazard(Hazards);
 		
 		//Check dodging every 2 ticks.
-		If (GetAge() % 2 == 0)
+		If (Age % 2 == 0)
 		{
 			//Don't dodge if in any of the pain or jump states (Already), or if climbing.
 			If (!InStateSequence (CurState,FindState("Pain")) &&
@@ -222,6 +221,8 @@ Class SM_Marine : KAI_Humanoid
 			Else
 				GiveInventory (User_Armor,1); //Try giving whatever armor available in the current session that the mapper wants.
 		}
+		If (User_HealCooldown == 0)
+			User_HealCooldown = 40;
 		SM_HandleMarineColoring (User_Color);
 	}
 	
@@ -443,7 +444,7 @@ Class SM_Marine : KAI_Humanoid
 		//Decide to help a pal out.
 		If (!HealDelay && !HealTarget)
 		{
-			If (Random (0,255) < 8)
+			If (Random (0,255) < 24)
 				HealTarget = SM_FindAllyToHelp();
 		}
 		Else If (HealTarget && !Crouching && Distance3DSquared (HealTarget) <= (MeleeRange + HealTarget.Radius)*(MeleeRange + HealTarget.Radius))
@@ -696,7 +697,8 @@ Class SM_Marine : KAI_Humanoid
 	Bool User_IgnoreOrders; //Marine ignores orders given to them by players trying to press use on them.
 	Bool User_NoWeaponDrop; //The marines never drop their rifles. When I implement other marine types, they won't drop their respective weapons either.
 	Bool User_NoParkour; //Marine only has normal monster movement.
-	Bool User_NoHealing; //Marines do not give stimpacks to friends.
+	//Bool User_NoHealing; //Marines do not give stimpacks to friends.
+	Int User_HealCooldown; //How often, in seconds, the marine can give stimpacks to friends, default is 40 seconds.
 	Bool User_NoCover; //Marines never take cover from enemies.
 	
 	States
@@ -1175,6 +1177,7 @@ Class SM_Marine : KAI_Humanoid
 						Break;
 				}
 				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+				
 				If (!QuickGrenade)
 					SM_FireGrenade (Target,GrenCls,55,1.1,1024);
 				Else
@@ -1416,7 +1419,7 @@ Class SM_Marine : KAI_Humanoid
 					Spawn ("SM_MarineHealAllyIcon",HealTarget.Pos.PlusZ(Height),ALLOW_REPLACE);
 				}
 				HealTarget = Null;
-				HealDelay = Random (20,60)*GameTicRate;
+				HealDelay = User_HealCooldown*GameTicRate;
 			}
 			MARA JJJJJJJJJJ 1;
 			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");

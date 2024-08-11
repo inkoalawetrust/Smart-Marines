@@ -225,9 +225,6 @@ Class SM_Bullet : KAI_BaseProjectile
 		DamageType "SmallRifleBullet";
 		Obituary "%o found out that rifle rounds are more dangerous than in the movies";
 		BounceSound "VRifle/BulletRicochet";
-		KAI_BaseProjectile.TrailActor "SM_Tracer"; //Since there's a lot more marine bullets flying than vehicle ones, use a singular model instead.
-		KAI_BaseProjectile.MaxTrails 1;
-		KAI_BaseProjectile.TrailLineSpacing 1;
 	}
 	Bool HitLiquid;
 	Actor Tracer;
@@ -260,12 +257,15 @@ Class SM_Bullet : KAI_BaseProjectile
 		Return True;
 	}
 	
-	Override Void TrailSpawn (Actor Trail)
+	Override Void PostBeginPlay()
 	{
-		Super.TrailSpawn (Trail);
+		Super.PostBeginPlay();
 		
-		KAI_Tracer(Trail).WarpOffsets = (-35,0,0);
-		Trail.Master = Self;
+		Let Trail = Spawn ("SM_Tracer",Pos);
+		KAI_TracerActor(Trail).WarpOffsets = (-35,0,0);
+		Trail.Master = Trail.Target = Self;
+		Trail.Angle = Angle;
+		Trail.Pitch = Pitch;
 	}
 	
 	Override Int SpecialMissileHit (Actor Victim)
@@ -958,7 +958,7 @@ Class SM_EmptyMagazine : Actor
 	}
 }
 
-Class SM_Tracer : KAI_Tracer
+Class SM_Tracer : KAI_TracerActor
 {
 	Default
 	{
@@ -967,7 +967,6 @@ Class SM_Tracer : KAI_Tracer
 		+NeverRespawn;
 		+Bright;
 	}
-	
 	Override Void Tick()
 	{
 		Super.Tick();
