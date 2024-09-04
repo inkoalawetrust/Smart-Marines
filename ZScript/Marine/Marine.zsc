@@ -221,15 +221,27 @@ Class SM_Marine : KAI_Humanoid
 			Else
 				GiveInventory (User_Armor,1); //Try giving whatever armor available in the current session that the mapper wants.
 		}
+		
 		If (User_HealCooldown == 0)
 			User_HealCooldown = 40;
+		If (User_AlertRange == 0)
+			User_AlertRange = 512;
+		
 		SM_HandleMarineColoring (User_Color);
 	}
+	
+	//Hack variables to handle when the area ally alerts should be emitted, since I'm not sure where they should even be handled lol.
+	Private Actor SMOldTarget;
 	
 	Override Bool ShouldAttack (Bool NoStateJump)
 	{
 		If (!Target || Target == Goal) Return False; //Don't attack if you have no target or just following a goal.
 		If (!CanAttack() || !CanBeTargeted(Self,Target) || IsInanimateObject (Target)) Return False;
+		If (SMOldTarget != Target)
+		{
+			SMOldTarget = Target;
+			SM_AlertNearbyAllies(User_AlertRange);
+		}
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
 		Int Threat = AssessThreatLevel (Target,False);
 		
@@ -518,7 +530,7 @@ Class SM_Marine : KAI_Humanoid
 		Return True;
 	}
 	
-	Override Bool OnOrderChange(NPCOrders NewOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS)
+	Override Bool OnOrderChange (NPCOrders NewOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS)
 	{
 		//We are being commanded by a player, so join their NPC group if you aren't in already, if the player doesn't have a group yet, make one for them.
 		If (Commander && Commander.Player)
@@ -557,6 +569,25 @@ Class SM_Marine : KAI_Humanoid
 			//Have marine idle to follow whatever actor, or if they are in the spawn state and set to wander aimlessly.
 			If ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState (Self,"Spawn"))
 				SetStateLabel ("Idle");
+		}
+		
+		//Make all actors in the groups you are follow your order, if you are leading.
+		ForEach (Group : Groups)
+		{
+			If (Group.Leader != Self) Continue;
+			ForEach (Member : Group.Members)
+			{
+				If (Member Is "KAI_Actor" && Member != Self)
+				{
+					If (KAI_DebugPrintMessages) console.printf ("setting order to %d for %p (%s)",currentorder,member,member.getclassname());
+					KAI_Actor(Member).SetNPCOrder (CurrentOrder,False,Self);
+					If (Member Is "SM_Marine")
+					{
+						If ((KAI_Actor(Member).CurrentOrder == ORDER_FOLLOW || KAI_Actor(Member).CurrentOrder == ORDER_WANDER) && IsInState (Member,"Spawn"))
+							Member.SetStateLabel ("Idle");
+					}
+				}
+			}
 		}
 	}
 	
@@ -697,9 +728,9 @@ Class SM_Marine : KAI_Humanoid
 	Bool User_IgnoreOrders; //Marine ignores orders given to them by players trying to press use on them.
 	Bool User_NoWeaponDrop; //The marines never drop their rifles. When I implement other marine types, they won't drop their respective weapons either.
 	Bool User_NoParkour; //Marine only has normal monster movement.
-	//Bool User_NoHealing; //Marines do not give stimpacks to friends.
 	Int User_HealCooldown; //How often, in seconds, the marine can give stimpacks to friends, default is 40 seconds.
 	Bool User_NoCover; //Marines never take cover from enemies.
+	Double User_AlertRange; //How far away marines can alert KAI NPC allies. For group members that can be alerted regardless of distance, that is turned off if the range is -1s or less.
 	
 	States
 	{

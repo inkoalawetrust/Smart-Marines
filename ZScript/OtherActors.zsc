@@ -48,7 +48,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 	Bool User_NoDodging; //Do not dodge when in range.
 	Bool User_NoHealing; //Do not heal nearby allies when in range.
 	//Bool User_NoSwimming;//Do not swim in and out of swimmable 3D floors.
-	//Bool User_DontWarn;//Do not alert nearby marines of enemies.
+	Bool User_DontWarn; //Do not alert nearby friends of enemies.
 	
 	//Other settings
 	Bool User_CheckSight;//In addition to only restricting marines in range, also only restrict them if they are in sight as well.
@@ -99,7 +99,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 			//Restrictor.NoSwim	= User_NoSwimming;
 			Restrictor.NoDodge	= User_NoDodging;
 			Restrictor.NoHeal	= User_NoHealing;
-			//Restrictor.NoWarn	= User_DontWarn;
+			Restrictor.NoWarn	= User_DontWarn;
 			
 			Restrictor.CheckSight=User_CheckSight;
 			Restrictor.MaxTargetRange = Args[ARG_RANGE];

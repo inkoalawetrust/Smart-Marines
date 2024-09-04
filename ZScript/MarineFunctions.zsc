@@ -1005,6 +1005,54 @@ Extend Class SM_Marine
 		Return Chance;
 	}
 	
+	//Alert every KAI NPC in range of your current target, unless they're busy already.
+	Void SM_AlertNearbyAllies (Double Range = 512, Bool IgnoreCreatures = False)
+	{
+		If (SM_IsRestricted (RESTRICT_WARNALLIES) || Range <= 0) Return;
+		BlockThingsIterator FindAllies = BlockThingsIterator.Create (Self,Range);
+		Actor Mobj;
+		Bool AlertedSomeone;
+		Array <Actor> Alerted;
+		
+		While (FindAllies.Next())
+		{
+			Mobj = FindAllies.Thing;
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject (Mobj) || Mobj == Self || Mobj.Target) Continue;
+			
+			If (!(Mobj Is "KAI_Actor") || IgnoreCreatures && Mobj Is "KAI_Creature" || IsActorHostile (Mobj)) Continue;
+			
+			If (Distance3DSquared (Mobj) > Range*Range) Continue;
+			
+			KAI_Actor(Mobj).KAI_ShareTarget(Self,Target);
+			AlertedSomeone = True;
+			Alerted.Push (Mobj);
+		}
+		
+		//Alert all actors in the groups you are leading chase that target if possible. If no alerted already.
+		ForEach (Group : Groups)
+		{
+			If (Group.Leader != Self) Continue;
+			ForEach (Member : Group.Members)
+			{
+				If (Member Is "KAI_Actor" && Alerted.Find(Member) == Alerted.Size() && Member != Self)
+				{
+					If (KAI_DebugPrintMessages) console.printf ("alerting group member %p (%s) of %s",member,member.getclassname(),target.getclassname());
+					KAI_Actor(Member).KAI_ShareTarget (Self,Target);
+					AlertedSomeone = True;
+					Alerted.Push (Member);
+				}
+			}
+		}
+		
+		If (AlertedSomeone)
+		{
+			If (Random (0,256) == Random (0,256))
+				A_StartSound ("Marine/AlertAlliesAlt",CHAN_VOICE,attenuation:0.75);
+			Else
+				A_StartSound ("Marine/AlertAllies",CHAN_VOICE,attenuation:0.75);
+		}
+	}
+	
 	HazardInfo GetNearestHazard (Array<HazardInfo> HazardList)
 	{
 		Double ClosestDist = INT.MAX;
