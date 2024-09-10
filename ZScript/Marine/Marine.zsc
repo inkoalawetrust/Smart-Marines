@@ -72,6 +72,7 @@ Class SM_Marine : KAI_Humanoid
 		//The melee state should be passed automatically, since I have a state just called "Melee"
 		AttackStates.Push (FindState ("Fire",True));
 		AttackStates.Push (FindState ("Fire.Loop",True));
+		AttackStates.Push (FindState ("Jump.Dodge.Attack",True));
 		
 		//That's a lot of melee states.
 		AttackStates.Push (FindState ("Melee",True));
@@ -92,9 +93,9 @@ Class SM_Marine : KAI_Humanoid
 		
 		If (IsFrozen() || IsDead(Self)) Return;
 		
-		//Every 4 tics that the marine is in a non-melee attack state, perform target prediction.
+		//Every tic that the marine is in a non-melee attack state, and not attacking mid-dodge, perform target prediction.
 		//NOTE: Hmm, should they do target prediction when throwing grenades too ?
-		If (/*GetAge() % 4 == 0 && */!(MarineState & MARINE_MELEE) && IsInAttackState())
+		If (/*GetAge() % 4 == 0 && */!(MarineState & MARINE_MELEE) && IsInAttackState() && !IsInState (Self,"Jump.Dodge.Attack"))
 			AimAtTarget (8/**4*/,8/**4*/,attackspeed:170,200);
 		
 		Int Age = GetAge();
@@ -226,6 +227,8 @@ Class SM_Marine : KAI_Humanoid
 			User_HealCooldown = 40;
 		If (User_AlertRange == 0)
 			User_AlertRange = 512;
+		If (User_GrenadeChance == 0)
+			User_GrenadeChance = MARINE_GRENADECHANCE;
 		
 		SM_HandleMarineColoring (User_Color);
 	}
@@ -250,7 +253,7 @@ Class SM_Marine : KAI_Humanoid
 		//Check if you should fire your gun.
 		Double Dist = Distance3D (Target);
 		
-		GrenadeType = DecideGrenadeType (Target);
+		GrenadeType = DecideGrenadeType (Target, User_GrenadeChance);
 		
 		Double OldHeight = Height;
 		If (Crouching && MarineState & MARINE_INCOVER)
@@ -397,6 +400,29 @@ Class SM_Marine : KAI_Humanoid
 		Return (Other && (IsHostile (Other) || IsTargetingAllies (Self, Other)));
 	}
 	
+	Override Vector3, Actor HandleFollowingActor (Vector3 BasePos, Bool IgnoreDontFollowPlayers)
+	{
+		Vector3 Vec; Actor Act; [Vec, Act] = Super.HandleFollowingActor (BasePos, IgnoreDontFollowPlayers);
+		
+		//Friendly marine is too close to the friendplayer. So just wander instead to avoid overcrowding.
+		If (FollowDist && Act && CurrentOrder == ORDER_FOLLOW && bFriendly && !Master)
+		{
+			Bool DistCheck = Distance3DSquared (Act) <= FollowDist*FollowDist;
+			If (Act.Player) 
+				bDontFollowPlayers = DistCheck;
+			Else
+			{
+				bDontFollowPLayers = True;
+				If (DistCheck) Return BasePos, Null;
+			}
+			If (KAI_DebugPrintMessages) CONSOLE.PRINTF ("Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
+			If (DistCheck)
+				Return BasePos, Null;
+		}
+		
+		Return Vec, Act;
+	}
+	
 	Override Bool OnWander()
 	{
 		Super.OnWander();
@@ -488,11 +514,9 @@ Class SM_Marine : KAI_Humanoid
 		
 		//if (master&&KAI_DebugPrintMessages)
 		//	console.printf ("%p's master is %p, current order %d",self,master,currentorder);
-		
 		Actor FollowTarget;
 		Vector3 FollowPos;
 		[FollowPos, FollowTarget] = HandleFollowingActor(FollowPos);
-		
 		//Marine is set to follow. Following the friendplayer is already handled by KAI_Wander() itself, so we just need to handle following the followtarget.
 		If (CurrentOrder == ORDER_FOLLOW && FollowTarget)
 		{//If (KAI_DebugPrintMessages)console.printf ("%p OnWander(): Marine already has a FollowTarget %s and ORDER_FOLLOW",self,master.getclassname());
@@ -509,19 +533,12 @@ Class SM_Marine : KAI_Humanoid
 						Else SetNPCOrder (ORDER_FOLLOW); //Friendly marines just begin following their player.
 					}
 					If (FollowTarget)
-					{
+					{console.printf ("ONWADNDER: followtarget %s (%p) has pos %d %d %d",followtarget.getclassname(),followtarget,followpos);
 						KAI_MoveTowards (FollowPos,anglelimit:20);
 						Return False;
 					}
 				}
 			}
-		}
-		
-		//Friendly marine is too close to the friendplayer. So just wander instead to avoid overcrowding.
-		If (FollowDist && FollowTarget && CurrentOrder == ORDER_FOLLOW && bFriendly && !Master)
-		{
-		bDontFollowPlayers = (Distance3DSquared (FollowTarget) <= FollowDist*FollowDist);
-		//If (KAI_DebugPrintMessages)CONSOLE.PRINTF ("OnWander(): Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
 		}
 		
 		//If (UsedLine) 
@@ -657,7 +674,7 @@ Class SM_Marine : KAI_Humanoid
 	Const MAGAZINE_SIZE = 30; //How much ammo does the marine have per magazine ?
 	Const MARINE_USEPATIENCE = 10; //How long the marine stays in the interact state.
 	Const MARINE_CHASETIME = 350; //Chase your target for approximately 30 seconds after he has gone out of sight or died, before going to your idle state.
-	Const MARINE_GRENADECHANCE = 130; //The chance threshold over which the marine will throw a grenade if in range. TODO: Make this into a user variable.
+	Const MARINE_GRENADECHANCE = 130; //The default chance threshold over which the marine will throw a grenade if in range.
 	Const MARINE_JUMPLENGTH = 288;
 	Const MARINE_CROUCHHEIGHT = 30;
 	
@@ -679,13 +696,15 @@ Class SM_Marine : KAI_Humanoid
 	HazardInfo HazardToAvoid; //What hazard from his Hazards array should the marine be currently trying to avoid ?
 	Vector3 RetreatPos; //The position the marine retreats from, if this is not NaN, the retreat state runs from this coordinate instead of the target actor.
 	Actor LastDodged; //The last projectile the marine dodged.
+	Bool DodgingHomingProjectile; //The marine is in his Retreat: state because he is dodging a homing projectile, AKA running away.
 	Vector3 LastSeenPos; //The last position the target was seen at while chased by the marine. Used to make them head there first before resuming normal chasing.
+	
 	SM_MarineGroup PlayerGroup; //The group of the player you're following.
 	
 	//Healing variables
 	Actor HealTarget; //Who to walk up to and heal.
 	//Int HealTravelTime; //Decrement while the marine goes to heal an ally, in case he gets stuck or something.
-	Int HealDelay; //Time until next heal. //MAYDO: I'll probably make healing toggleable, in which case, just make this configurable instead of an on/off.
+	Int HealDelay; //Time until next heal.
 	
 	//Shooting variables.
 	Int AmmoCount; //How much ammo the marine has.
@@ -731,6 +750,7 @@ Class SM_Marine : KAI_Humanoid
 	Int User_HealCooldown; //How often, in seconds, the marine can give stimpacks to friends, default is 40 seconds.
 	Bool User_NoCover; //Marines never take cover from enemies.
 	Double User_AlertRange; //How far away marines can alert KAI NPC allies. For group members that can be alerted regardless of distance, that is turned off if the range is -1s or less.
+	Int User_GrenadeChance; //How likely is the marine to throw a grenade?
 	
 	States
 	{
@@ -921,9 +941,28 @@ Class SM_Marine : KAI_Humanoid
 			}
 			MARI AAABBBCCCDDD 1
 			{
-				If (Crouching) Sprite = GetSpriteIndex ('MARC');
 				Double RealSpeed = Speed;
-				Speed *= 0.85;
+				If (Crouching)
+				{
+					Sprite = GetSpriteIndex ('MARC');
+					Speed *= 0.85;
+				}
+				if (DodgingHomingProjectile && lastdodged) console.printf ("RETREAT STATE: Running from homing missile %s",lastdodged.getclassname());
+				If (DodgingHomingProjectile && LastDodged)
+				{
+					RetreatPos = LastDodged.Pos; //Update the retreat position every step, since the projectile moves. MAYDO: Or maybe after every loop?
+					Speed *= 1.1; //Also move a little FASTER.
+					//Homing projectile is very close, duck down to try throwing it off.
+					If (!SM_IsRestricted (RESTRICT_CROUCHING))
+					{
+						Bool Dist = (Distance3DSquared (LastDodged) <= MeleeRange*MeleeRange);
+						If (Dist && !Crouching)
+							{SM_StartCrouch();console.printf ("DUCK !");}
+						Else If (!Dist)
+							{SM_EndCrouch();console.printf ("phew that was close");}
+					}
+					
+				}
 				SM_RunAway (Target,192);
 				Speed = RealSpeed;
 			}
@@ -934,6 +973,8 @@ Class SM_Marine : KAI_Humanoid
 				If (RetreatLoops <= 0 || !Target) //Once we are done running like a bitch. Or if there's no target left.
 				{
 					RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
+					DodgingHomingProjectile = False;
+					SM_SetMarineState (0,MARINE_RETREAT);
 					//We are supposed to be reloading, so do that.
 					If (MarineState & MARINE_RELOAD)
 						Return FindState ("Reload",True);
@@ -1092,7 +1133,7 @@ Class SM_Marine : KAI_Humanoid
 						SM_SetMarineState (MARINE_RELOAD,0); //Tell the Retreat state we need to reload, so it goes there once the RetreatLoops end.
 						
 						//Might instead quickly throw a smoke grenade before backing off, especially after firing full auto.
-						Int SmokeChance = Random (0,255)+((AttackType == FIRE_FULLAUTO) ? 64 : 0);
+						Int SmokeChance = Random (0,255)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);
 						If (PrepareForSmokeThrow (SmokeChance))
 							{If (KAI_DebugPrintMessages)a_log ("throw a smokescreen and dip");Return FindState ("Grenade");}
 						
@@ -1330,8 +1371,8 @@ Class SM_Marine : KAI_Humanoid
 							BuffMul = 2;
 						
 						//Double Ang = BlockingMobj.AngleTo (Self);
-						BlockingMobj.Vel.X += (XVel * Cos (Angle) + YVel * Sin (Angle))*BuffMul;
-						BlockingMobj.Vel.Y += (XVel * Sin (Angle) - YVel * Cos (Angle))*BuffMul;
+						BlockingMobj.Vel.X += (XVel * Cos (Angle) + YVel * Sin (Angle)) * BuffMul;
+						BlockingMobj.Vel.Y += (XVel * Sin (Angle) - YVel * Cos (Angle)) * BuffMul;
 						BlockingMobj.Vel.Z += ZVel*BuffMul;
 						BlockingMobj.bBlasted = True;
 					}
@@ -1527,24 +1568,37 @@ Class SM_Marine : KAI_Humanoid
 				KAI_JumpTo (JumpPos,8);
 				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
 			}
-			MARA H 1; //Wait one tick.
-			Goto Jump.Loop;
-		Jump.Loop: //Not sure if this should really be interruptable by pain or if I should add a new marine state for jumping/falling. But I'm leaning to no.
-			MARA H 1
+			MARA H 1;
+			MARA H 0 //Decide if the marine should fire while mid-dodge, becoming more likely to do so the closer the marine is to death.
 			{
-				If (!SM_IsRestricted (RESTRICT_CLIMBING)) KAI_HandleClimbing(ClimbPos,Null,"Climb",Null,1.1,1.75);
-				If (bOnMobj || Pos.Z <= GetZAt ()) //The eagle has landed.
+				Int Chance = KAI_Math.LinearMap (Health,0,SpawnHealth(),192,96);
+				
+				//Check if we should decide to strafe shoot, if we even can.
+				If (Random (0,255) < 255 && (Target && !IsDead(Target) ||
+				LastDodged && LastDodged.Target && !IsDead(LastDodged.Target) && IsActorHostile (LastDodged.Target)) && AmmoCount > 0 && !(CurSector.Flags & Sector.SECF_NOATTACK))
 				{
-					bNoFriction = Default.bNoFriction;
-					A_Stop(); //Stop moving.
-					GiveInventory ("SM_DropoffToken",1); //HACK: Zandronum Moment
-					If (MarineState & MARINE_IDLING) //We were bing chilling, go back to that.
-						Return FindState ("Idle",True);
-					
-					Return SeeState; //Or go back to chasing I guess.
+					AttackType = FIRE_FULLAUTO;
+					KAI_JumpTo (JumpPos.PlusZ(16),8); //Jump a bit higher to fire off a few more shot mid-air.
+					SM_SetMarineState (MARINE_FIRING,0);
+					Return FindState ("Jump.Dodge.Attack",True);
 				}
+				
 				Return State (Null);
 			}
+			Goto Jump.Loop;
+		Jump.Dodge.Attack:
+			MARA HH 1 SM_JumpLoop(True);
+			TNT1 A 0
+			{
+				If (AmmoCount > 0)
+					SM_FireBullet(); //Shooting my shot.
+				Else
+					A_StartSound ("VRifle/EmptyGun",CHAN_WEAPON,attenuation:ATTN_STATIC);
+			}
+			MARA RR 1 Light ("MarineMuzzleFlash") SM_JumpLoop(True);
+			Loop;
+		Jump.Loop: //Not sure if this should really be interruptable by pain or if I should add a new marine state for jumping/falling. But I'm leaning to no.
+			MARA H 1 SM_JumpLoop();
 			Wait;
 		Jump.Up: //Used when the marine needs to jump to reach a ledge just out of reach.
 			MARA H 1
@@ -1634,11 +1688,12 @@ Class SM_Marine : KAI_Humanoid
 				ChaseTimer = 0;
 				RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
 				WorldOffset = (0,0,0);
+				DodgingHomingProjectile = False;
 				If ((MarineState & MARINE_RELOAD)) //We were reloading before retreating.
 				{
 					If (!RetreatLoops) //Go to reloading, like if the marine was hurt mid reload. But do run away a bit first.
 					{
-						RetreatLoops = Random (2,5);
+						RetreatLoops = Random (1,3);
 						Return FindState ("Retreat",True);
 					}
 					Else //If we have retreat loops, that means we were actually running before reloading.

@@ -22,13 +22,17 @@ Class SM_MarineHandler : EventHandler
 			E.Thing.Destroy();
 		
 		//If there's 2000 or less monsters (For performance) on the map. Give newly spawned monsters +DOSHADOWBLOCK.
-		//Used to make tank smokescreens affect monster aiming in general, and in the future, for marine smoke grenades.
+		//Used to make marine smoke grenades work against other NPCs.
 		If (!SM_Disable_DoShadowBlock && Level.Total_Monsters <= 2000 && E.Thing && E.Thing.bIsMonster)
 		{
 			//Ignore if the thing has the flag on already. Or is a lost soul-alike.
 			If (!E.Thing.bDoShadowBlock && !(E.Thing.bFloat && (E.Thing.bSkullFly || E.Thing.bRetargetAfterSlam)))
 				E.Thing.bDoShadowBlock = True;
 		}
+		
+		//HACK: Dumb fucking hack to mark homing vanilla Revenant rockets with a special token, thanks Carmack.
+		If (E.Thing && E.Thing.GetClassName() == "RevenantTracer")
+			E.Thing.GiveInventory ("SM_RevenantTracerToken",1);
 	}
 	
 	//Marines get pissed off when dogs die near them.

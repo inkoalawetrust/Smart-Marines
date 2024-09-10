@@ -16,7 +16,9 @@ Extend Class SM_Marine
 		//Very marine specific things
 		If (BurstCounter) BurstCounter = 0; //Reset the burst fire countdown when not firing. Like if the marine is hurt mid-burst.
 		bNoFriction = Default.bNoFriction; //Reset the friction flag to the default, in case the marine begun firing or something mid-jump.
+		bNoGravity = Default.bNoGravity; //Reset gravity too, they just shouldn't fuckin' float around.
 		HealTarget = Null;
+		DodgingHomingProjectile = False;
 		
 		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
 		
@@ -24,13 +26,13 @@ Extend Class SM_Marine
 		KAI_Chase_PreChecks(ChaseFlags);
 		KAI_Chase_FriendsAttackPlayerEnemies(ChaseFlags);
 		KAI_Chase_Retarget(ChaseFlags,True); //Friendly marines go idle with no target too.
-		KAI_Chase_HandleActiveSound(ChaseFlags); //MAYDO: Remove this ?
+		//KAI_Chase_HandleActiveSound(ChaseFlags);
 		
 		Bool MovedAlready;
 		Double MajorThreatRange = 1536*1536;//(RetreatRange*4)*(RetreatRange*4);
 		Bool CancelAttack;
 		
-		If (!(ChaseFlags & CHF_DONTMOVE)) MovedAlready = SM_RunFromHazards(); //Avoid any major hazards.
+		If (!(ChaseFlags & CHF_DONTMOVE) && !(Flags & SMC_IGNOREHAZARDS)) MovedAlready = SM_RunFromHazards(); //Avoid any major hazards.
 		
 		If (!(Flags & SMC_NOCOVERSTOP) && MarineState & MARINE_INCOVER) //Don't move when in cover.
 			ChaseFlags |= CHF_DONTMOVE;
@@ -68,7 +70,7 @@ Extend Class SM_Marine
 		If (!(ChaseFlags & CHF_DONTMOVE))
 		{
 			//Only update the nearest enemy to run from when not focused on a route.
-			If (bAvoidMelee && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //TODO: Unhardcode the retreat range probably.
+			If (bAvoidMelee && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //IDEA: Unhardcode the retreat range.
 			
 			/*Bool MeleeAnyway; //The enemy is weak and nearby, go up to them and kick their ass even without berserk.
 			//Sometimes, be less afraid to do melee if the enemy is weak enough.
@@ -199,7 +201,7 @@ Extend Class SM_Marine
 			RetreatPos = GetHazardOriginPos (HazardToAvoid);
 			RetreatLoops = Int(GetHazardDistance(HazardToAvoid) / RetreatDist);
 			
-			//Run a bit extra further for shrapnel.
+			//Run a bit further for shrapnel.
 			Bool IsGrenade, HasShrapnel;
 			ForEach (CurTag : HazardToAvoid.CustomTags)
 			{
@@ -269,7 +271,6 @@ Extend Class SM_Marine
 	//Other: The actor to check if you can hide from.
 	//Distance: How far the check traces can move forward to check for cover + how far to check on each side for said cover.
 	//PitchBounds: The maximum and minimum pitch, in that order, of the marine. If the pitch is out of those bounds, the many side checks are aborted for optimization. 0 disables each pitch check.
-	//IDEA: Also fire two traces directly on each side to check how much space marines have to their side? i.e to fire less traces if in a corridor than open space
 	Vector3 SM_LocateNearbyCover (Actor Other, Double Distance = 256, Vector2 PitchBounds = (-50, 80))
 	{
 		If (!Other || Distance <= 0 || SM_IsRestricted (RESTRICT_TAKECOVER))
@@ -618,6 +619,7 @@ Extend Class SM_Marine
 	}
 	
 	//KAI_MoveAway wrapper, handles running behind cover, as well as parkouring when retreating.
+	//NOTE: If the RetreatPos marine variable is valid, the marine will run from that instead. Not the Other actor.
 	Void SM_RunAway (Actor Other, Double RunRad = 64, Int MaxSteps = 32, Double TurnRadius = 25, Int ChaseFlags = 0, Int Flags = 0)//, Int KMAFlags = 0)
 	{
 		If (!(MarineState & MARINE_INCOVER))
@@ -854,7 +856,7 @@ Extend Class SM_Marine
 	Int DecideGrenadeType (Actor Against, Int Threshold = MARINE_GRENADECHANCE)
 	{
 		//Don't bother if the other actor doesn't exist, it's not time yet, or if the enemy flies and is over your head !
-		If (!Against || GrenadeDelay || IsFlying (Against) && Pos.Z+Height < Against.Pos.Z) Return GRENADE_NONE;
+		If (Threshold <= 0 || !Against || GrenadeDelay || IsFlying (Against) && Pos.Z+Height < Against.Pos.Z) Return GRENADE_NONE;
 		If (Distance3DSquared (Against) >= 768*768 || !SM_CheckLOF((0,0,Height),0)) //Not in throwing range. Or there is no direct LOF, yes, this doesn't account for arcing, I WILL NOT TRY.
 			{If (KAI_DebugPrintMessages)console.printf ("DecideGrenadeType(): target is too close or the LOF is bad");Return GRENADE_NONE;}
 		
@@ -1201,7 +1203,6 @@ Extend Class SM_Marine
 		STRAFE_RIGHT = 2 //Strafe right.
 	};
 	
-	//TODO: Add special dodging type for slow enough homing projectiles, that dodging type is basically trying to run away from the projectile.
 	//After a projectile to dodge is found by SM_ShouldDodgeProjectile, this function handles picking a direction, if any, to dodge out of the way towards.
 	Bool SM_HandleDodging (Actor Projectile, Bool DontJump = False)
 	{
@@ -1217,6 +1218,23 @@ Extend Class SM_Marine
 			NextFireDelay += GameTicRate/2;
 			If (MarineState & MARINE_FIRING)
 				SetStateLabel ("Fire.End");
+			Return True;
+		}
+		
+		Bool IsHoming = Projectile.bSeekerMissile;
+		//HACK: Why did Carmack fucking code the stupid rocket like this.
+		If (Projectile.GetClassName() == "RevenantTracer")
+			IsHoming = Projectile.FindInventory ("SM_RevenantTracerToken");
+		//Try to run from homing projectiles chasing you that are slower than 25 mu/tic...
+		If (IsHoming && Projectile.Tracer == Self && Projectile.Speed <= 25 &&
+		//...and as long as it does too much damage to you. TODO: Make it account for ALL damage methods, damage factors, virtual overrides, and armor items!
+		(Health <= SpawnHealth()/3 || ApplyDamageFactor(Projectile.DamageType,Projectile.GetMissileDamage (1,7)) >= Health/6))
+		{
+			If (KAI_DebugPrintMessages) console.printf ("SM_HandleDodging(): Running from %s",projectile.getclassname());
+			RetreatPos = Projectile.Pos;
+			RetreatLoops = 4;
+			DodgingHomingProjectile = True;
+			SetStateLabel ("Retreat");
 			Return True;
 		}
 		
@@ -1290,7 +1308,6 @@ Extend Class SM_Marine
 	}
 	
 	//Find and return a pointer to a projectile for the marine to dodge.
-	//MAYDO: For now I won't make it ignore grenades, but if it looks too stupid to have them dodge grenades, I'll add exceptions for them.
 	//Update: Seems like because the default dodge radius is smaller than the grenade hazard radius, they run from grenades anyway.
 	Actor SM_ShouldDodgeProjectile (Double Range = 384, Int DodgeMode = DODGE_STRONGEST, Actor Ignore = Null)
 	{
@@ -1303,8 +1320,13 @@ Extend Class SM_Marine
 			
 			Bool DodgeAllyProjectiles; //If on, the marine will dodge the projectile even if it's fired by an ally.
 			
+			Bool IsHoming = Proj.bSeekerMissile;
+			//HACK: Why did Carmack fucking code the stupid rocket like this.
+			If (Proj.GetClassName() == "RevenantTracer")
+				IsHoming = Proj.FindInventory ("SM_RevenantTracerToken");
+
 			Double Dist = Distance3DSquared (Proj);
-			If (Dist > Range*Range || Proj == Ignore) //Out of range or put on ignore.
+			If ((Dist > Range*Range || IsHoming && Proj.Tracer == Self && Dist > (Range*Range)*2 ) || Proj == Ignore) //Out of range or put on ignore. But if it's a seeker, check at double the range to potentially run away.
 				Continue;
 			
 			//Dodge even friendly projectiles if they'd do too much damage, unless friendly fire is off.
@@ -1318,7 +1340,9 @@ Extend Class SM_Marine
 				Continue;
 			
 			//Is the projectile about to hit me ? Weird math nonsense written by RaveYard.
-			bool projectile_is_flying_towards_me = (Vec3To(proj).Unit() dot proj.vel.Unit()) < -0.15;
+			double blackBox = -0.15;
+			If (IsHoming && Proj.Tracer == Self) blackBox = -0.075;
+			bool projectile_is_flying_towards_me = (Vec3To(proj).Unit() dot proj.vel.Unit()) < blackBox;
 			double projectileSafeRadius = sqrt(2 * ((proj.radius + radius) ** 2.5));
 			if(projectile_is_flying_towards_me && KAI_Math.distance3dline(pos, proj.pos, proj.pos + proj.vel) < projectileSafeRadius && CheckSight(Proj,SF_IGNOREWATERBOUNDARY))
 			{
@@ -1367,12 +1391,43 @@ Extend Class SM_Marine
 		Return Null;
 	}
 	
+	//Runs the code that checks if the marine has landed on the ground again while mid-air.
+	State SM_JumpLoop (Bool DodgeAttack = False)
+	{
+		If (DodgeAttack) //Aim towards a target to shoot at while dodging, only useful for Jump.Dodge.Attack:, really.
+		{
+			Actor Targ = Target;
+			
+			If (LastDodged && LastDodged.Target && AbsAngle(Angle,AngleTo(LastDodged.Target)) <= 25 && IsActorHostile(LastDodged.Target) && CanBeTargeted (Self, LastDodged.Target))
+				Target = LastDodged.Target;
+			
+			AimAtTarget (8,8,attackspeed:170,200);
+			
+			Target = Targ;
+		}
+		
+		If (!SM_IsRestricted (RESTRICT_CLIMBING)) KAI_HandleClimbing(ClimbPos,Null,"Climb",Null,1.1,1.75);
+		If (bOnMobj || Pos.Z <= GetZAt ()) //The eagle has landed.
+		{
+			bNoFriction = Default.bNoFriction;
+			A_Stop(); //Stop moving.
+			GiveInventory ("SM_DropoffToken",1); //HACK: Zandronum Moment
+			If (DodgeAttack) //We were firing while we were dodging, so specify that we're no longer MARINE_FIRING.
+				SM_SetMarineState (0,MARINE_FIRING);
+			If (MarineState & MARINE_IDLING) //We were bing chilling, go back to that.
+				Return FindState ("Idle",True);
+			
+			Return SeeState; //Or go back to chasing I guess.
+		}
+		
+		Return State (Null);
+	}
+	
 	//Identical to KAI's IsPosReachable, but also accounts for the marines' ability to climb, if available.
 	Bool SM_IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
 	{
-		//TODO: When I most likely make the climbing able to be turned off, account for that here.
 		Double RealStepHeight = MaxStepHeight;
-		MaxStepHeight = (Height*1.75); //Maximum height the marine can reach, by jumping and ledge grabbing.
+		If (!SM_IsRestricted(RESTRICT_CLIMBING)) MaxStepHeight = (Height*1.75); //Maximum height the marine can reach, by jumping and ledge grabbing.
 		Bool Res = IsPosReachable (TargetPos, DistCutoff, Spacing, IgnoreActors);
 		MaxStepHeight = RealStepHeight;
 		Return Res;
@@ -1445,7 +1500,7 @@ Extend Class SM_Marine
 	//Update height based on marine state, used when the marine is firing while kneeling or lying down, and in the future when crouching.
 	Void SM_UpdateHeight ()
 	{
-		If (Crouching) Return; //Crouching doesn't need updating from here, that's SM_HandlingCrouching()'s and SM_UpdateCover()'s job.
+		If (Crouching) Return; //Crouching doesn't need updating from here, that's KAI_HandleCrouching()'s and SM_UpdateCover()'s job.
 		
 		If (MarineState & MARINE_LYINGDOWN)
 			A_SetSize (newheight:8);
@@ -1482,6 +1537,8 @@ Extend Class SM_Marine
 		
 		Actor Bullet = A_SpawnProjectile ("SM_Bullet",FireHeight,-6,flags:CMF_AIMDIRECTION,Pitch);
 		Double AccuracyBuff = SM_IsCrouched() ? 0.5 : 1.0; //Double the accuracy if the marine is sitting down and firing.
+		If (IsInState(Self,"Jump.Dodge.Attack")) AccuracyBuff *= 1.5; //Accuracy debuff for when firing in mid-dodge.
+		
 		Switch (AttackType)
 		{
 			Case FIRE_BURST:

@@ -1224,28 +1224,44 @@ Class SM_VehicleDropToken : Inventory
 	}
 }
 
-//Used by external mods (Mainly the MVP) to set the marines' current order without creating a hard dependency to the marines.
-//This will call SetMarineOrder() to whatever marine it is given to.
-//Health: The value of the order to pass to the marine.
-//+MissileMore: Ignore the specific order (Health) to go to, and simply increment the marines' current order to the next one.
-//Master: The master pointer of the token is used to specify what actor is commanding the marine.
-//+NoTarget: Accept orders from the commander/master even if they are hostile to the marine.
-/*Class SM_SetMarineOrder : Inventory
+/*HACK: There is absolutely no fucking way to distinguish a homing and non-homing RevenantTracer.
+Lewisk3 tried using math to determine if the tracer in question spawned on a tick divisible by 3 (Where it can home), it didn't work. So have this stupid item.*/
+Class SM_RevenantTracerToken : Inventory
 {
-	Default
-	{
-		Health SM_Marine.ORDER_WANDER;
-		
-	}
+	Double SpawnAng, SpawnPit;
+	Bool Checked;
+	Int Timer;
 	Override Void AttachToOwner (Actor Other)
 	{
 		Super.AttachToOwner(Other);
+		If (Other.GetClassName() != "RevenantTracer")
+			GoAwayAndDie();
 		
-		If (Other && Other Is "SM_Marine")
-			SM_Marine(Other).SetMarineOrder (Health,bMissileMore,Master,bNoTarget);
-		GoAwayAndDie();
+		SpawnAng = Other.Angle;
+		SpawnPit = Other.Pitch;
 	}
-}*/
+	
+	Override Void DoEffect()
+	{
+		Super.DoEffect();
+		
+		If (IsFrozen())
+			Return;
+		
+		Timer++;
+		
+		If (Checked && Timer >= 6)
+			Return;
+		Else If (!Checked && Timer >= 6)
+		{
+			GoAwayAndDie();
+			Return;
+		}
+		
+		Checked = (SpawnAng != Owner.Angle);
+	}
+}
+
 
 //=======================================================\\
 
