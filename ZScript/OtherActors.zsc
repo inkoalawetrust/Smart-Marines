@@ -390,6 +390,17 @@ Class SM_BulletCasing : Actor
 	}
 }
 
+Class SM_50CalCasing : SM_BulletCasing
+{
+	Default
+	{
+		Radius 6;
+		Height 10;
+		XScale 0.15;
+		YScale 0.125; //0.15 / 1.2
+	}
+}
+
 //Ripped from the old code since it works.
 Class SM_BulletSplash : Actor
 {

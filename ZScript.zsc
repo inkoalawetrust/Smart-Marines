@@ -6,6 +6,7 @@ Version "4.12"
 //Miscellaneous
 	#Include "ZScript/MarineFunctions.zsc" //Functions shared by all marine types.
 	#Include "ZScript/OtherActors.zsc" //Misc actors used by the marines.
+	#Include "ZScript/Emplacements.zsc" //Emplacements that can be used by players and marines.
 	#Include "VanillaRifle.zsc" //The rifle the marine may drop when killed.
 
 Class SM_MarineHandler : EventHandler

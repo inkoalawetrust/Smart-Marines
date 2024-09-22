@@ -1,4 +1,4 @@
-Decal SmartMarineMGChip1
+Decal SM_MGChip1
 {
 	Pic CHIP1
 	Translucent 0.85
@@ -9,7 +9,7 @@ Decal SmartMarineMGChip1
 	RandomFlipY
 }
 
-Decal SmartMarineMGChip2
+Decal SM_MGChip2
 {
 	Pic CHIP2
 	Translucent 0.85
@@ -20,7 +20,7 @@ Decal SmartMarineMGChip2
 	RandomFlipY
 }
 
-Decal SmartMarineMGChip3
+Decal SM_MGChip3
 {
 	Pic CHIP3
 	Translucent 0.85
@@ -31,7 +31,7 @@ Decal SmartMarineMGChip3
 	RandomFlipY
 }
 
-Decal SmartMarineMGChip4
+Decal SM_MGChip4
 {
 	Pic CHIP4
 	Translucent 0.85
@@ -42,7 +42,7 @@ Decal SmartMarineMGChip4
 	RandomFlipY
 }
 
-Decal SmartMarineMGChip5
+Decal SM_MGChip5
 {
 	Pic CHIP5
 	Translucent 0.85
@@ -53,11 +53,11 @@ Decal SmartMarineMGChip5
 	RandomFlipY
 }
 
-DecalGroup SmartMarineMGChip
+DecalGroup SM_MGChip
 {
-	SmartMarineMGChip1	1
-	SmartMarineMGChip2	1
-	SmartMarineMGChip3	1
-	SmartMarineMGChip4	1
-	SmartMarineMGChip5	1
+	SM_MGChip1	1
+	SM_MGChip2	1
+	SM_MGChip3	1
+	SM_MGChip4	1
+	SM_MGChip5	1
 }

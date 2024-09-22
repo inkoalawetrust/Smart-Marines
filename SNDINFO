@@ -17,9 +17,6 @@ Marine/Melee "Sounds/RifleHit.ogg"
 Marine/PowerMelee "Sounds/RifleHitHard.ogg"
 Marine/MeleeMiss "Sounds/RifleSwoosh.ogg"
 Marine/WhatDaDogDoin "Sounds/Dog.ogg"
-//Marine/Missile/Launch "Sounds/MissileShot.ogg"
-//Marine/Missile/Travel "Sounds/MissileMove.ogg"
-//Marine/Missile/Explode "Sounds/MissileBoom.ogg"
 
 $Random Marine/Death
 {
@@ -75,6 +72,7 @@ $Random VRifle/WaterHit
 Turret/Fire "Sounds/TurretFire.ogg"
 Turret/Ready "Sounds/TurretReady.ogg"
 Turret/Impact "Sounds/MGImpact.ogg"
+Turret/Zoom "Sounds/TurretFocus.ogg"
 
 //Grenade sounds
 Grenade/Bounce "Sounds/GrenadeBounce.ogg"
@@ -118,10 +116,6 @@ yelp3
 yelp4
 yelp5
 }
-
-$Limit Marine/Missile/Launch 0
-$Limit Marine/Missile/Travel 0
-$Limit Marine/Missile/Explode 0
 
 $Limit VRifle/EmptyGun 0
 $Limit VRifle/Zoomed 0

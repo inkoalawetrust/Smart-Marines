@@ -243,7 +243,7 @@ Class SM_Marine : KAI_Humanoid
 		If (SMOldTarget != Target)
 		{
 			SMOldTarget = Target;
-			SM_AlertNearbyAllies(User_AlertRange);
+			SM_AlertNearbyAllies (User_AlertRange); //Alert friends of each new target.
 		}
 		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
 		Int Threat = AssessThreatLevel (Target,False);
@@ -525,7 +525,6 @@ Class SM_Marine : KAI_Humanoid
 			{
 				If (!bFriendly || bFriendly && bDontFollowPlayers)
 				{//If (KAI_DebugPrintMessages)console.printf ("following %s instead of friendplayer",FollowTarget.getclassname());
-					//URGENT: This is probably a temp fix until I add the order system as a KAI component. So that vehicle spawned marines stop following them when they die.
 					If (IsDead (FollowTarget))
 					{If (KAI_DebugPrintMessages)CONSOLE.PRINTF ("my FollowTarget (%s) died, going back to wandering if hostile or following the player if friendly",FollowTarget.getclassname());
 						FollowTarget = Null;
