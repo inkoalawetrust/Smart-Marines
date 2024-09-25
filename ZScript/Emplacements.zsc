@@ -1,11 +1,497 @@
-//TODO:
-//Add a User_Ammo variable to the MG turret, which controls how much ammo the turret has when the player uses it, before it runs out.
-
-//IDEA:
-//Make the MG turret player morph take away the SM_50CalAmmo item entirely from the players' inventory when they get off?
-
 //MAYDO:
-//Maybe add a feature that limits the ammount of ammo a turret has to like 200-400 rounds for balancing purposes?
+/*Marines on turrets should be able to use the zoom-in feature to increase their accuracy, also at the expense of turning speed.
+While any other NPC entering the turret to use it shouldn't "know" how to do that.*/
+//TODO: Add a generic NPC morph for whichever other KAI_Humanoid is using the turret.
+
+Class SM_MGTurret : KAI_Emplacement
+{
+	Default
+	{
+		//$Title Machine Gun Turret
+		//$Category Weapons
+		Tag "Machine Gun Turret";
+		KAI_Emplacement.NPCFallback "SM_MGTurretNPC"; //Not implemented yet.
+		KAI_Emplacement.PlayerMorph "SM_MGTurretPlayer";
+		KAI_Emplacement.EnterSound "Turret/Ready";
+	}
+	
+	Int User_Ammo; //Not implement yet, and I may decide against it. But if this is above zero, players will have a limited amount of ammo using the machine gun.
+	Int User_WaitTime; //How long an NPC on this emplacement will wait before getting off, in tics. -1 means they stay on forever.
+	Bool User_TakeNPC; //Find the first KAI_Humanoid in radius and have them enter the turret.
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		AddNPCMorph ("SM_Marine","SM_MGTurretMarine");
+		
+		If (User_Ammo == 0) User_Ammo = -1; //0 ammo spawned with means infinite ammo.
+		If (User_WaitTime == 0) User_WaitTime = 20*GameTicRate;
+		If (User_TakeNPC) AbsorbNPC(); //Om nom nom
+	}
+	
+	Override Bool EnterEmplacement (Actor User)
+	{
+		Bool Result = Super.EnterEmplacement (User);
+		
+		//Operator is a marine or player with the default doomguy sprites, so copy their palette translation.
+		If (Operator && OperatorMorph && (Operator Is "SM_Marine" || OperatorMorph.Player && OperatorMorph.Player.GetSkin() == 0))
+			OperatorMorph.Translation = Operator.Translation;
+		
+		Return Result;
+	}
+	
+	Override Void ExitEmplacement()
+	{
+		//Set User_Ammo to the ammo amount the player had on that turret before exiting.
+		If (User_Ammo != -1 && OperatorMorph.Player && OperatorMorph.Player.ReadyWeapon && !OperatorMorph.Player.ReadyWeapon.bAmmo_Optional)
+		{
+			Weapon Gun = OperatorMorph.Player.ReadyWeapon;
+			User_Ammo = Gun.Ammo1.Amount;
+			Gun.bAmmo_Optional = Gun.Default.bAmmo_Optional;
+			OperatorMorph.RemoveInventory (OperatorMorph.Player.ReadyWeapon.Ammo1);
+			If (KAI_DebugPrintMessages) Console.Printf ("SM_MGTurret Ammo Mode: Set User_Ammo to %d after %s exited.",User_Ammo,Operator.GetClassName());
+		}
+		Super.ExitEmplacement();
+	}
+	
+	Void AbsorbNPC()
+	{
+		Let Humanoids = BlockThingsIterator.Create (Self);
+		
+		Actor Mobj;
+		While (Humanoids.Next())
+		{
+			Mobj = Humanoids.Thing;
+			
+			//Trivial checks.
+			If (!Mobj || Mobj.bDormant || Mobj.Player || !(Mobj Is "KAI_Humanoid") || IsDead(Mobj) || IsInanimateObject(Mobj))
+				Continue;
+			
+			If (CheckHitboxIntersection(Self,Mobj))
+			{
+				//Note: Kinda hacky but whatever, it's literally for the primary NPC actor the turret is for.
+				If (Mobj Is "SM_Marine") SM_Marine(Mobj).UserVariableDefaults();
+				EnterEmplacement (Mobj);
+				Console.printf ("Trying to make %s (%p) enter %p",mobj.getclassname(),mobj,self);
+				Return;
+			}
+		}
+		Return;
+	}
+	
+	States
+	{
+		Spawn:
+			MTUR A -1;
+			Stop;
+	}
+}
+
+//Marine on turret.
+Class SM_MGTurretMarine : KAI_EmplacementNPC
+{
+	Default
+	{
+		Height 56;
+		CameraHeight 50;
+		Radius 20;
+		YScale 0.98;
+		Mass 200;
+		//PainChance 96;
+		//PainThreshold 5;
+		FriendlySeeBlocks 64;
+		MaxDropOffHeight 64;
+		MaxTargetRange 8192;
+		MinMissileChance 100;
+		ShadowAimFactor 0.7; //Marines can somewhat see through shadows.
+		Tag "Machine Gun Turret (Marine)";
+		Species "Military";
+		Decal "BulletChip";
+		Obituary "%o was blown up by a 12.7mm bullet.";
+		KAI_Actor.ThreatLevel THREAT_DANGEROUS;
+		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS;
+		KAI_Actor.Inaccuracy (10,10,10);
+		KAI_Actor.InaccuracyFrequency 0.5;
+		Monster;
+		+MissileMore;
+		+MissileEvenMore;
+		+NoInfightSpecies;
+		+FloorClip;
+		+SeeFriendlyMonsters; //No more ZScript code hacks.
+	}
+	
+	Mixin SharedTurretMorphLogic;
+	Double BaseTurnAngle;
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		AttackStates.Push (MissileState);
+		BaseTurnAngle = Angle;
+	}
+	
+	//Get what part of the actor the marine is aiming at now.
+	Double GetAimPosOffset ()
+	{
+		Switch (AimPos)
+		{
+			Case FAF_MIDDLE:
+				Return Target.Height/2;
+			Case FAF_TOP:
+				Return Target.Height;
+			Case FAF_BOTTOM:
+				Return 0; //The bottom is the origin of actors.
+			Default:
+				Return 0;
+		}
+	}
+	
+	Override Bool ShouldAttack (Bool NoStateJump)
+	{
+		If (Target)
+		{
+			RunZoomLogic();
+			If (!NoStateJump) SetStateLabel("Missile");
+			Return True;
+		}
+		
+		Return False;
+	}
+	
+	Override Bool Used (Actor User)
+	{
+		Super.Used(User);
+		
+		//Player told you to GTFO.
+		If (User && User.Player && Emplacement && !IsActorHostile(User))
+		{
+			A_StartSound ("Marine/Radio",CHAN_AUTO);
+			Emplacement.ExitEmplacement();
+			Actor Text = Spawn ("SM_OrderText",Pos.PlusZ(Height));
+			If (Text) Text.SetStateLabel("LeavingEmplacement");
+			Return True;
+		}
+		Return False;
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (IsFrozen())
+			Return;
+		
+		If (IsInAttackState ())
+		{
+			Double BooletSpeed = GetDefaultByType(SM_MGMorphWeapon.Get50CalRound()).Speed;
+			Double BooletFastSpeed = GetDefaultByType(SM_MGMorphWeapon.Get50CalRound()).FastSpeed;
+			Double TurnSpeed = LockedIn ? 4 : 8;
+			AimAtTarget(TurnSpeed,TurnSpeed,flags:AimPos, attackspeed:BooletSpeed,BooletFastSpeed);
+			TurretIdleTime = 0; //NOT bing chilling
+		}
+		Else
+		{
+			TurretIdleTime++; //🥶🍨
+			If (Emplacement)
+			{
+				Int WaitTime;
+				If (Emplacement Is "SM_MGTurret") WaitTime = SM_MGTurret(Emplacement).User_WaitTime;
+				If (TurretIdleTime >= WaitTime)
+					Emplacement.ExitEmplacement(); //Get out of the turret. Since there's nothing to do here.
+			}
+		}
+	}
+	
+	//Check if the turret should be zooming in to fire or nah.
+	Int LockInCheck ()
+	{
+		Double HorzSpread = LockedIn ? 0.5 : 1;
+		Double VertSpread = LockedIn ? 0.65 : 1.3;
+		//If we're shooting at a particularly powerful enemy, focus on them. So other enemies that get hit don't matter.
+		Int DHCFlags = (AssessThreatLevel(Target) >= ThreatLevelThreshold) ? DHC_HOSTILES|DHC_THRUHOSTILES : 0;
+		//Lock the fuck in if most of your shots would miss against your target or any other potential enemies.
+		Return DetermineHitChance(Target,!SM_DumbHitCheck,Double.NaN,HorzSpread,50,(0,0,32),(HorzSpread,-HorzSpread,VertSpread,-VertSpread),MaxTargetRange,GetAimPosOffset(),DHCFlags);
+	}
+	
+	Void RunZoomLogic()
+	{
+		If (LockInCheck() <= 15)
+		{
+			PrevLockedIn = LockedIn;
+			LockedIn = True;
+			If (LockedIn != PrevLockedIn) //Lock in change
+				A_StartSound ("Turret/Zoom",flags:CHANF_OVERLAP);
+		}
+		Else
+		{
+			PrevLockedIn = LockedIn;
+			LockedIn = False;
+			If (LockedIn != PrevLockedIn) //Lock in change
+				A_StartSound ("Turret/Zoom",flags:CHANF_OVERLAP);
+		}
+	}
+	
+	State SM_TurretRefire (Int Chance, StateLabel AbortState, Double FOV = 150)
+	{
+		If (CurSector.Flags & Sector.SECF_NOATTACK)
+			Return FindState (AbortState);
+		
+		AimPos = GetFAFAimPos (Target);
+			
+		If (Random2[pr_monsterrefire]() < Chance)
+			Return State (Null);
+		
+		If (!Target || IsDead (Target) || (Target && !CheckFOV (Target,FOV)))
+			Return FindState (AbortState);
+		
+		If (!CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
+			Return FindState (AbortState);
+		
+		Return State (Null);
+	}
+	
+	Bool SM_TurretLOF (Actor Other = Null, Int PropHealthThreshold = 400, Vector3 CheckOffsets = (0,0,32))
+	{
+		Let Check = New ("KAI_ProjectileLOFCheck");
+		
+		AimPos = GetFAFAimPos (Target);
+		
+		//If not aiming ahead of the target
+		//If (Flags & TLOF_OnlyAhead && !AimingAheadOfTarget())
+		//	Return False;
+		
+		Vector3 Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
+		
+		Double Distance = Other ? Distance3D (Other)+32 : MaxTargetRange;
+		Check.Shooter = Self;
+		Check.Other = Other;
+		Check.PropHealthThreshold = PropHealthThreshold;
+		Check.FriendlyFire = True;
+		
+		Check.ProjInfo = New ('LOFProjInfo'); //Assign data class.
+		Check.ProjInfo.Projectile = SM_MGMorphWeapon.Get50CalRound(); //Pass projectile class to class.
+		Check.ProjInfo.InitializeProjectileInfo(); //Let it infer the rest.
+		
+		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
+		
+		//KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance);
+		
+		If (Check.BadLOF)
+		{
+			If (Check.ProjInfo) Check.ProjInfo.Destroy();
+			Check.Destroy();
+			Return False;
+		}
+		
+		If (Check.ProjInfo) Check.ProjInfo.Destroy();
+		Check.Destroy();
+		Return True;
+	}
+	
+	Bool LockedIn; //The marine is zoomed in for better aim, at the expense of turning speed.
+	Bool PrevLockedIn; //Had we locked in last time? If the values don't match, the zoom sound will play.
+	UInt FireRecheckZoom; //Track how many sets of shots have been fired before checking again if you should zoom in.
+	Int TurretIdleTime; //Keep track of how long the marine has been on doing nothing, resets every time something happens.
+	Int AimPos; //The FAF aim pos, basically just the FAF_ flags lol.
+	
+	States
+	{
+		Spawn:
+			MTUR B 2
+			{
+				KAI_Look (0,0,MaxTargetRange,4096,120,extraflags:KAIL_CHASETARGET);
+				If (Random (0, 255) < 2) //Randomly turn around, looking for enemies and shit.
+					Angle = BaseTurnAngle + RandomPick (-60,-50,-40,-30,-20,-10,10,20,30,40,50);
+			}
+			Loop;
+		See:
+			MTUR B 2
+			{
+				LookExParams Looking;
+				Looking.FOV = 120;
+				Looking.MaxDist = MaxTargetRange;
+				If (LookForPlayers(False,Looking))
+				{
+					ShouldAttack(); //Check if we should attack, handles jumping to another state too.
+				}
+				
+				If (Random (0, 255) < 2) //Randomly turn around, looking for enemies and shit.
+					Angle = BaseTurnAngle + RandomPick (-60,-50,-40,-30,-20,-10,10,20,30,40,50);
+				
+				Return State (Null);
+			}
+			Loop;
+		Missile:
+			MTUR C 3 //Left bullet
+			{
+				Double AimMul = LockedIn ? 0.5 : 1;
+				Actor Bullet = A_SpawnProjectile (SM_MGMorphWeapon.Get50CalRound(),32,-8,flags:CMF_AIMDIRECTION,Pitch);
+				AddProjectileSpread (Bullet,(1,-1)*AimMul,(1.3,-1.3)*AimMul);
+				SM_MGMorphWeapon.SM_MGSpawnCasing (Self,False,32,caseyofs:-8);
+				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP,attenuation:0.5);
+				If (LockedIn) A_QuakeEx (0.2,0.2,0.2,4,0,32,"",rollintensity:0.25);
+				Else A_QuakeEx (0.1,0.1,0.1,4,0,32,"",rollintensity:0.25/2);
+			}
+			MTUR D 3 //Right bullet
+			{
+				Double AimMul = LockedIn ? 0.5 : 1;
+				Actor Bullet = A_SpawnProjectile (SM_MGMorphWeapon.Get50CalRound(),32,8,flags:CMF_AIMDIRECTION,Pitch);
+				AddProjectileSpread (Bullet,(1,-1)*AimMul,(1.3,-1.3)*AimMul);
+				SM_MGMorphWeapon.SM_MGSpawnCasing (Self,True,32,caseyofs:8);
+				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP,attenuation:0.5);
+				If (LockedIn) A_QuakeEx (0.2,0.2,0.2,4,0,32,"",rollintensity:0.25);
+				Else A_QuakeEx (0.1,0.1,0.1,4,0,32,"",rollintensity:0.25/2);
+			}
+			TNT1 A 0
+			{
+				//Try finding a new target.
+				If (!Target || IsDead(Target))
+				{
+					LookExParams Looking;
+					Looking.FOV = 120;
+					Looking.MaxDist = MaxTargetRange;
+					LookForPlayers(False,Looking);
+					console.printf ("changing targets for the turret");
+					ShouldAttack(True); //Just run locking in stuff.
+				}
+				FireRecheckZoom++;
+				
+				If (FireRecheckZoom >= 6)
+				{
+					RunZoomLogic();
+					FireRecheckZoom = 0;
+				}
+				
+				If (!SM_TurretLOF (Target))
+					Return FindState ("GoToSee");
+				
+				Return SM_TurretRefire (32,"GoToSee");
+			}
+			Loop;
+		GoToSee: //Set a base angle that we randomly turn around from after every enemy. Also reset the fire recheck counter.
+			TNT1 A 0
+			{
+				BaseTurnAngle = Angle;
+				FireRecheckZoom = 0;
+			}
+			Goto See;
+	}
+}
+
+//Whichever other arbitrary KAI_Humanoid decides to use the turret.
+Class SM_MGTurretNPC : KAI_EmplacementNPC
+{
+	Mixin SharedTurretMorphLogic;
+}
+
+Class SM_MGTurretPlayer : KAI_EmplacementPlayer
+{
+	Default
+	{
+		Tag "Machine Gun Turret (Player)";
+		Player.MorphWeapon "SM_MGMorphWeapon";
+	}
+	
+	Bool RunAmmoMode; //HACK: Because the Emplacement pointer can't be set at the time ActivateMorphWeapon is first called! Epic :D
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		If (Player)
+		{
+			SetTag (String.Format("Machine Gun Turret (%s)",Player.GetUsername())); //"Machine Gun Turret (Player name)"
+			Int Skinwalker = Player.GetSkin(); //It reeks of sulphur.
+			If (Skinwalker != 0)
+			{
+				DoFakeOperator = True;
+				If (Emplacement) Emplacement.CreateFakeOperator ((-32,0,0));
+			}
+		}
+		
+		RunAmmoMode = True;
+		ActivateMorphWeapon(); //HACK: Do it AGAIN.
+	}
+	
+	//Set up ammo mode bullshit for machine gun.
+	Override Void ActivateMorphWeapon()
+	{
+		If (!RunAmmoMode)
+		{
+			Super.ActivateMorphWeapon();
+			Return;
+		}
+		
+		Int AmmoVar;
+		If (Emplacement && Emplacement Is "SM_MGTurret")
+			AmmoVar = SM_MGTurret(Emplacement).User_Ammo;
+		If (AmmoVar >= 0)
+		{
+			Weapon Gun = Player.ReadyWeapon;
+			If (Gun)
+			{
+				If (KAI_DebugPrintMessages) Console.Printf ("SM_MGTurret Ammo Mode: Setting up limited ammo mode.");
+				Gun.bAmmo_Optional = False;
+				//Gun.GiveAmmo (Gun.AmmoType1,AmmoVar);
+				Gun.Ammo1.Amount = AmmoVar;
+				//The default is 800 rounds as of typing this, but if the turrets' User_Ammo is over that, adjust the ammo given to match.
+				If (GetAmmoCapacity(Gun.AmmoType1) < AmmoVar)
+				{
+					Gun.SetAmmoCapacity (Gun.AmmoType1,AmmoVar);
+					Gun.Ammo1.Amount = AmmoVar;
+					If (KAI_DebugPrintMessages) Console.Printf ("SM_MGTurret Ammo Mode: The ammo exceeds the ammo type default, adjusted ammo max amount to %d, current ammo %d",gun.getammocapacity(gun.ammotype1),gun.ammo1.amount);
+				}
+			}
+		}
+	}
+
+	
+	Bool DoFakeOperator; //Player has an unsupported skin, use a fake operator wearing that skin instead.
+	Mixin SharedTurretMorphLogic;
+	
+	States
+	{
+		Spawn:
+		See:
+			MTUR B 1 {If (DoFakeOperator) Frame = 0; /*A*/}
+			Loop;
+		//TODO: I made edits of TG5's turret firing without the marine, but he needs to be the one doing the back rotation sprites, because I can't, not an artist.
+		Missile:
+			MTUR CD 3
+			{
+				If (DoFakeOperator) ///oOoOOOOoOOoOO ghost gun
+				{
+					If (Frame == 2) //C
+						Frame = 4; //E
+					Else If (Frame == 3) //D
+						Frame = 5; //F
+				}
+			}
+			Goto Spawn;
+	}
+}
+
+Mixin Class SharedTurretMorphLogic
+{
+	Override Int TakeSpecialDamage (Actor Inflictor, Actor Source, Int Damage, Name DamageType)
+	{
+		Int Dmg = Super.TakeSpecialDamage (Inflictor, Source, Damage, DamageType);
+		
+		If (AbsAngle (Angle,AngleTo(Inflictor)) <= 45)
+		{
+			bNoBlood = True;
+			Dmg /= 0.8;
+			If (Emplacement) Emplacement.A_StartSound ("Turret/Hit",volume:KAI_Math.LinearMap(Dmg,1,40,0.1,1.0));
+		}
+		Else
+			bNoBlood = Default.bNoBlood;
+		
+		Return Dmg;
+	}
+}
+
 Class SM_MGMorphWeapon : Weapon
 {
 	Default
@@ -33,24 +519,39 @@ Class SM_MGMorphWeapon : Weapon
 		"Cheaters never prosper.",
 		"You wouldn't download a machine gun.",
 		"https://youtu.be/rGBEoFwlbwg",
-		"doom smart marines machine gun console command free download 100% legit no malware"
+		"doom smart marines machine gun console command free download 100% legit no virus",
+		"\cj]take sm_mgmorphweapon"
 	};
 	
-	Bool Legit; //If this wasn't on when the weapon was attached to the player, then a random cheat message is given.
 	Bool LockedIn; //Zoomed in
 	
 	Override Void AttachToOwner (Actor Other)
 	{
-		If (!Legit) Console.Printf ("%s",CheatMessages[Random(0,3)]);
-		Super.AttachToOwner (Other);
+		Super.AttachToOwner(Other);
+		If (!(Other Is "SM_MGTurretPlayer")) Console.Printf ("%s",CheatMessages[Random(0,CheatMessages.Size()-1)]); //Only supposed to be given when manning an emplacement.
 	}
 	
-	Action Class <Actor> Get50CalRound()
+	Static Class <Actor> Get50CalRound()
 	{
 		String I_NEED_MORE_BULLET = "MVP_50CalBullet";
 		If (KAI_BaseProjectile.CheckActorExists('MVP_50CalBullet'))
 			Return I_NEED_MORE_BULLET;
 		Return "SM_50CalBullet";
+	}
+	
+	Static Void SM_MGSpawnCasing (Actor Caller, Bool RightCasing, Double CaseHeight = 32, Double CaseXOfs = 10, Double CaseYOfs = 0)
+	{
+		If (!Caller)
+			Return;
+		If (Caller.Player)
+			CaseHeight *= Caller.Player.CrouchFactor;
+		Bool Trash; Actor Casing;
+		If (!RightCasing)
+			[Trash,Casing] = Caller.A_SpawnItemEx ("SM_50CalCasing",CaseXOfs,CaseYOfs,CaseHeight,FRandom (0,-2.5),FRandom (-4,-8),FRandom(3,7));
+		Else
+			[Trash,Casing] = Caller.A_SpawnItemEx ("SM_50CalCasing",CaseXOfs,CaseYOfs,CaseHeight,FRandom (0,2.5),FRandom (4,8),FRandom(3,7));
+		If (Casing)
+			Casing.Vel += Caller.Vel;
 	}
 	
 	Action Void ShouldZoomOverlay (Int Layer)
@@ -73,7 +574,13 @@ Class SM_MGMorphWeapon : Weapon
 	{
 		
 		Ready:
-			MTUR H 1 A_WeaponReady();
+			MTUR H 1
+			{
+				If (Player && Player.Cmd.Buttons & BT_ATTACK && !Invoker.bAmmo_Optional && (!Invoker.Ammo1 || Invoker.Ammo1 && Invoker.Ammo1.Amount <= 0))
+					Return ResolveState ("NoAmmo");
+				A_WeaponReady();
+				Return State (Null);
+			}
 			Loop;
 		
 		Select:
@@ -89,12 +596,13 @@ Class SM_MGMorphWeapon : Weapon
 			{
 				A_Overlay (PSP_GUNGLOW,"FireGlow");
 				A_OverlayFlags (PSP_GUNGLOW,PSPF_INTERPOLATE,False);
-				//A_OverlayOffset (PSP_GUNGLOW,1,flags:WOF_ADD);
 				ShouldZoomOverlay(PSP_GUNGLOW);
+				//If (Invoker.LockedIn) A_OverlayOffset (PSP_GUNGLOW,32,flags:WOF_ADD);
 				
 				//HACK: I give up trying to make the muzzle flash work when zoomed in, all for something that just makes the zoom mode useless. No thanks.
 				If (!Invoker.LockedIn) A_Overlay (PSP_MUZZLE,"MuzzleFlash");
 				A_Overlay (PSP_GLOW,"LightGlow");
+				If (Invoker.LockedIn)A_OverlayOffset (PSP_GLOW,72,flags:WOF_ADD);
 				ShouldZoomOverlay(PSP_GLOW);
 				
 				A_OverlayFlags (PSP_GLOW,PSPF_RENDERSTYLE|PSPF_PIVOTPERCENT,True);
@@ -106,36 +614,24 @@ Class SM_MGMorphWeapon : Weapon
 				Else A_QuakeEx (0.1,0.1,0.1,4,0,32,"",rollintensity:0.25/2);
 				
 				A_AttachLightDef ('MGFlash','SM_50CalFiringLight');
-				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
+				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP,attenuation:0.5);
 				Double AimMul = Invoker.LockedIn ? 0.5 : 1;
 				A_FireProjectile (Invoker.Get50CalRound(),FRandom (1.0,-1.0)*AimMul,spawnofs_xy:-4,pitch:FRandom(1.3,-1.3)*AimMul);
-				Double CaseZ = 32;
-				If (Player)
-					CaseZ *= Player.CrouchFactor;
-				Bool Trash; Actor Casing;
-				[Trash,Casing] = A_SpawnItemEx ("SM_50CalCasing",10,-6,CaseZ,FRandom (0,-2.5),FRandom (-4,-8),FRandom(3,7));
-				If (Casing)
-					Casing.Vel += Vel;
+				SM_MGSpawnCasing (Invoker.Owner,False,32,caseyofs:-6);
 			}
 			MTUR G 3
 			{
 				A_WeaponOffset(0, 2, WOF_ADD|WOF_INTERPOLATE);
-				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP);
+				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP,attenuation:0.5);
 				Double AimMul = Invoker.LockedIn ? 0.5 : 1;
 				A_FireProjectile (Invoker.Get50CalRound(),FRandom (1.0,-1.0)*AimMul,spawnofs_xy:4,pitch:FRandom(1.3,-1.3)*AimMul);
-				Double CaseZ = 32;
-				If (Player)
-					CaseZ *= Player.CrouchFactor;
-				Bool Trash; Actor Casing;
-				[Trash,Casing] = A_SpawnItemEx ("SM_50CalCasing",10,6,CaseZ,FRandom (0,2.5),FRandom (4,8),FRandom(3,7));
-				If (Casing)
-					Casing.Vel += Vel;
+				SM_MGSpawnCasing (Invoker.Owner,True,32,caseyofs:6);
 			}
 			TNT1 A 0 A_RemoveLight ('MGFlash');
 			TNT1 A 0 A_WeaponOffset(0, 32, WOF_INTERPOLATE);
 			TNT1 A 0 A_ReFire();
 			Goto Ready;
-		AltFire: //TODO: Add zoom sound. Also give even bigger turn penalty when zoomed in for "Balance".
+		AltFire:
 			TNT1 A 0
 			{
 				A_StartSound ("Turret/Zoom");
@@ -162,7 +658,13 @@ Class SM_MGMorphWeapon : Weapon
 			MTUR H 16 A_WeaponReady (WRF_NOSECONDARY); //Can still fire normally in the meantime though.
 			TNT1 A 0 A_ClearRefire();
 			Goto Ready;
-				
+		
+		NoAmmo:
+			MTUR H 3 A_StartSound ("VRifle/EmptyGun",CHAN_WEAPON);
+			MTUR H 3 A_WeaponOffset(wy:38,WOF_KEEPX|WOF_INTERPOLATE);
+			MTUR HH 3 A_WeaponOffset(wy:32,WOF_KEEPX|WOF_INTERPOLATE);
+			MTUR HHHH 3;
+			Goto Ready;
 		MuzzleFlash:
 			MTUR I 3
 			{
@@ -221,7 +723,7 @@ Class SM_50CalAmmo : Ammo
 	Default
 	{
 		Inventory.PickupMessage "Should you even be able to pick this up?";
-		Inventory.Amount 100;
+		Inventory.Amount 800;
 		Inventory.MaxAmount 800; //Default max ammo amount.
 	}
 }

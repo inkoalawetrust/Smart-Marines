@@ -1514,7 +1514,7 @@ Extend Class SM_Marine
 	
 	Void SM_FireBullet ()
 	{
-		A_StartSound ("Marine/Fire",CHAN_WEAPON);
+		A_StartSound ("Marine/Fire",CHAN_WEAPON,attenuation:0.6);
 		Double FireHeight = 42;
 		Double Recoil = 0.25;
 		If (MarineState & MARINE_LYINGDOWN)

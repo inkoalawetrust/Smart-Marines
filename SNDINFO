@@ -17,6 +17,7 @@ Marine/Melee "Sounds/RifleHit.ogg"
 Marine/PowerMelee "Sounds/RifleHitHard.ogg"
 Marine/MeleeMiss "Sounds/RifleSwoosh.ogg"
 Marine/WhatDaDogDoin "Sounds/Dog.ogg"
+Marine/Boolet "Sounds/Reload.ogg" //Woah, a lot of protein sir!
 
 $Random Marine/Death
 {
@@ -73,6 +74,7 @@ Turret/Fire "Sounds/TurretFire.ogg"
 Turret/Ready "Sounds/TurretReady.ogg"
 Turret/Impact "Sounds/MGImpact.ogg"
 Turret/Zoom "Sounds/TurretFocus.ogg"
+Turret/Hit "Sounds/TurretImpact.ogg"
 
 //Grenade sounds
 Grenade/Bounce "Sounds/GrenadeBounce.ogg"

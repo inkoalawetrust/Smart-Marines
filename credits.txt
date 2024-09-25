@@ -51,3 +51,4 @@ Bullet liquid impact sounds are from Call Of Duty 2.
 Bullet ricochet sounds are from Call of Duty United Offensive.
 Casing drop sounds (CaseFall1-5.ogg) is from the GDC 2018 Audio Library, "Watson Wu - Battle Rifles & Pistols"
 Turret zooming sound (TurretFocus.ogg) is from the GDC 2020 Audio Library, "PMSFX - Mechanical Morphs And Mutations"
+Turret getting hit sound (TurretImpact.ogg) is from the GDC 2018 Audio Library, "Glitchedtones - Impact"

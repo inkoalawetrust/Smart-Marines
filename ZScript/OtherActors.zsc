@@ -47,11 +47,11 @@ Class SM_ActionRestrictor : KAI_MixinActor
 	//More minor restrictions.
 	Bool User_NoDodging; //Do not dodge when in range.
 	Bool User_NoHealing; //Do not heal nearby allies when in range.
-	//Bool User_NoSwimming;//Do not swim in and out of swimmable 3D floors.
+	//Bool User_NoSwimming; //Do not swim in and out of swimmable 3D floors.
 	Bool User_DontWarn; //Do not alert nearby friends of enemies.
 	
 	//Other settings
-	Bool User_CheckSight;//In addition to only restricting marines in range, also only restrict them if they are in sight as well.
+	Bool User_CheckSight; //In addition to only restricting marines in range, also only restrict them if they are in sight as well.
 	
 	Override Void Tick()
 	{
@@ -87,6 +87,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 		If (User_CheckSight && !CheckSight (Marine,SF_IGNOREWATERBOUNDARY)) //Outta sight outta mind.
 			Return;
 		
+		//IDEA: Optimize this by making the token not be destroyed every tick maybe?
 		//Since the token is remade every tick, it allows the restrictions to be changed, like to only prevent a certain action after a scripted event.
 		SM_RestrictionToken Restrictor = SM_RestrictionToken(Spawn("SM_RestrictionToken"));
 		
@@ -351,7 +352,7 @@ Class SM_Bullet : KAI_BaseProjectile
 			{
 				A_StartSound ("Marine/PowerMelee");
 				TraceBleed (GetMissileDamage(1,7),Self);
-				SpawnBlood (Pos,AngleTo(Target),GetMissileDamage(1,7));
+				If (Target) SpawnBlood (Pos,AngleTo(Target),GetMissileDamage(1,7));
 			}
 			Stop;
 		Crash: //Bullet hit a non bleeding actor.
@@ -1138,7 +1139,7 @@ Class SM_OrderText : Actor
 		Wandering:
 			MARO B -1;
 			Stop;
-		LeavingEmplacement: //TODO: Once the turrets are reimplemented as a generic emplacement system in the KAI library, this text sprite will change.
+		LeavingEmplacement:
 			MARO C -1;
 			Stop;
 		FollowingPlayer:

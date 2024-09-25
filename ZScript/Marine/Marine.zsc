@@ -96,7 +96,7 @@ Class SM_Marine : KAI_Humanoid
 		//Every tic that the marine is in a non-melee attack state, and not attacking mid-dodge, perform target prediction.
 		//NOTE: Hmm, should they do target prediction when throwing grenades too ?
 		If (/*GetAge() % 4 == 0 && */!(MarineState & MARINE_MELEE) && IsInAttackState() && !IsInState (Self,"Jump.Dodge.Attack"))
-			AimAtTarget (8/**4*/,8/**4*/,attackspeed:170,200);
+			AimAtTarget (8/**4*/,8/**4*/,flags:AimPos,attackspeed:170,200);
 		
 		Int Age = GetAge();
 		//Update on whether or not the marine is berserking.
@@ -423,6 +423,7 @@ Class SM_Marine : KAI_Humanoid
 		Return Vec, Act;
 	}
 	
+	int noturret;
 	Override Bool OnWander()
 	{
 		Super.OnWander();
@@ -431,6 +432,27 @@ Class SM_Marine : KAI_Humanoid
 		{
 			SetStateLabel ("Spawn");
 			Return False;
+		}
+		
+		if (noturret)noturret--;
+		//URGENT: DEBUG: THIS IS JUST FOR CHECKING TO MAKE SURE THE WIP EMPLACEMENT SYSTEM WORKS WITH NPCS!!!!!!!!!!!!!!!!!
+		Let TurretSearch = BlockThingsIterator.Create (Self,512);
+		Console.Printf ("MARINE POS %d %d %d",pos);
+		While (TurretSearch.Next())
+		{
+			If (!noturret && TurretSearch.Thing && TurretSearch.Thing Is "KAI_Emplacement" && !KAI_Emplacement(TurretSearch.Thing).Operator && Distance3D(tURRETsEarch.thing) <= 512)
+			{
+				If (Distance3D(TurretSearch.Thing) <= MeleeRange)
+				{console.printf ("marine uses turret");
+					KAI_Emplacement(TurretSearch.Thing).Used (Self); //Use the turret to try and man it.
+					noturret = 32;
+					Return False;
+				}
+				
+				KAI_MoveTowards (TurretSearch.Thing.Pos,anglelimit:20);
+				
+				Return False;
+			}
 		}
 		
 		Bool UsedLine;
@@ -1130,6 +1152,7 @@ Class SM_Marine : KAI_Humanoid
 							RetreatLoops /= 2;
 						
 						SM_SetMarineState (MARINE_RELOAD,0); //Tell the Retreat state we need to reload, so it goes there once the RetreatLoops end.
+						If (Random (0,255) < 8) A_StartSound ("Marine/Boolet",CHAN_VOICE,CHANF_OVERLAP);
 						
 						//Might instead quickly throw a smoke grenade before backing off, especially after firing full auto.
 						Int SmokeChance = Random (0,255)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);
@@ -1247,7 +1270,7 @@ Class SM_Marine : KAI_Humanoid
 						GrenCls = "SM_FragGrenade";
 						Break;
 				}
-				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+				A_StartSound ("Marine/Throw",CHAN_VOICE,CHANF_OVERLAP,attenuation:0.8); //Umf
 				
 				If (!QuickGrenade)
 					SM_FireGrenade (Target,GrenCls,55,1.1,1024);
