@@ -1152,7 +1152,7 @@ Class SM_Marine : KAI_Humanoid
 							RetreatLoops /= 2;
 						
 						SM_SetMarineState (MARINE_RELOAD,0); //Tell the Retreat state we need to reload, so it goes there once the RetreatLoops end.
-						If (Random (0,255) < 8) A_StartSound ("Marine/Boolet",CHAN_VOICE,CHANF_OVERLAP);
+						If (Random (0,255) < 4) A_StartSound ("Marine/Boolet",CHAN_VOICE,CHANF_OVERLAP);
 						
 						//Might instead quickly throw a smoke grenade before backing off, especially after firing full auto.
 						Int SmokeChance = Random (0,255)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);

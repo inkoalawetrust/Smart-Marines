@@ -1,7 +1,52 @@
-//MAYDO:
-/*Marines on turrets should be able to use the zoom-in feature to increase their accuracy, also at the expense of turning speed.
-While any other NPC entering the turret to use it shouldn't "know" how to do that.*/
-//TODO: Add a generic NPC morph for whichever other KAI_Humanoid is using the turret.
+//Marine turret code stays here.
+Extend Class SM_Marine
+{
+	//Find the best emplacement for the marine to use, if any. And get the closest one.
+	Actor FindEmplacements (Double Radius = 512)
+	{
+		Let TurretFinder = BlockThingsIterator.Create (Self, Radius);
+		
+		KAI_Emplacement Candidate;
+		Array<Actor> Turrets; //A list of all the turrets we've found that we can use.
+		While (TurretFinder.Next())
+		{
+			Candidate = KAI_Emplacement(TurretFinder.Thing);
+			
+			If (!Candidate || Candidate.Operator || Candidate.bNoNPCUse || !Candidate.GetNPCMorph(GetClassName())) //No turret, it's occupied already, OR, there's no way for US to actually use it.
+				Continue;
+			
+			If (ShouldUseTurret (Candidate,100)) //TODO: Probably add a turret threshold user variable.
+				Turrets.Push (Actor(Candidate));
+		}
+		
+		Return GetClosestActor(Turrets,Self.Pos);
+	}
+	
+	//Should we consider this a potentially usable emplacement?
+	//IDEA: Add a trivial check, probably in FindEmplacements() which already runs a blockmap iterator, to make sure no other marine is going for that turret.
+	Bool ShouldUseTurret (KAI_Emplacement Turret, Int Threshold = 100)
+	{
+		If (!Turret) Return False;
+		
+		//Do not go to turrets with hazards in range of them. Usually.
+		ForEach (Hazard : Turret.HazardList.Hazards)
+		{
+			//Just flat out too dangerous, ignore this turret.
+			If (Hazard.Level >= Hazard.HAZARD_MEDIUM && !IsIndestructible (Self))
+				Return False;
+			
+			//The hazard is fairly weak, but you're also super weak, so don't risk it.
+			If (Hazard.Level != Hazard.HAZARD_HARMLESS && Health <= 20)
+				Return False;
+		}
+		
+		//We can't even go there lol.
+		If (!SM_IsPosReachable(Turret.Pos,Turret.Radius))
+			Return False;
+		
+		Return True;
+	}
+}
 
 Class SM_MGTurret : KAI_Emplacement
 {
@@ -9,15 +54,30 @@ Class SM_MGTurret : KAI_Emplacement
 	{
 		//$Title Machine Gun Turret
 		//$Category Weapons
+		
+		//$Arg0 Ammo
+		//$Arg0Tooltip "How much ammo the turret has before it runs out, only used by player operators.\nDefault is -1, meaning infinite ammo."
+		//$Arg0Default -1
+		//$Arg1 NPC Idle Time
+		//$Arg1Tooltip "How long will an NPC stay on the turret idling before they get off. In Tics.\n Default is 700 tics/20 seconds. -1 tics means they stay on permanently."
+		//$Arg1Default 700
+		//$Arg2 Find Operator On Spawn
+		//$Arg2Tooltip "Find the first KAI humanoid NPC or player in the turrets' hitbox and immediately make them enter it."
+		//$Arg2Type 11
+		//$Arg2Enum falsetrue
+		
 		Tag "Machine Gun Turret";
 		KAI_Emplacement.NPCFallback "SM_MGTurretNPC"; //Not implemented yet.
 		KAI_Emplacement.PlayerMorph "SM_MGTurretPlayer";
 		KAI_Emplacement.EnterSound "Turret/Ready";
 	}
 	
-	Int User_Ammo; //Not implement yet, and I may decide against it. But if this is above zero, players will have a limited amount of ammo using the machine gun.
-	Int User_WaitTime; //How long an NPC on this emplacement will wait before getting off, in tics. -1 means they stay on forever.
-	Bool User_TakeNPC; //Find the first KAI_Humanoid in radius and have them enter the turret.
+	Enum CustomArgs
+	{
+		ARG_AMMO	 = 0, //If this is above zero, players will have a limited amount of ammo using the machine gun.
+		ARG_IDLETIME = 1, //How long an NPC on this emplacement will wait before getting off, in tics. -1 means they stay on forever.
+		ARG_OPERATOR = 2, //Find the first KAI_Humanoid or player in radius and have them enter the turret. For spawning actors immediately on a turret.
+	}
 	
 	Override Void PostBeginPlay()
 	{
@@ -25,9 +85,7 @@ Class SM_MGTurret : KAI_Emplacement
 		
 		AddNPCMorph ("SM_Marine","SM_MGTurretMarine");
 		
-		If (User_Ammo == 0) User_Ammo = -1; //0 ammo spawned with means infinite ammo.
-		If (User_WaitTime == 0) User_WaitTime = 20*GameTicRate;
-		If (User_TakeNPC) AbsorbNPC(); //Om nom nom
+		If (Args[ARG_OPERATOR]) AbsorbOperator(); //Om nom nom
 	}
 	
 	Override Bool EnterEmplacement (Actor User)
@@ -43,19 +101,19 @@ Class SM_MGTurret : KAI_Emplacement
 	
 	Override Void ExitEmplacement()
 	{
-		//Set User_Ammo to the ammo amount the player had on that turret before exiting.
-		If (User_Ammo != -1 && OperatorMorph.Player && OperatorMorph.Player.ReadyWeapon && !OperatorMorph.Player.ReadyWeapon.bAmmo_Optional)
+		//Set ARGS_AMM] to the ammo amount the player had on that turret before exiting.
+		If (Args[ARG_AMMO] != -1 && OperatorMorph.Player && OperatorMorph.Player.ReadyWeapon && !OperatorMorph.Player.ReadyWeapon.bAmmo_Optional)
 		{
 			Weapon Gun = OperatorMorph.Player.ReadyWeapon;
-			User_Ammo = Gun.Ammo1.Amount;
+			Args[ARG_AMMO] = Gun.Ammo1.Amount;
 			Gun.bAmmo_Optional = Gun.Default.bAmmo_Optional;
 			OperatorMorph.RemoveInventory (OperatorMorph.Player.ReadyWeapon.Ammo1);
-			If (KAI_DebugPrintMessages) Console.Printf ("SM_MGTurret Ammo Mode: Set User_Ammo to %d after %s exited.",User_Ammo,Operator.GetClassName());
+			If (KAI_DebugPrintMessages) Console.Printf ("SM_MGTurret Ammo Mode: Set ammo argument to %d after %s exited.",Args[ARG_AMMO],Operator.GetClassName());
 		}
 		Super.ExitEmplacement();
 	}
 	
-	Void AbsorbNPC()
+	Void AbsorbOperator()
 	{
 		Let Humanoids = BlockThingsIterator.Create (Self);
 		
@@ -65,7 +123,7 @@ Class SM_MGTurret : KAI_Emplacement
 			Mobj = Humanoids.Thing;
 			
 			//Trivial checks.
-			If (!Mobj || Mobj.bDormant || Mobj.Player || !(Mobj Is "KAI_Humanoid") || IsDead(Mobj) || IsInanimateObject(Mobj))
+			If (!Mobj || Mobj.bDormant || IsInanimateObject(Mobj) || IsDead(Mobj))
 				Continue;
 			
 			If (CheckHitboxIntersection(Self,Mobj))
@@ -78,6 +136,22 @@ Class SM_MGTurret : KAI_Emplacement
 			}
 		}
 		Return;
+	}
+	
+	Static Void SetMGTurretAmmo (Actor Activator, Int Which, Int Ammo)
+	{
+		Let TurretFinder = ActorIterator.Create (Which,"SM_MGTurret");
+		
+		SM_MGTurret Turret;
+		While ((Turret = SM_MGTurret(TurretFinder.Next())))
+		{
+			If (!Turret) Continue;
+			
+			If (!(Turret.OperatorMorph && Turret.OperatorMorph.Player))
+				Turret.Args[ARG_AMMO] = Ammo;
+			Else
+				Console.PrintfEx (PRINT_MEDIUM,"\c[Yellow]WARNING: Didn't set ammo for turret %p, TID %d, because they currently have a player that may break things!",Turret,Turret.TID);
+		}
 	}
 	
 	States
@@ -183,6 +257,8 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		If (IsFrozen())
 			Return;
 		
+		console.printf ("inaccuracy vector is %.2f %.2f %.2f",inaccuracy);
+		
 		If (IsInAttackState ())
 		{
 			Double BooletSpeed = GetDefaultByType(SM_MGMorphWeapon.Get50CalRound()).Speed;
@@ -197,8 +273,8 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 			If (Emplacement)
 			{
 				Int WaitTime;
-				If (Emplacement Is "SM_MGTurret") WaitTime = SM_MGTurret(Emplacement).User_WaitTime;
-				If (TurretIdleTime >= WaitTime)
+				If (Emplacement Is "SM_MGTurret") WaitTime = Emplacement.Args[SM_MGTurret.ARG_IDLETIME];
+				If (WaitTime != -1 && TurretIdleTime >= WaitTime)
 					Emplacement.ExitEmplacement(); //Get out of the turret. Since there's nothing to do here.
 			}
 		}
@@ -217,17 +293,20 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 	
 	Void RunZoomLogic()
 	{
+		If (IsGenericNPC) Return; //Generic NPCs are too stupid to zoom in and out with the turret, or something. I dunno, maybe I'll change this lol.
 		If (LockInCheck() <= 15)
-		{
+		{console.printf ("zooming in");
 			PrevLockedIn = LockedIn;
 			LockedIn = True;
+			Inaccuracy = Default.Inaccuracy*0.5; //Halve target prediction inaccuracy.
 			If (LockedIn != PrevLockedIn) //Lock in change
 				A_StartSound ("Turret/Zoom",flags:CHANF_OVERLAP);
 		}
 		Else
-		{
+		{console.printf ("zooming out");
 			PrevLockedIn = LockedIn;
 			LockedIn = False;
+			Inaccuracy = Default.Inaccuracy;
 			If (LockedIn != PrevLockedIn) //Lock in change
 				A_StartSound ("Turret/Zoom",flags:CHANF_OVERLAP);
 		}
@@ -296,11 +375,14 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 	Int TurretIdleTime; //Keep track of how long the marine has been on doing nothing, resets every time something happens.
 	Int AimPos; //The FAF aim pos, basically just the FAF_ flags lol.
 	
+	Bool IsGenericNPC; //This morph is a generic, non-marine NPC on the turret. So no zooming in mode, and not marine-on-turret sprites, use a fake operator instead.
+	
 	States
 	{
 		Spawn:
 			MTUR B 2
 			{
+				If (IsGenericNPC) Frame = 0; //A
 				KAI_Look (0,0,MaxTargetRange,4096,120,extraflags:KAIL_CHASETARGET);
 				If (Random (0, 255) < 2) //Randomly turn around, looking for enemies and shit.
 					Angle = BaseTurnAngle + RandomPick (-60,-50,-40,-30,-20,-10,10,20,30,40,50);
@@ -309,6 +391,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		See:
 			MTUR B 2
 			{
+				If (IsGenericNPC) Frame = 0; //A
 				LookExParams Looking;
 				Looking.FOV = 120;
 				Looking.MaxDist = MaxTargetRange;
@@ -326,6 +409,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		Missile:
 			MTUR C 3 //Left bullet
 			{
+				If (IsGenericNPC) Frame = 4; //E
 				Double AimMul = LockedIn ? 0.5 : 1;
 				Actor Bullet = A_SpawnProjectile (SM_MGMorphWeapon.Get50CalRound(),32,-8,flags:CMF_AIMDIRECTION,Pitch);
 				AddProjectileSpread (Bullet,(1,-1)*AimMul,(1.3,-1.3)*AimMul);
@@ -336,6 +420,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 			}
 			MTUR D 3 //Right bullet
 			{
+				If (IsGenericNPC) Frame = 5; //F
 				Double AimMul = LockedIn ? 0.5 : 1;
 				Actor Bullet = A_SpawnProjectile (SM_MGMorphWeapon.Get50CalRound(),32,8,flags:CMF_AIMDIRECTION,Pitch);
 				AddProjectileSpread (Bullet,(1,-1)*AimMul,(1.3,-1.3)*AimMul);
@@ -381,9 +466,74 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 }
 
 //Whichever other arbitrary KAI_Humanoid decides to use the turret.
-Class SM_MGTurretNPC : KAI_EmplacementNPC
+Class SM_MGTurretNPC : SM_MGTurretMarine
 {
-	Mixin SharedTurretMorphLogic;
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		IsGenericNPC = True;
+		
+		If (Emplacement && Emplacement.Operator)
+		{
+			SetTag (String.Format("Machine Gun Turret (%s)",Emplacement.Operator.GetTag(Emplacement.Operator.GetClassName()))); //"Machine Gun Turret (NPC tag or class name)"
+			Emplacement.CreateFakeOperator ((-32,0,0));
+		}
+	}
+}
+
+class debugimp : kai_humanoid
+{
+	Default
+	{
+		Health 60;
+		Radius 20;
+		Height 56;
+		Mass 100;
+		Speed 8;
+		PainChance 200;
+		Monster;
+		+FLOORCLIP
+		SeeSound "imp/sight";
+		PainSound "imp/pain";
+		DeathSound "imp/death";
+		ActiveSound "imp/active";
+		HitObituary "$OB_IMPHIT";
+		Obituary "$OB_IMP";
+		Tag "big dumb doo doo head";
+	}
+	sTATES
+	{
+		Spawn:
+			TROO AB 10
+			{
+				Let TurretSearch = BlockThingsIterator.Create (Self,512);
+				
+				While (TurretSearch.Next())
+				{
+					If (TurretSearch.Thing && TurretSearch.Thing Is "KAI_Emplacement" && !KAI_Emplacement(TurretSearch.Thing).Operator && Distance3D(tURRETsEarch.thing) <= 512)
+					{
+						target = turretsearch.thing;
+						setstatelabel ("see");
+					}
+				}
+			}
+			lOOP;
+		see:
+		Whenyouwalkin:
+			TROO AABBCCDD 3
+			{
+				If (target) //go to emplacement
+				{
+					kai_movetowards(target.pos);
+					if (distance3d(target) <= meleerange)
+						kai_emplacement(target).enteremplacement(self);
+				}
+			}
+			lOOP;
+		Wandering:
+			TROO AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 kai_wander(); //get away from the turret before searching again.
+			goto spawn;
+	}
 }
 
 Class SM_MGTurretPlayer : KAI_EmplacementPlayer
@@ -409,6 +559,7 @@ Class SM_MGTurretPlayer : KAI_EmplacementPlayer
 				DoFakeOperator = True;
 				If (Emplacement) Emplacement.CreateFakeOperator ((-32,0,0));
 			}
+			console.printf ("player morph tag is %s",gettag("epic fail"));
 		}
 		
 		RunAmmoMode = True;
@@ -426,7 +577,7 @@ Class SM_MGTurretPlayer : KAI_EmplacementPlayer
 		
 		Int AmmoVar;
 		If (Emplacement && Emplacement Is "SM_MGTurret")
-			AmmoVar = SM_MGTurret(Emplacement).User_Ammo;
+			AmmoVar = Emplacement.Args[SM_MGTurret.ARG_AMMO];
 		If (AmmoVar >= 0)
 		{
 			Weapon Gun = Player.ReadyWeapon;
@@ -436,7 +587,7 @@ Class SM_MGTurretPlayer : KAI_EmplacementPlayer
 				Gun.bAmmo_Optional = False;
 				//Gun.GiveAmmo (Gun.AmmoType1,AmmoVar);
 				Gun.Ammo1.Amount = AmmoVar;
-				//The default is 800 rounds as of typing this, but if the turrets' User_Ammo is over that, adjust the ammo given to match.
+				//The default is 800 rounds as of typing this, but if the turrets' ARG_AMMO is over that, adjust the ammo given to match.
 				If (GetAmmoCapacity(Gun.AmmoType1) < AmmoVar)
 				{
 					Gun.SetAmmoCapacity (Gun.AmmoType1,AmmoVar);
@@ -457,7 +608,6 @@ Class SM_MGTurretPlayer : KAI_EmplacementPlayer
 		See:
 			MTUR B 1 {If (DoFakeOperator) Frame = 0; /*A*/}
 			Loop;
-		//TODO: I made edits of TG5's turret firing without the marine, but he needs to be the one doing the back rotation sprites, because I can't, not an artist.
 		Missile:
 			MTUR CD 3
 			{
