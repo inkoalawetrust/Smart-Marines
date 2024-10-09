@@ -145,20 +145,13 @@ Class SM_RestrictionToken : Inventory
 				GoAwayAndDie();
 			}
 		}
-		
-		//If (GetAge() > ReactionTime)
-		//	{console.printf ("token too old");GoAwayAndDie();}
 	}
 }
 
 //$GZDB_SKIP
 //Custom group structure for marine NPCs.
-//TODO:
-//Here's an idea, change the cosmetic name of the group based on size when the member count updates. i.e updating it fron "(player)'s squad" to "(player)'s platoon"
-//Update the IsPlayerGroup variable when the leader is set to a player, alongside the group name.
 Class SM_MarineGroup : KAI_NPCGroup
 {
-	//Override Void HandleGroupEvent (Int EventType, Actor Affected)
 	Bool NoSpecialPlayerTreatment; //When the leader dies or vanishes, and the group tries assigning a new one, players aren't automatically assumed to be stronger.
 	Bool IsPlayerGroup; //The group is formed by the player ordering marines around.
 	
@@ -343,7 +336,7 @@ Class SM_Bullet : KAI_BaseProjectile
 				Else
 				{
 					A_StartSound ("VRifle/Impact");
-					SpawnPuff ("BulletPuff",Pos,AngleTo(Target),AngleTo(Target),2);
+					If (Target) SpawnPuff ("BulletPuff",Pos,AngleTo(Target),AngleTo(Target),2);
 				}
 			}
 			Stop;
@@ -359,7 +352,7 @@ Class SM_Bullet : KAI_BaseProjectile
 			TNT1 A 1
 			{
 				A_StartSound ("VRifle/Impact");
-				SpawnPuff ("BulletPuff",Pos,AngleTo(Target),AngleTo(Target),2);
+				If (Target) SpawnPuff ("BulletPuff",Pos,AngleTo(Target),AngleTo(Target),2);
 			}
 			Stop;
 	}
@@ -778,7 +771,6 @@ Class SM_SmokeGrenade : KAI_BaseProjectile
 			SMGR F 1
 			{
 				If (ReactionTime <= 0) Return State (Null);
-				If (KAI_DebugPrintMessages)console.printf ("smoke counter is %d",reactiontime);
 				
 				Actor Smoke;
 				For (Int I = 2; I > 0; I--)
@@ -1213,26 +1205,6 @@ Class SM_DogRageToken : Inventory
 				KAI_Actor(Owner).AggressionMultiplier = Aggro;
 			GoAwayAndDie();
 		}
-	}
-}
-
-//Used to make the marine immediately run away from his own position when dropped by a vehicle, so they don't get stuck on each other.
-//This only exists because I can't modify the RetreatPos vector from the MVP without creating a hard dependancy, very modern and advanced source port.
-Class SM_VehicleDropToken : Inventory
-{
-	Default {ReactionTime 2;}
-	Override Void AttachToOwner (Actor Other)
-	{
-		Super.AttachToOwner(Other);
-		//Does no further checks, it has to be used right after the marine spawns, if you use it while he's doing something, use it at your own peril.
-		If (Other && Other Is "SM_Marine")
-		{
-			If (KAI_DebugPrintMessages)console.printf ("SM_VehicleDropToken: Made marine run from himself right after spawning, going away now.");
-			SM_Marine(Other).RetreatPos = Other.Pos;
-			SM_Marine(Other).RetreatLoops = ReactionTime;
-			Other.SetStateLabel ("Retreat");
-		}
-		GoAwayAndDie();
 	}
 }
 

@@ -2,47 +2,81 @@
 Extend Class SM_Marine
 {
 	//Find the best emplacement for the marine to use, if any. And get the closest one.
-	Actor FindEmplacements (Double Radius = 512)
+	Actor FindEmplacements (Double CheckRadius = 512)
 	{
-		Let TurretFinder = BlockThingsIterator.Create (Self, Radius);
-		
+		If (TurretDelay) Return Null;
+		Let TurretFinder = BlockThingsIterator.Create (Self, CheckRadius);
+		console.printf ("running turret search");
 		KAI_Emplacement Candidate;
 		Array<Actor> Turrets; //A list of all the turrets we've found that we can use.
+		Array<SM_Marine> Marines;
 		While (TurretFinder.Next())
 		{
+			If (TurretFinder.Thing Is "SM_Marine" && TurretFinder.Thing != Self)
+			{console.printf ("found marine %p in range",TurretFinder.Thing);
+				Marines.Push(SM_Marine(TurretFinder.Thing));
+			}
+			
 			Candidate = KAI_Emplacement(TurretFinder.Thing);
 			
-			If (!Candidate || Candidate.Operator || Candidate.bNoNPCUse || !Candidate.GetNPCMorph(GetClassName())) //No turret, it's occupied already, OR, there's no way for US to actually use it.
-				Continue;
-			
-			If (ShouldUseTurret (Candidate,100)) //TODO: Probably add a turret threshold user variable.
+			If (ShouldUseTurret (Candidate)) //TODO: Probably add a turret threshold user variable.
 				Turrets.Push (Actor(Candidate));
 		}
 		
-		Return GetClosestActor(Turrets,Self.Pos);
+		//Check all turrets in range to make sure no other marine in range wants to use them.
+		Array<Actor> AvailableTurrets;
+		For (Int I = 0; i < Turrets.Size(); I++)
+		{
+			Bool PushTurret = True;
+			If (Turrets[I])
+			{console.printf ("ITERATING %p",turrets[i]);
+				ForEach (Marine : Marines)
+				{console.printf ("ITERATING MARINE %p",marine);
+					If (Marine && Marine.TargetTurret == Turrets[I])
+						{PushTurret = False;CONSOLE.PRINTF ("%p IS GOING TO %p ALREADY",marine,turrets[i]);}
+				}
+				
+				//We check if the turret is reachable dead last for performance.
+				If (PushTurret && Distance3DSquared(Turrets[I]) > MeleeRange*MeleeRange && !SM_IsPosReachable(Turrets[I].Pos,(Turrets[I].Radius*2)+(Radius*2)*2))
+					{PushTurret = False;console.printf ("I CAN'T GO THERE! EVEN IF UNOCCUPIED!");}
+			}
+			
+			If (PushTurret) {console.printf ("this is a valid turret");AvailableTurrets.Push(Turrets[I]);}
+		}
+		//if (GetClosestActor(AvailableTurrets,Self.Pos)) console.printf ("we got %p in FindEmplacements()!",GetClosestActor(AvailableTurrets,Self.Pos));
+		Return GetClosestActor(AvailableTurrets,Self.Pos);
 	}
 	
 	//Should we consider this a potentially usable emplacement?
-	//IDEA: Add a trivial check, probably in FindEmplacements() which already runs a blockmap iterator, to make sure no other marine is going for that turret.
-	Bool ShouldUseTurret (KAI_Emplacement Turret, Int Threshold = 100)
+	Bool ShouldUseTurret (KAI_Emplacement Turret, Bool NoWalkCheck = True, Bool IgnoreActors = False)
 	{
 		If (!Turret) Return False;
 		
+		If (Turret.Operator && Turret.Operator != Self || Turret.bNoNPCUse || !Turret.GetNPCMorph(GetClassName())) //No turret, it's occupied already, OR, there's no way for US to actually use it.
+			Return False;
+		
 		//Do not go to turrets with hazards in range of them. Usually.
-		ForEach (Hazard : Turret.HazardList.Hazards)
+		If (!IsIndestructible (Self))
 		{
-			//Just flat out too dangerous, ignore this turret.
-			If (Hazard.Level >= Hazard.HAZARD_MEDIUM && !IsIndestructible (Self))
-				Return False;
-			
-			//The hazard is fairly weak, but you're also super weak, so don't risk it.
-			If (Hazard.Level != Hazard.HAZARD_HARMLESS && Health <= 20)
-				Return False;
+			ForEach (Hazard : Turret.HazardList.Hazards)
+			{
+				//Just flat out too dangerous, ignore this turret.
+				If (Hazard.Level >= Hazard.HAZARD_MEDIUM && !IsIndestructible (Self))
+					Return False;
+				
+				//The hazard is fairly weak, but you're also super weak, so don't risk it.
+				If (Hazard.Level != Hazard.HAZARD_HARMLESS && Health <= 30)
+					Return False;
+			}
 		}
 		
-		//We can't even go there lol.
-		If (!SM_IsPosReachable(Turret.Pos,Turret.Radius))
+		//Turret is receiving dangerous incoming fire.
+		If (!IsIndestructible (Self) && Distance3DSquared(Turret) <= 256*256 && SM_MGTurretMarine.FindIncomingProjectiles(Self))
 			Return False;
+		
+		//We can't even go there lol.
+		If (!NoWalkCheck && !SM_IsPosReachable(Turret.Pos,(Turret.Radius*2)+(Radius*2)*2,0,IgnoreActors))
+			{console.printf ("I CAN'T GO THERE!");Return False;}
 		
 		Return True;
 	}
@@ -88,6 +122,14 @@ Class SM_MGTurret : KAI_Emplacement
 		If (Args[ARG_OPERATOR]) AbsorbOperator(); //Om nom nom
 	}
 	
+	//Special collision rules for the turret where NPCs and players cannot collide with it. Mainly so operators getting off won't be stuck.
+	Override Bool CanCollideWith (Actor Other, Bool Passive)
+	{
+		If (Passive && !IsInanimateObject (Other))
+			Return False;
+		Return Super.CanCollideWith (Other, Passive);
+	}
+	
 	Override Bool EnterEmplacement (Actor User)
 	{
 		Bool Result = Super.EnterEmplacement (User);
@@ -101,8 +143,8 @@ Class SM_MGTurret : KAI_Emplacement
 	
 	Override Void ExitEmplacement()
 	{
-		//Set ARGS_AMM] to the ammo amount the player had on that turret before exiting.
-		If (Args[ARG_AMMO] != -1 && OperatorMorph.Player && OperatorMorph.Player.ReadyWeapon && !OperatorMorph.Player.ReadyWeapon.bAmmo_Optional)
+		//Set [ARG_AMMO] to the ammo amount the player had on that turret before exiting.
+		If (OperatorMorph && Args[ARG_AMMO] != -1 && OperatorMorph.Player && OperatorMorph.Player.ReadyWeapon && !OperatorMorph.Player.ReadyWeapon.bAmmo_Optional)
 		{
 			Weapon Gun = OperatorMorph.Player.ReadyWeapon;
 			Args[ARG_AMMO] = Gun.Ammo1.Amount;
@@ -140,7 +182,7 @@ Class SM_MGTurret : KAI_Emplacement
 	
 	Static Void SetMGTurretAmmo (Actor Activator, Int Which, Int Ammo)
 	{
-		Let TurretFinder = ActorIterator.Create (Which,"SM_MGTurret");
+		Let TurretFinder = Level.CreateActorIterator (Which,"SM_MGTurret");
 		
 		SM_MGTurret Turret;
 		While ((Turret = SM_MGTurret(TurretFinder.Next())))
@@ -257,7 +299,45 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		If (IsFrozen())
 			Return;
 		
-		console.printf ("inaccuracy vector is %.2f %.2f %.2f",inaccuracy);
+		//console.printf ("inaccuracy vector is %.2f %.2f %.2f",inaccuracy);
+		
+		//Check every half second if it's too dangerous to stay on the turret. If it is, get out.
+		If (GetAge() % GameTicRate/2 == 0 && Emplacement)
+		{
+			//We're in a far too dangerous hazard zone's radius.
+			ForEach (Hazard : Hazards)
+			{
+				//Just flat out too dangerous,.
+				If (Hazard.Level >= Hazard.HAZARD_MEDIUM && !IsIndestructible (Self))
+					Emplacement.ExitEmplacement();
+				
+				//The hazard is fairly weak, but you're also super weak, so don't risk it.
+				If (Hazard.Level != Hazard.HAZARD_HARMLESS && Health <= 30)
+					Emplacement.ExitEmplacement();
+			}
+		}
+		
+		//Get out if a really dangerous projectile is coming.
+		If (/*GetAge() % GameTicRate/8 == 0 && */Emplacement && !IsIndestructible (Self))
+		{	
+			Actor Projectile = FindIncomingProjectiles(Self);
+			If (Projectile)
+			{
+				//Marines get out AND run away from their target.
+				If (Emplacement.Operator && Emplacement.Operator Is "SM_Marine")
+				{
+					SM_Marine Marine = SM_Marine(Emplacement.Operator); //Need this cached because ExitEmplacement() nulls those pointers during ExitEmplacement().
+					Emplacement.ExitEmplacement();
+					Marine.RetreatLoops = 4;
+					Marine.LastDodged = Projectile; //Don't immediately stop the retreat to try jumping out of the way, this IS the dodging! 
+					Marine.DodgingHomingProjectile = True; //Treat it as a homing projectile to run away from it.
+					console.printf ("RUNNING AWAY FROM TURRET");
+					Marine.SetStateLabel("Retreat");
+				}
+				Else //Other humanoid NPCs just get off.
+					Emplacement.ExitEmplacement();
+			}
+		}
 		
 		If (IsInAttackState ())
 		{
@@ -278,6 +358,35 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 					Emplacement.ExitEmplacement(); //Get out of the turret. Since there's nothing to do here.
 			}
 		}
+	}
+	
+	/*Check for projectiles that are coming in and will do too much damage. Used both by the NPC turret morph itself,
+	and also for marines to not go to turrets getting fired at.*/
+	Static Actor FindIncomingProjectiles (KAI_Actor Caller)
+	{
+		ForEach (Proj : Caller.KAIHandler.ProjectileList)
+		{
+			If (!Proj) Continue;
+			
+			If (Caller.Distance3DSquared(Proj) >= 384*384)
+				{console.printf ("%s is too far away",proj.getclassname());Continue;}
+			
+			//Projectile has friendly fire off, no need to leave.
+			If (Proj Is "KAI_BaseProjectile" && KAI_BaseProjectile(Proj).bNoFriendlyFire && Proj.Target && !Caller.IsActorHostile(Proj.Target))
+				Continue;
+			console.printf ("%s will do %d damage",proj.getclassname(),Caller.ApplyDamageFactor(Proj.DamageType,Proj.GetMissileDamage (1,7)));
+			//This projectile will do too little damage to you when it hits to warrant trying to escape.
+			If (Caller.ApplyDamageFactor(Proj.DamageType,Proj.GetMissileDamage (1,7)) < Caller.Health/4)
+				Continue;
+			
+			//Is the projectile about to hit me ? Weird math nonsense written by RaveYard.
+			double blackBox = -0.15;
+			bool projectile_is_flying_towards_me = (Caller.Vec3To(proj).Unit() dot proj.vel.Unit()) < blackBox;
+			double projectileSafeRadius = sqrt(2 * ((proj.radius + Caller.radius) ** 2.5));
+			If (projectile_is_flying_towards_me && KAI_Math.distance3dline(Caller.pos, proj.pos, proj.pos + proj.vel) < projectileSafeRadius && Caller.CheckSight(Proj,SF_IGNOREWATERBOUNDARY))
+				Return Proj;
+		}
+		Return Null;
 	}
 	
 	//Check if the turret should be zooming in to fire or nah.
@@ -426,8 +535,8 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 				AddProjectileSpread (Bullet,(1,-1)*AimMul,(1.3,-1.3)*AimMul);
 				SM_MGMorphWeapon.SM_MGSpawnCasing (Self,True,32,caseyofs:8);
 				A_StartSound ("Turret/Fire",CHAN_WEAPON,CHANF_OVERLAP,attenuation:0.5);
-				If (LockedIn) A_QuakeEx (0.2,0.2,0.2,4,0,32,"",rollintensity:0.25);
-				Else A_QuakeEx (0.1,0.1,0.1,4,0,32,"",rollintensity:0.25/2);
+				//If (LockedIn) A_QuakeEx (0.2,0.2,0.2,4,0,32,"",rollintensity:0.25);
+				//Else A_QuakeEx (0.1,0.1,0.1,4,0,32,"",rollintensity:0.25/2);
 			}
 			TNT1 A 0
 			{

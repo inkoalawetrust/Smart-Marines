@@ -5,7 +5,8 @@ Extend Class SM_Marine
 		SMC_NOUSESTATE		= 1 << 0, //The marine will not wait in his interact state after using a line with no threat around.
 		SMC_IGNOREHAZARDS	= 1 << 1, //The marine ignores any nearby hazards.
 		SMC_NOCOVERSTOP		= 1 << 2, //The marine doesn't stop moving when in cover.
-		SMC_SEARCHFORCOVER	= 1 << 3, //The marine actively searches for nearby cover between the target and him, or on their sides. 
+		SMC_SEARCHFORCOVER	= 1 << 3, //The marine actively searches for nearby cover between the target and him, or on their sides.
+		SMC_USEEMPLACEMENTS	= 1 << 4, //The marine will try to use KAI emplacements like the machine gun turrets (And any future ones like ATGMs and mortars).
 	}
 	
 	Vector3 NearbyCoverPos; //A bit of nearby cover the marine can run at to hide behind.
@@ -29,8 +30,10 @@ Extend Class SM_Marine
 		//KAI_Chase_HandleActiveSound(ChaseFlags);
 		
 		Bool MovedAlready;
-		Double MajorThreatRange = 1536*1536;//(RetreatRange*4)*(RetreatRange*4);
+		//If fast monsters (AKA fast projectile attacks too) is enabled, and it's a ranged target, stay 16 meters away, if not, stay 12 meters away.
+		Double MajorThreatRange = (G_SkillPropertyInt(SKILLP_FASTMONSTERS) && Target.MissileState) ? 512*512 : 384*384;//(RetreatRange*4)*(RetreatRange*4);
 		Bool CancelAttack;
+		Int TargetThreatLevel = AssessThreatLevel(Target, True);
 		
 		If (!(ChaseFlags & CHF_DONTMOVE) && !(Flags & SMC_IGNOREHAZARDS)) MovedAlready = SM_RunFromHazards(); //Avoid any major hazards.
 		
@@ -42,14 +45,14 @@ Extend Class SM_Marine
 			NearbyCoverPos = SM_LocateNearbyCover (Target);
 		
 		//Run away from major actor threats.
-		If (bNoFear && Target && !(Goal && bChaseGoal) && KAI_Math.IsEmptyVector3 (NearbyCoverPos))
+		If (!bNoFear && Target && !(Goal && bChaseGoal) && KAI_Math.IsEmptyVector3 (NearbyCoverPos))
 		{
 			If (!(ChaseFlags & CHF_DONTMOVE) && !MovedAlready)
 			{
 				//If you can't attack (But not because you are in a NOATTACK sector), run. Also run if the other actor is frightening or you're frightened.
 				If ((!CanAttack() && !(CurSector.Flags & Sector.SECF_NOATTACK)) || bFrightened || IsFrightening (Target) ||
 				//If the targets' threat level is over the threshold, and it's visible and nearby, GTFO.
-				ThreatLevelThreshold != THREAT_ASSESS && AssessThreatLevel(Target, True) >= ThreatLevelThreshold && (Distance3DSquared(Target) < MajorThreatRange))
+				ThreatLevelThreshold != THREAT_ASSESS && TargetThreatLevel >= ThreatLevelThreshold && (Distance3DSquared(Target) < MajorThreatRange))
 				{
 					//And at last, check if the target is still visible.
 					If (CheckSight (Target, SF_IGNOREWATERBOUNDARY))
@@ -65,6 +68,14 @@ Extend Class SM_Marine
 			}
 		}
 		
+		//We're in range to try using the turret we're heading to.
+		If (!TurretDelay && TargetTurret && Distance3DSquared(TargetTurret) <= MeleeRange*MeleeRange)
+		{console.printf ("I DID IT, I AM USING THE STUPID GUN");
+			TargetTurret.EnterEmplacement(Self);
+			//TargetTurret = Null; //Nullify this, also just in case the EnterEmplacement() fails.
+			Return;
+		}
+		
 		Bool UsedLine;
 		//If you can move and haven't done so already.
 		If (!(ChaseFlags & CHF_DONTMOVE))
@@ -72,6 +83,7 @@ Extend Class SM_Marine
 			//Only update the nearest enemy to run from when not focused on a route.
 			If (bAvoidMelee && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //IDEA: Unhardcode the retreat range.
 			
+			//URGENT: MAYDO: I think I commented this out for test? So probably put it back in.
 			/*Bool MeleeAnyway; //The enemy is weak and nearby, go up to them and kick their ass even without berserk.
 			//Sometimes, be less afraid to do melee if the enemy is weak enough.
 			If (bAvoidMelee && NearestEnemy && !IsIndestructible (NearestEnemy) && !HasGodMode (NearestEnemy))
@@ -148,7 +160,12 @@ Extend Class SM_Marine
 					Bool DoZigZag;
 					Vector3 MovePos = (Double.NaN,Double.NaN,Double.NaN);
 					Double RealSpeed = Speed;
-					[MovePos, DoZigZag, CancelAttack] = SM_RunToCoverPos (Target,dozigzag:KMT_ZIGZAG);
+					//Go to a nearby turret when in combat if you aren't weak and the target is particularly strong.
+					If (!TurretDelay && !TargetTurret && Target && !(TargetThreatLevel >= ThreatLevelThreshold && Health <= 30))
+						TargetTurret = KAI_Emplacement(FindEmplacements());
+					
+					If (KAI_Math.IsEmptyVector3(MovePos))
+						[MovePos, DoZigZag, CancelAttack] = SM_RunToCoverPos (Target,dozigzag:KMT_ZIGZAG);
 					
 					If (!KAI_Math.IsEmptyVector3(LastSeenPos)) //Out of sight, walk to last seen pos instead.
 					{
@@ -162,6 +179,9 @@ Extend Class SM_Marine
 					}
 					Else
 						MovePos = HandleFollowingActor (MovePos); //Check if we should be following anyone, if not, just focus on chasing the target or whatever.
+					
+					If (TargetTurret)
+						MovePos = TargetTurret.Pos;
 					
 					If (KAI_DebugPrintMessages)console.printf ("heading to %d %d %d",movepos);
 					If (Crouching)
@@ -347,6 +367,7 @@ Extend Class SM_Marine
 	
 	Bool HipFalsePositive; //HACK: Sometimes traces go full retard and return that the marines' hip level isn't blocked, so only uncrouch if TWO hip checks are false.
 	
+	//BUG: URGENT: Fix the cover check causing them to teabag the air when on slopes.
 	Bool, Vector3 SM_UpdateCover (Actor Other, Bool IsCrouchingAlready, Double TraceDist = 48)
 	{
 		Vector3 HipHitPos = (Double.NaN, Double.NaN, Double.NaN);
@@ -487,7 +508,7 @@ Extend Class SM_Marine
 	Bool SM_CanRunBack()
 	{
 		Vector3 RealPos = Pos;
-		Bool Moved = IsPosReachable (Vec3Angle(256,Angle-180)); //Doesn't use the SM_ wrapper since it's supposed to be one continuous running leap.
+		Bool Moved = IsPosReachable (Vec3Angle(256,Angle-180),dropoff:False); //Doesn't use the SM_ wrapper since it's supposed to be one continuous running leap.
 		If (Moved)
 		{
 			SetOrigin (Vec3Angle(256,Angle-180),False);
@@ -649,7 +670,25 @@ Extend Class SM_Marine
 				}
 			}
 		}
+		
 		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
+		//We're running away because we need to reload, but we do have a turret to head to, so runs towards it to use it instead..
+		If (TargetTurret && MarineState & MARINE_RELOAD)
+		{
+			If (TargetTurret && Distance3DSquared(TargetTurret) <= (MeleeRange*MeleeRange)*1.2)
+			{
+				TargetTurret.EnterEmplacement(Self);
+				TargetTurret = Null; //Nullify this, also just in case the EnterEmplacement() fails.
+				Return;
+			}
+			Double RealSpeed = Speed;
+			If (Crouching)
+				Speed *= 0.7;
+			KAI_MoveTowards(TargetTurret.Pos,0.5,TurnRadius,ChaseFlags);
+			Speed = RealSpeed;
+			Return;
+		}
+		
 		//If (KAI_DebugPrintMessages)console.printf ("SM_RunAway(): NearbyCoverPos is %d %d %d",nearbycoverpos);
 		//If (KAI_Math.IsEmptyVector3 (NearbyCoverPos))
 		//{
@@ -1079,6 +1118,28 @@ Extend Class SM_Marine
 		Return Closest;
 	}
 	
+	HazardInfo GetStrongestHazard (Array<HazardInfo> HazardList)
+	{
+		Int StrongestHaz = HazardInfo.HAZARD_HARMLESS;
+		HazardInfo Strongest;
+		
+		ForEach (CurHaz : HazardList)
+		{
+			If (CurHaz)
+			{
+				Int Strength = CurHaz.Level;
+				If (Strength > StrongestHaz)
+				{
+					StrongestHaz = Strength;
+					Strongest = CurHaz;
+				}
+			}
+		}
+		
+		if (strongest) {console.printf ("running from this hazard:");strongest.printhazardinfo();}
+		Return Strongest;
+	}
+	
 	Enum RunAwayTypes //How should the marine run from a dangerous hazard, if at all ?
 	{
 		RUN_NONE, //The marine doesn't need to run.
@@ -1427,9 +1488,12 @@ Extend Class SM_Marine
 	Bool SM_IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
 	{
 		Double RealStepHeight = MaxStepHeight;
+		Double RealHeight = Height;
 		If (!SM_IsRestricted(RESTRICT_CLIMBING)) MaxStepHeight = (Height*1.75); //Maximum height the marine can reach, by jumping and ledge grabbing.
+		If (!SM_IsRestricted(RESTRICT_CROUCHING)) Height = MARINE_CROUCHHEIGHT;
 		Bool Res = IsPosReachable (TargetPos, DistCutoff, Spacing, IgnoreActors);
 		MaxStepHeight = RealStepHeight;
+		Height = RealHeight;
 		Return Res;
 	}
 	

@@ -1,6 +1,11 @@
 //IDEA:
+//Give them slight height variations.
 //Give them Flashbangs.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
+//Make them reload twice as fast with -fastmonsters.
+//MAYDO:
+//Add a user variable that controls the base amount of retreats marines do to reload, -1 means they will not retreat at all to reload.
+//Also, or maybe instead, add a user variable in the marine restrictor that makes them reload in place instead of trying to run away.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -39,8 +44,8 @@ Class SM_Marine : KAI_Humanoid
 		DeathSound "Marine/Death";
 		KAI_Actor.ThreatLevel THREAT_ABOVENORMAL;
 		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS; //Marines are only really scared of super dangerous enemies like bosses and enemy vehicles.
-		//KAI_Actor.Inaccuracy (10,10,10);
-		//KAI_Actor.InaccuracyFrequency 1;
+		KAI_Actor.Inaccuracy (4,4,4);
+		KAI_Actor.InaccuracyFrequency 1;
 		Monster;
 		//+JumpDown;
 		+MissileMore;
@@ -91,7 +96,7 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.Tick ();
 		
-		If (IsFrozen() || IsDead(Self)) Return;
+		If (IsFrozen() || IsDead(Self) || Alternative) Return;
 		
 		//Every tic that the marine is in a non-melee attack state, and not attacking mid-dodge, perform target prediction.
 		//NOTE: Hmm, should they do target prediction when throwing grenades too ?
@@ -153,10 +158,46 @@ Class SM_Marine : KAI_Humanoid
 		If (MeleeTime) //How long the marine does melee without running away.
 			MeleeTime--;
 		
-		//Update primary hazard to avoid every 4 ticks.
-		//IDEA: This should probably be the highest level hazard in range instead of the closest.
+		If (TurretDelay)
+		{
+			//Check every half second that we're waiting before using a turret again for anything that should decrement the timer faster.
+			If (Age % GameTicRate/2 == 0)
+			{
+				//The more dangerous, the quicker the cooldown ends.
+				Switch (AssessThreatLevel(Target) >= ThreatLevel)
+				{
+					Case THREAT_UNSTOPPABLE:
+					Case THREAT_SUPERDANGER:
+						TurretDelay = 0; //Search NOW.
+						Break;
+					Case THREAT_VERYDANGEROUS:
+						TurretDelay -= 20;
+						Break;
+					Case THREAT_DANGEROUS:
+						TurretDelay -= 10;
+						Break;
+					Default:
+						Break;
+				}
+			}
+			TurretDelay--;
+			console.printf ("turret delay is %d",turretdelay);
+		}
+		
+		//Check if the turret we wanna go to is occupied or unreachable.
+		If (TargetTurret && Age % 8 == 0 && !ShouldUseTurret(TargetTurret,False,True))
+			TargetTurret = KAI_Emplacement(FindEmplacements());
+		
+		//Update primary hazard to avoid every 4 ticks. Also handle altering target prediction inaccuracy here.
 		If (Age % 4 == 0)
-			HazardToAvoid = GetNearestHazard(Hazards);
+		{
+			HazardToAvoid = GetStrongestHazard(Hazards);
+			
+			If (MarineState & MARINE_INCOVER || MarineState & MARINE_KNEELING || MarineState & MARINE_LYINGDOWN)
+				Inaccuracy = (2,2,2);
+			Else
+				Inaccuracy = Default.Inaccuracy;
+		}
 		
 		//Check dodging every 2 ticks.
 		If (Age % 2 == 0)
@@ -294,7 +335,8 @@ Class SM_Marine : KAI_Humanoid
 				Int FullAutoThreshold = (Health <= SpawnHealth()/6) ? 6 : 12; //If low on health, the marines will more desperately fire full auto.
 				
 				Int AutoChance = 128;
-				If (Dist >= 8192) AutoChance -= 64; //Lower chance of firing full auto even at dangerous enemies, if they are too far.
+				If (Dist >= 4096) AutoChance -= 64; //Lower chance of firing full auto even at dangerous enemies, if they are too far.
+				If (TargetTurret) AutoChance -= 96; //Even lower if we're kinda supposed to be going to superior firepower.
 				Bool DoFullAuto = (Random (0, 255) < AutoChance);
 				
 				If ((DoFullAuto && Threat >= THREAT_DANGEROUS ||
@@ -354,7 +396,7 @@ Class SM_Marine : KAI_Humanoid
 					Int DropkickChance = (bAvoidMelee ? 32 : 72)*FRandom (1.0f,2.0f);
 					//It's not safe to jump this far, so don't do this.
 					If (!CheckMove (Vec2Angle (64,AngleTo(Target)),PCM_NOACTORS|PCM_DROPOFF))
-						DropkickChance = -1;spawn("kai_debugpoint",Vec3Angle (64,AngleTo(Target)));
+						DropkickChance = -1;
 					//Check if the enemy can move this far back. And doesn't fly.
 					If (!IsFlying (Target) && DropkickChance != 1 && CheckMove ( Target.Vec2Angle(128, AngleTo(Target) ),tm:TM))
 					{
@@ -382,7 +424,7 @@ Class SM_Marine : KAI_Humanoid
 				}
 				Return True;
 			}
-			Else If (CanSee && Random (0,255) < (bAvoidMelee ? 88 : 224) && KAI_CheckMeleeRange (Target,MeleeRange*4)) //Check 4 times further sometimes.
+			Else If (!TargetTurret && CanSee && Random (0,255) < (bAvoidMelee ? 88 : 224) && KAI_CheckMeleeRange (Target,MeleeRange*4)) //Check 4 times further sometimes.
 			{
 				ChaseTimer = 0;
 				If (!NoStateJump)
@@ -415,7 +457,7 @@ Class SM_Marine : KAI_Humanoid
 				bDontFollowPLayers = True;
 				If (DistCheck) Return BasePos, Null;
 			}
-			If (KAI_DebugPrintMessages) CONSOLE.PRINTF ("Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
+			//If (KAI_DebugPrintMessages) CONSOLE.PRINTF ("Running bDontFollowPlayers update, because apparently, I am now following friendplayer instead of master");
 			If (DistCheck)
 				Return BasePos, Null;
 		}
@@ -423,7 +465,9 @@ Class SM_Marine : KAI_Humanoid
 		Return Vec, Act;
 	}
 	
-	int noturret;
+	/*MAYDO: Give marines a very low chance of getting on a turret even when idle for shits and giggles? Maybe in place of them just standing in place.
+	In which case the turret seeking logic should be in the Idle: state code in general, instead of here in OnWander(), maybe.*/
+	//MAYDO: Add a call to KAI_Chase_FriendsAttackPlayerEnemies() when the marine is wandering?
 	Override Bool OnWander()
 	{
 		Super.OnWander();
@@ -432,27 +476,6 @@ Class SM_Marine : KAI_Humanoid
 		{
 			SetStateLabel ("Spawn");
 			Return False;
-		}
-		
-		if (noturret)noturret--;
-		//URGENT: DEBUG: THIS IS JUST FOR CHECKING TO MAKE SURE THE WIP EMPLACEMENT SYSTEM WORKS WITH NPCS!!!!!!!!!!!!!!!!!
-		Let TurretSearch = BlockThingsIterator.Create (Self,512);
-		Console.Printf ("MARINE POS %d %d %d",pos);
-		While (TurretSearch.Next())
-		{
-			If (!noturret && TurretSearch.Thing && TurretSearch.Thing Is "KAI_Emplacement" && !KAI_Emplacement(TurretSearch.Thing).Operator && Distance3D(tURRETsEarch.thing) <= 512)
-			{
-				If (Distance3D(TurretSearch.Thing) <= MeleeRange)
-				{console.printf ("marine uses turret");
-					KAI_Emplacement(TurretSearch.Thing).Used (Self); //Use the turret to try and man it.
-					noturret = 32;
-					Return False;
-				}
-				
-				KAI_MoveTowards (TurretSearch.Thing.Pos,anglelimit:20);
-				
-				Return False;
-			}
 		}
 		
 		Bool UsedLine;
@@ -629,21 +652,32 @@ Class SM_Marine : KAI_Humanoid
 		}
 	}
 	
+	Override Void OnEmplacementExit()
+	{
+		Super.OnEmplacementExit();
+		TargetTurret = Null;
+		TurretDelay = Random(2,10)*GameTicRate; //Don't constantly enter turrets.
+		If (MarineState & MARINE_RELOAD) SetStateLabel ("Reload");
+	}
+	
 	Override Bool Used (Actor User)
 	{
 		Super.Used(User); //IDEA: In the future, when I add generic player and NPC usable emplacements in the KAI, add "use to get NPC off" handling here.
 		
-		If (!User || bDormant || IsPatrolling (Self) || User_IgnoreOrders) //Ignore commands when busy patrolling or dormant.
+		If (!User || bDormant || IsDead(Self) || IsPatrolling (Self) || User_IgnoreOrders) //Ignore commands when busy patrolling or dormant.
 			Return False;
 		
+		Bool Enemy = IsActorHostile (User);
 		//Marines attack anyone (Almost certainly an enemy player.) trying to boss them by pressing use on them.
-		If (!Target && MarineState & MARINE_IDLING && IsActorHostile (User) && CanBeTargeted (Self,User))
+		If (!Target && MarineState & MARINE_IDLING && Enemy && CanBeTargeted (Self,User))
 		{
 			Target = User;
 			Return True;
 		}
 		
 		SetNPCOrder (0,True,User); //Loop through the order list.
+		If (Enemy)
+			Return False;
 		If (KAI_DebugPrintMessages)console.printf ("%p: my order is now %d",self,currentorder);
 		A_StartSound ("Marine/Radio",CHAN_AUTO);
 		
@@ -719,6 +753,7 @@ Class SM_Marine : KAI_Humanoid
 	Actor LastDodged; //The last projectile the marine dodged.
 	Bool DodgingHomingProjectile; //The marine is in his Retreat: state because he is dodging a homing projectile, AKA running away.
 	Vector3 LastSeenPos; //The last position the target was seen at while chased by the marine. Used to make them head there first before resuming normal chasing.
+	KAI_Emplacement TargetTurret; //The turret the marine is trying to go to.
 	
 	SM_MarineGroup PlayerGroup; //The group of the player you're following.
 	
@@ -748,6 +783,7 @@ Class SM_Marine : KAI_Humanoid
 	Bool QuickGrenade; //Marine quickly throws a grenade in front of him to retreat.
 	Int GrenadeDelay; //How long until the marine throws another grenade.
 	UInt8 GrenadeType; //What grenade are we throwing exactly ?
+	UInt TurretDelay; //How long until we decide to go on a turret again?
 	
 	//Dawg
 	Int DeadDogTimer; //Incremented up by SM_MarineHandler when a friendly dog dies near a friendly marine, makes the marine furious.
@@ -991,7 +1027,7 @@ Class SM_Marine : KAI_Humanoid
 			{
 				RetreatLoops--;
 				If (KAI_DebugPrintMessages)console.printf ("%d retreats left",retreatloops);
-				If (RetreatLoops <= 0 || !Target) //Once we are done running like a bitch. Or if there's no target left.
+				If (RetreatLoops <= 0 || !Target && !(DodgingHomingProjectile && LastDodged)) //Once we are done running like a bitch. Or if there's no target left.
 				{
 					RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
 					DodgingHomingProjectile = False;
@@ -1002,8 +1038,8 @@ Class SM_Marine : KAI_Humanoid
 					
 					Return FindState ("See",True);
 				}
-				//Decrement twice as fast whenever the target is out of sight or dead.
-				If (IsDead (Target) || !CheckSight (Target,SF_IGNOREWATERBOUNDARY))
+				//Decrement twice as fast whenever the target is out of sight or dead. Unless we're running away from a homing projectile.
+				If (!(DodgingHomingProjectile && LastDodged) && (IsDead (Target) || !CheckSight (Target,SF_IGNOREWATERBOUNDARY)))
 					RetreatLoops--;
 				Return State (Null);
 			}
