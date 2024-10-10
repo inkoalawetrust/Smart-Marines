@@ -2,7 +2,7 @@
 Extend Class SM_Marine
 {
 	//Find the best emplacement for the marine to use, if any. And get the closest one.
-	Actor FindEmplacements (Double CheckRadius = 512)
+	Actor FindEmplacements (Double CheckRadius = 768)
 	{
 		If (TurretDelay) Return Null;
 		Let TurretFinder = BlockThingsIterator.Create (Self, CheckRadius);
@@ -71,7 +71,7 @@ Extend Class SM_Marine
 		}
 		
 		//Turret is receiving dangerous incoming fire.
-		If (!IsIndestructible (Self) && Distance3DSquared(Turret) <= 256*256 && SM_MGTurretMarine.FindIncomingProjectiles(Self))
+		If (!IsIndestructible (Self) && Distance3DSquared(Turret) <= 256*256 && SM_MGTurretMarine.FindIncomingProjectiles(Self,-0.25,1.5))
 			Return False;
 		
 		//We can't even go there lol.
@@ -251,6 +251,8 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 	//Get what part of the actor the marine is aiming at now.
 	Double GetAimPosOffset ()
 	{
+		If (!Target)
+			Return 0;
 		Switch (AimPos)
 		{
 			Case FAF_MIDDLE:
@@ -362,26 +364,27 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 	
 	/*Check for projectiles that are coming in and will do too much damage. Used both by the NPC turret morph itself,
 	and also for marines to not go to turrets getting fired at.*/
-	Static Actor FindIncomingProjectiles (KAI_Actor Caller)
+	//FunnelFactor: Must be negative, the higher it is, the tighter the cone in which an incoming projectile has to be to be consider as heading to the turret.
+	//HealthDivisionFactor: The lower it is, the more damaging a projectile has to be to be considered too dangerous to stay on.
+	Static Actor FindIncomingProjectiles (KAI_Actor Caller, Double FunnelFactor = -0.15, Double HealthDivisionFactor = 4)
 	{
 		ForEach (Proj : Caller.KAIHandler.ProjectileList)
 		{
 			If (!Proj) Continue;
 			
 			If (Caller.Distance3DSquared(Proj) >= 384*384)
-				{console.printf ("%s is too far away",proj.getclassname());Continue;}
+				Continue;
 			
 			//Projectile has friendly fire off, no need to leave.
 			If (Proj Is "KAI_BaseProjectile" && KAI_BaseProjectile(Proj).bNoFriendlyFire && Proj.Target && !Caller.IsActorHostile(Proj.Target))
 				Continue;
 			console.printf ("%s will do %d damage",proj.getclassname(),Caller.ApplyDamageFactor(Proj.DamageType,Proj.GetMissileDamage (1,7)));
 			//This projectile will do too little damage to you when it hits to warrant trying to escape.
-			If (Caller.ApplyDamageFactor(Proj.DamageType,Proj.GetMissileDamage (1,7)) < Caller.Health/4)
+			If (HealthDivisionFactor > 0 && Caller.ApplyDamageFactor(Proj.DamageType,Proj.GetMissileDamage (1,7)) < Caller.Health/HealthDivisionFactor)
 				Continue;
 			
 			//Is the projectile about to hit me ? Weird math nonsense written by RaveYard.
-			double blackBox = -0.15;
-			bool projectile_is_flying_towards_me = (Caller.Vec3To(proj).Unit() dot proj.vel.Unit()) < blackBox;
+			bool projectile_is_flying_towards_me = (Caller.Vec3To(proj).Unit() dot proj.vel.Unit()) < FunnelFactor;
 			double projectileSafeRadius = sqrt(2 * ((proj.radius + Caller.radius) ** 2.5));
 			If (projectile_is_flying_towards_me && KAI_Math.distance3dline(Caller.pos, proj.pos, proj.pos + proj.vel) < projectileSafeRadius && Caller.CheckSight(Proj,SF_IGNOREWATERBOUNDARY))
 				Return Proj;
@@ -550,6 +553,9 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 					console.printf ("changing targets for the turret");
 					ShouldAttack(True); //Just run locking in stuff.
 				}
+				If (IsDead(Target)) //Still nothing. Prevent some cases of NPCs firing at corpses.
+					Target = Null;
+				
 				FireRecheckZoom++;
 				
 				If (FireRecheckZoom >= 6)

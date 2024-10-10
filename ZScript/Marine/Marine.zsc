@@ -3,6 +3,7 @@
 //Give them Flashbangs.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
 //Make them reload twice as fast with -fastmonsters.
+//Marines have less retreat loops when running to reload, up to just reloading in place, based on how many allies are around them.
 //MAYDO:
 //Add a user variable that controls the base amount of retreats marines do to reload, -1 means they will not retreat at all to reload.
 //Also, or maybe instead, add a user variable in the marine restrictor that makes them reload in place instead of trying to run away.
@@ -63,10 +64,6 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.PostBeginPlay();
 		MarineState = MARINE_IDLING;
-		//CurrentOrder = bFriendly ? ORDER_FOLLOW : ORDER_WANDER; //By default, friendly marines follow the player, hostile ones wander aimlessly.
-		/*BUG: Unfortunately, hostile marines are highly retarded, so if their default order is set to ORDER_WANDER and a vehicle from the MVP
-		they are supposed to follow spawns them. They will initially have ORDER_FOLLOW, but then go back to ORDER_WANDER for genuinely no reason whatsoever.
-		It's so fucked that even giving hostile marines a CurrentOrder of 0 makes them do that. Amazing.*/
 		If (bFriendly) CurrentOrder = ORDER_FOLLOW;
 		If (KAI_DebugPrintMessages)console.printf ("%p spawned with order %d",self,currentorder);
 		FollowDist = 128+Random (-16,48);
@@ -270,6 +267,8 @@ Class SM_Marine : KAI_Humanoid
 			User_AlertRange = 512;
 		If (User_GrenadeChance == 0)
 			User_GrenadeChance = MARINE_GRENADECHANCE;
+		If (User_RetreatFactor == 0)
+			User_RetreatFactor = 1.0;
 		
 		SM_HandleMarineColoring (User_Color);
 	}
@@ -808,6 +807,7 @@ Class SM_Marine : KAI_Humanoid
 	Bool User_NoCover; //Marines never take cover from enemies.
 	Double User_AlertRange; //How far away marines can alert KAI NPC allies. For group members that can be alerted regardless of distance, that is turned off if the range is -1s or less.
 	Int User_GrenadeChance; //How likely is the marine to throw a grenade?
+	Double User_RetreatFactor;
 	
 	States
 	{
@@ -1164,41 +1164,60 @@ Class SM_Marine : KAI_Humanoid
 				SM_EndFiring();
 				If (AmmoCount <= 0) //Out of ammo.
 				{
+					RetreatLoops = 0; //RESET THE AMOUNT OF RETREATS, DO NOT FUCKING STACK THEM.
 					//Target is alive and in sight and you are not in cover, if you are, then don't run.
 					If (!(MarineState & MARINE_INCOVER) && !IsDead (Target) && CheckSight (Target,SF_IGNOREWATERBOUNDARY))
 					{
-						//Determine how much to run away based on how dangerous your enemy is.
-						Switch (AssessThreatLevel (Target))
+						If (!SM_IsRestricted(RESTRICT_RELOADRUN))
 						{
-							Case THREAT_UNSTOPPABLE:
-							Case THREAT_SUPERDANGER:
-								//RetreatLoops = Random (32,48);If (KAI_DebugPrintMessages)a_log ("now this is an avengers level threat");
-								//Break;
-							Case THREAT_VERYDANGEROUS:
-							Case THREAT_DANGEROUS:
-								RetreatLoops = Random (12,24);If (KAI_DebugPrintMessages)a_log ("this is dangerous");
-								Break;
-							Default:
-								RetreatLoops = Random (6,12);
-								Break;
-						}
+							//Determine how much to run away based on how dangerous your enemy is.
+							Switch (AssessThreatLevel (Target))
+							{
+								Case THREAT_UNSTOPPABLE:
+								Case THREAT_SUPERDANGER:
+									//RetreatLoops = Random (32,48);If (KAI_DebugPrintMessages)a_log ("now this is an avengers level threat");
+									//Break;
+								Case THREAT_VERYDANGEROUS:
+									RetreatLoops = Random (12,24);If (KAI_DebugPrintMessages)a_log ("this is dangerous");
+									Break;
+								Case THREAT_DANGEROUS:
+									RetreatLoops = Random (8,12);If (KAI_DebugPrintMessages)a_log ("this is kinda dangerous");
+									Break;
+								Default:
+									RetreatLoops = Random (4,8);
+									Break;
+							}
+							
+							If (Distance3DSquared(Target) <= 320*320)
+								RetreatLoops += 2; //Too close.
 						
-						//Don't run as far away if you are supposed to stay on the beaten path.
-						If (IsPatrolling (Self) && bChaseGoal)
-							RetreatLoops /= 2;
+							//Don't run as far away if you are supposed to stay on the beaten path.
+							If (IsPatrolling (Self) && bChaseGoal)
+								RetreatLoops /= 2;
+						}
 						
 						SM_SetMarineState (MARINE_RELOAD,0); //Tell the Retreat state we need to reload, so it goes there once the RetreatLoops end.
 						If (Random (0,255) < 4) A_StartSound ("Marine/Boolet",CHAN_VOICE,CHANF_OVERLAP);
 						
 						//Might instead quickly throw a smoke grenade before backing off, especially after firing full auto.
-						Int SmokeChance = Random (0,255)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);
+						Int SmokeChance = Random (0,128)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);
+						If (SM_IsRestricted(RESTRICT_RELOADRUN)) SmokeChance -= 32; //Less likely to throw smoke if set to never retreat.
+						
+						RetreatLoops *= User_RetreatFactor;
+						If (!SM_IsRestricted(RESTRICT_RELOADRUN)) RetreatLoops = Clamp (RetreatLoops,1,INT.MAX);
+						Console.Printf ("Retreating %d times, retreatfactor is %.1f",retreatloops,user_retreatfactor);
+						
 						If (PrepareForSmokeThrow (SmokeChance))
 							{If (KAI_DebugPrintMessages)a_log ("throw a smokescreen and dip");Return FindState ("Grenade");}
 						
-						Return FindState ("Retreat"); //Run either far enough or out of sight, to reload.
+						If (RetreatLoops) Return FindState ("Retreat"); //Run either far enough or out of sight, to reload.
+						Else Return FindState ("Reload");
 					}
 					Else //Dead or out of sight, reload now.
+					{
+						SM_SetMarineState (MARINE_RELOAD,0);
 						Return FindState ("Reload");
+					}
 				}
 				Return State (Null);
 			}
@@ -1321,7 +1340,7 @@ Class SM_Marine : KAI_Humanoid
 			}
 			TNT1 A 0
 			{
-				If (!(MarineState & MARINE_INCOVER)) RetreatLoops += Random (4,8);
+				If (!(MarineState & MARINE_INCOVER)) RetreatLoops += Random (4,8)*User_RetreatFactor;
 				SM_SetMarineState (MARINE_THROWING,0); //Were done.
 			}
 			TNT1 A 0 A_JumpIf (MarineState & MARINE_INCOVER,"See"); //Don't retreat if behind cover.
@@ -1595,7 +1614,6 @@ Class SM_Marine : KAI_Humanoid
 				A_SetAngle (GetAngleToPos(Vec3Angle (Speed,Angle))); //Face in front of where you climbed to.
 				SetOrigin (ClimbPos,False); //There's a slight delay in the worldoffset with interpolation on.
 			}
-			//TNT1 A 0 SetOrigin ((Vec2Angle(Radius+1,Angle),ClimbPos.Z),True); //And at last. Go to the climbing position and resume walking or whatever.
 			MARA G 1
 			{
 				bNoGravity = Default.bNoGravity;
@@ -1603,6 +1621,19 @@ Class SM_Marine : KAI_Humanoid
 			}
 			TNT1 A 0 {WorldOffset = (0,0,0);}
 			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");
+			TNT1 A 0
+			{
+				If (MarineState & MARINE_IDLING) //We were bing chilling, go back to that.
+					Return FindState ("Idle",True);
+				//We were looking to reload at the time of the climb.
+				If (MarineState & MARINE_RELOAD)
+					If (RetreatLoops) //Go back to retreating instead of reseting the retreat counter and shit.
+						Return FindState ("Retreat");
+					Else //Straight to reloading.
+						Return FindState ("Reload");
+				
+				Return State (Null);
+			}
 			Goto See;
 		Jump:
 			MARA H 1
@@ -1629,10 +1660,10 @@ Class SM_Marine : KAI_Humanoid
 			MARA H 1;
 			MARA H 0 //Decide if the marine should fire while mid-dodge, becoming more likely to do so the closer the marine is to death.
 			{
-				Int Chance = KAI_Math.LinearMap (Health,0,SpawnHealth(),192,96);
+				Int Chance = KAI_Math.LinearMap (Health,0,SpawnHealth(),192,96); //The closer we are to dying the more likely we are to fire while dodging.
 				
 				//Check if we should decide to strafe shoot, if we even can.
-				If (Random (0,255) < 255 && (Target && !IsDead(Target) ||
+				If (Random (0,255) < Chance && (Target && !IsDead(Target) ||
 				LastDodged && LastDodged.Target && !IsDead(LastDodged.Target) && IsActorHostile (LastDodged.Target)) && AmmoCount > 0 && !(CurSector.Flags & Sector.SECF_NOATTACK))
 				{
 					AttackType = FIRE_FULLAUTO;

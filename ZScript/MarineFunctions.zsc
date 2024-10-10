@@ -31,7 +31,7 @@ Extend Class SM_Marine
 		
 		Bool MovedAlready;
 		//If fast monsters (AKA fast projectile attacks too) is enabled, and it's a ranged target, stay 16 meters away, if not, stay 12 meters away.
-		Double MajorThreatRange = (G_SkillPropertyInt(SKILLP_FASTMONSTERS) && Target.MissileState) ? 512*512 : 384*384;//(RetreatRange*4)*(RetreatRange*4);
+		Double MajorThreatRange = (Target && G_SkillPropertyInt(SKILLP_FASTMONSTERS) && Target.MissileState) ? 512*512 : 384*384;//(RetreatRange*4)*(RetreatRange*4);
 		Bool CancelAttack;
 		Int TargetThreatLevel = AssessThreatLevel(Target, True);
 		
@@ -672,7 +672,7 @@ Extend Class SM_Marine
 		}
 		
 		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
-		//We're running away because we need to reload, but we do have a turret to head to, so runs towards it to use it instead..
+		//We're running away because we need to reload, but we do have a turret to head to, so runs towards it to use it instead.
 		If (TargetTurret && MarineState & MARINE_RELOAD)
 		{
 			If (TargetTurret && Distance3DSquared(TargetTurret) <= (MeleeRange*MeleeRange)*1.2)
@@ -878,6 +878,8 @@ Extend Class SM_Marine
 	//Get what part of the actor the marine is aiming at now.
 	Double GetAimPosOffset ()
 	{
+		If (!Target)
+			Return 0;
 		Switch (AimPos)
 		{
 			Case FAF_MIDDLE:
@@ -1477,6 +1479,12 @@ Extend Class SM_Marine
 				SM_SetMarineState (0,MARINE_FIRING);
 			If (MarineState & MARINE_IDLING) //We were bing chilling, go back to that.
 				Return FindState ("Idle",True);
+			//We were looking to reload at the time of the dodge.
+			If (MarineState & MARINE_RELOAD)
+				If (RetreatLoops) //Go back to retreating instead of reseting the retreat counter and shit.
+					Return FindState ("Retreat");
+				Else //Straight to reloading.
+					Return FindState ("Reload");
 			
 			Return SeeState; //Or go back to chasing I guess.
 		}
@@ -1648,6 +1656,7 @@ Extend Class SM_Marine
 		RESTRICT_DODGING, //Marine dodging incoming projectiles.
 		RESTRICT_HEALING, //Marine occasionally giving stimpacks to allies.
 		RESTRICT_WARNALLIES, //Marine warning nearby friendly marines.
+		RESTRICT_RELOADRUN, //Marine run away a bit before reloading.
 	}
 	
 	//Check if the following action is restricted by a token given from a restriction zone, or a user variable.
@@ -1673,6 +1682,8 @@ Extend Class SM_Marine
 		If (MarineAction == RESTRICT_HEALING && (User_HealCooldown == 0 || Token && Token.NoHeal))
 			Return True;
 		If (MarineAction == RESTRICT_WARNALLIES && Token && Token.NoWarn)
+			Return True;
+		If (MarineAction == RESTRICT_RELOADRUN && (User_RetreatFactor <= 0 || Token && Token.NoReloadRun))
 			Return True;
 		
 		Return False;

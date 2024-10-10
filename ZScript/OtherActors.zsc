@@ -49,6 +49,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 	Bool User_NoHealing; //Do not heal nearby allies when in range.
 	//Bool User_NoSwimming; //Do not swim in and out of swimmable 3D floors.
 	Bool User_DontWarn; //Do not alert nearby friends of enemies.
+	Bool User_NoReloadRun; //Do not run away to reload.
 	
 	//Other settings
 	Bool User_CheckSight; //In addition to only restricting marines in range, also only restrict them if they are in sight as well.
@@ -93,16 +94,17 @@ Class SM_ActionRestrictor : KAI_MixinActor
 		
 		If (Restrictor)
 		{
-			Restrictor.NoCover	= Args[ARG_NOCOVER];
-			Restrictor.NoClimb	= Args[ARG_NOCLIMB];
-			Restrictor.NoJump	= Args[ARG_NOJUMP];
-			Restrictor.NoCrouch	= Args[ARG_NOCROUCH];
-			//Restrictor.NoSwim	= User_NoSwimming;
-			Restrictor.NoDodge	= User_NoDodging;
-			Restrictor.NoHeal	= User_NoHealing;
-			Restrictor.NoWarn	= User_DontWarn;
+			Restrictor.NoCover		= Args[ARG_NOCOVER];
+			Restrictor.NoClimb		= Args[ARG_NOCLIMB];
+			Restrictor.NoJump		= Args[ARG_NOJUMP];
+			Restrictor.NoCrouch		= Args[ARG_NOCROUCH];
+			//Restrictor.NoSwim		= User_NoSwimming;
+			Restrictor.NoDodge		= User_NoDodging;
+			Restrictor.NoHeal		= User_NoHealing;
+			Restrictor.NoWarn		= User_DontWarn;
+			Restrictor.NoReloadRun	= User_NoReloadRun;
 			
-			Restrictor.CheckSight=User_CheckSight;
+			Restrictor.CheckSight	= User_CheckSight;
 			Restrictor.MaxTargetRange = Args[ARG_RANGE];
 			Restrictor.Master = Self;
 		}
@@ -119,8 +121,8 @@ Class SM_RestrictionToken : Inventory
 		ReactionTime 1; //This only needs to be given every tick to marines in range, no need for it to last longer than that.
 	}
 	
-	//The naughty list. Check by SM_IsRestricted().
-	Bool NoCover, NoClimb, NoJump, NoCrouch, NoSwim, NoDodge, NoHeal, NoWarn;
+	//The naughty list. Checked by SM_IsRestricted().
+	Bool NoCover, NoClimb, NoJump, NoCrouch, NoSwim, NoDodge, NoHeal, NoWarn, NoReloadRun;
 	
 	Bool CheckSight;
 	
@@ -170,12 +172,18 @@ Class SM_MarineGroup : KAI_NPCGroup
 	{
 		Super.HandleGroupEvent(EventType,Affected);
 		
+		//Use "(Player name)'s Fireteam/Squad/Platoon/Whatever" naming scheme if led by a player.
 		If (EventType == GRPEVNT_NEWLEADER)
 		{
 			IsPlayerGroup = Affected.Player;
 			If (Affected.Player)
 				GroupName = String.Format ("%s's %s",Affected.Player.GetUsername(),GetGroupSizeType());
 		}
+		
+		//One NPC was revived after everyone died already. They're now the new leader by virtue of actually being alive.
+		//BUG: Marines in a situation where they're a member of a group where everyone died will remove themselves from the group before they can become leader.
+		If (EventType == GRPEVNT_REVIVAL && Leader != Affected && GetNPCGroupFlags() == NPCGRP_EVERYONEDIED)
+			ChangeLeader(Affected);
 		
 		//Update group name to reflect the size of it. Only used if the groups' leader is a player.
 		If (Leader && Leader.Player && (EventType == GRPEVNT_JOIN || EventType == GRPEVNT_LEFT))
