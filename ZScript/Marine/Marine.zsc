@@ -6,7 +6,7 @@
 //Fix, or rather, FINISH the code that makes them sit in place after using a door or lift until it finishes moving before they go again.
 //Uh, not actually related to THIS mod, but the MVP vehicle radio doesn't seem to work with the marines?
 //BUG:
-//I think marines don't actually go to players the want to heal because of the FollowDist code that tries to prevent dogpiling.
+//Fix marines behind cover never popping back up again to shoot.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -526,7 +526,7 @@ Class SM_Marine : KAI_Humanoid
 			//The jump destination is longer than half the jump distance, so do a long jump if there's space behind you for it.
 			If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/1.5 && (Reachable = SM_CanRunBack()))
 			{If (KAI_DebugPrintMessages)console.printf ("doing a long jump over a distance of %.2f threshold is %d",Level.Vec2Diff (Pos.XY,JumpPosition).Length(),MARINE_JUMPLENGTH/1.5);
-				PreJumpPos = Vec3Angle(256,Angle-180);
+				PreJumpPos = Vec3Angle(MARINE_JUMPRUNLENGTH,Angle-180);
 				SetStateLabel ("Jump.Running");
 				Return False;
 			}
@@ -573,6 +573,25 @@ Class SM_Marine : KAI_Humanoid
 		{
 			SetStateLabel ("AskDog");
 			Return False;
+		}
+		
+		//Sometimes just get on a nearby turret for shits and giggles, or in case something appears I guess.
+		If (CurrentOrder == ORDER_WANDER && !TurretDelay && Random (0,255) < 8)
+		{
+			If (!TargetTurret) TargetTurret = KAI_Emplacement(FindEmplacements(512));
+			Else
+			{
+				KAI_MoveTowards (TargetTurret.Pos,anglelimit:20);
+				//We're in range to try using the turret we're heading to.
+				If (TargetTurret && Distance3DSquared(TargetTurret) <= MeleeRange*MeleeRange)
+				{console.printf ("I DID IT, I AM USING THE STUPID GUN");
+					TargetTurret.EnterEmplacement(Self);
+					//We're on the machine gun the mod comes with in particular, so make us stay on it longer when idling.
+					If (Emplacement && Emplacement Is "SM_MGTurret" && Emplacement.OperatorMorph)
+						SM_MGTurretMarine(Emplacement.OperatorMorph).MarineFuckingAround = True;
+				}
+				Return False;
+			}
 		}
 		
 		//If the stars align and you are in the players' peripheral vision without them being in third person.
@@ -757,8 +776,9 @@ Class SM_Marine : KAI_Humanoid
 	Const MARINE_USEPATIENCE = 10; //How long the marine stays in the interact state.
 	Const MARINE_CHASETIME = 350; //Chase your target for approximately 30 seconds after he has gone out of sight or died, before going to your idle state.
 	Const MARINE_GRENADECHANCE = 130; //The default chance threshold over which the marine will throw a grenade if in range.
-	Const MARINE_JUMPLENGTH = 288;
-	Const MARINE_CROUCHHEIGHT = 30;
+	Const MARINE_JUMPLENGTH = 288; //How far the marine can jump to cross obstacles.
+	Const MARINE_JUMPRUNLENGTH = 256; //How far back the marine runs to do a running jump for particularly long obstacles.
+	Const MARINE_CROUCHHEIGHT = 30; //The height the marine crouches down to.
 	
 	Mixin SM_SplashFunctions;
 	
@@ -771,10 +791,13 @@ Class SM_Marine : KAI_Humanoid
 	Int AimTimer; //If the marine has been trying to aim and fire at the target for this long, then it's not working.
 	Int ChaseTimer; //How long has the marines' target being dead or out of sight ?
 	Int MeleeTime; //When on, the marine will be less scared of entering melee, like if the other enemy is weak and nearby, and by extension more likely to do it.
+	
+	//Hardcore parkour stuff.
 	Vector3 ClimbPos; //Where the marine will move at after climbing up a sector in his climb state.
 	Vector3 JumpPos; //Where the marine must jump to in his jump state.
-	Vector3 PreJumpPos; //Where the marine started his running jump. Used to make the marine walk back and run forward to jump over very big gaps.
+	Vector3 PreJumpPos; //Where the marine will start his running jump. Used to make the marine walk back and run forward to jump over very big gaps.
 	/*Private*/ Bool Crouching; //If true, the marine is currently crouching.
+	
 	HazardInfo HazardToAvoid; //What hazard from his Hazards array should the marine be currently trying to avoid ?
 	Vector3 RetreatPos; //The position the marine retreats from, if this is not NaN, the retreat state runs from this coordinate instead of the target actor.
 	Actor LastDodged; //The last projectile the marine dodged.
@@ -1196,7 +1219,8 @@ Class SM_Marine : KAI_Humanoid
 					//Target is alive and in sight and you are not in cover, if you are, then don't run.
 					If (!(MarineState & MARINE_INCOVER) && !IsDead (Target) && CheckSight (Target,SF_IGNOREWATERBOUNDARY))
 					{
-						If (!SM_IsRestricted(RESTRICT_RELOADRUN))
+						Bool NoRetreat = SM_IsRestricted(RESTRICT_RELOADRUN);
+						If (!NoRetreat)
 						{
 							//Determine how much to run away based on how dangerous your enemy is.
 							Switch (AssessThreatLevel (Target))
@@ -1225,14 +1249,14 @@ Class SM_Marine : KAI_Humanoid
 						}
 						
 						SM_SetMarineState (MARINE_RELOAD,0); //Tell the Retreat state we need to reload, so it goes there once the RetreatLoops end.
-						If (Random (0,255) < 4) A_StartSound ("Marine/Boolet",CHAN_VOICE,CHANF_OVERLAP);
+						If (!NoRetreat && Random (0,255) < 4) A_StartSound ("Marine/Boolet",CHAN_VOICE,CHANF_OVERLAP);
 						
 						//Might instead quickly throw a smoke grenade before backing off, especially after firing full auto.
 						Int SmokeChance = Random (0,128)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);
-						If (SM_IsRestricted(RESTRICT_RELOADRUN)) SmokeChance -= 32; //Less likely to throw smoke if set to never retreat.
+						If (NoRetreat) SmokeChance -= 32; //Less likely to throw smoke if set to never retreat.
 						
 						RetreatLoops *= User_RetreatFactor;
-						If (!SM_IsRestricted(RESTRICT_RELOADRUN)) RetreatLoops = Clamp (RetreatLoops,1,INT.MAX);
+						If (!NoRetreat) RetreatLoops = Clamp (RetreatLoops,1,INT.MAX);
 						Console.Printf ("Retreating %d times, retreatfactor is %.1f",retreatloops,user_retreatfactor);
 						
 						If (PrepareForSmokeThrow (SmokeChance))
@@ -1671,7 +1695,10 @@ Class SM_Marine : KAI_Humanoid
 					JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y); //So just get the Z at the XY coordinates.
 				bNoFriction = True; //Get rid of the god forsaken friction.
 				KAI_JumpTo (JumpPos);
-				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+				If (Random (0,255) < 253)
+					A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+				Else
+					A_StartSound ("Marine/Wahoo",CHAN_VOICE,attenuation:0.8);
 			}
 			MARA H 1; //Wait one tick.
 			Goto Jump.Loop;
@@ -1683,7 +1710,14 @@ Class SM_Marine : KAI_Humanoid
 					JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y); //So just get the Z at the XY coordinates.
 				bNoFriction = True; //Get rid of the god forsaken friction.
 				KAI_JumpTo (JumpPos,8);
-				A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+				If (Random (0,255) < 3)
+					A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+				Else
+				{
+					A_StartSound ("Marine/AltDodge",CHAN_VOICE,attenuation:0.8);
+					Actor Text = Spawn ("SM_OrderText",Pos.PlusZ(Height));
+					If (Text) Text.SetStateLabel("Miss");
+				}
 			}
 			MARA H 1;
 			MARA H 0 //Decide if the marine should fire while mid-dodge, becoming more likely to do so the closer the marine is to death.
@@ -1729,12 +1763,22 @@ Class SM_Marine : KAI_Humanoid
 			}
 			MARA H 1;
 			Goto Jump.Loop;
-		//URGENT: Why the fuck are we not using IsPosReachable()? Wtf?
 		Jump.Running:
 			MARI AABBCCDDAABBCCDDAABBCCDD 2 //Move back.
 			{If (KAI_DebugPrintMessages)console.printf ("MARINE IS TRYING TO DO A RUNNING JUMP BECAUSE HE'S STUPID !");
 				KAI_MoveTowards (PreJumpPos, 0.5, 0); 
 				If (!CheckMove (Vec2Angle(Speed,Angle))) //Something is in the way.
+				{
+					If (MarineState & MARINE_IDLING)
+						Return FindState ("Idle",True);
+					
+					Return SeeState;
+				}
+				Return State (Null);
+			}
+			TNT1 A 0
+			{
+				If (!IsPosReachable(Vec3Angle(MARINE_JUMPRUNLENGTH,Angle-180))) //Something is in the way as we run forward to jump.
 				{
 					If (MarineState & MARINE_IDLING)
 						Return FindState ("Idle",True);

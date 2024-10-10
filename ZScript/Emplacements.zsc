@@ -37,7 +37,7 @@ Extend Class SM_Marine
 				}
 				
 				//We check if the turret is reachable dead last for performance.
-				If (PushTurret && Distance3DSquared(Turrets[I]) > MeleeRange*MeleeRange && !SM_IsPosReachable(Turrets[I].Pos,(Turrets[I].Radius*2)+(Radius*2)*2))
+				If (PushTurret && Distance3DSquared(Turrets[I]) > MeleeRange*MeleeRange && !SM_IsPosReachable(Turrets[I].Pos,(Turrets[I].Radius*2)+(Radius*2)*2.2))
 					{PushTurret = False;console.printf ("I CAN'T GO THERE! EVEN IF UNOCCUPIED!");}
 			}
 			
@@ -366,8 +366,12 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 			TurretIdleTime++; //🥶🍨
 			If (Emplacement)
 			{
-				Int WaitTime;
-				If (Emplacement Is "SM_MGTurret") WaitTime = Emplacement.Args[SM_MGTurret.ARG_IDLETIME];
+				Int WaitTime = -1;
+				If (Emplacement Is "SM_MGTurret")
+				{
+					WaitTime = Emplacement.Args[SM_MGTurret.ARG_IDLETIME];
+					If (MarineFuckingAround) WaitTime += (GameTicRate+5); //Stay longer if on the turret due to being idle.
+				}
 				If (WaitTime != -1 && TurretIdleTime >= WaitTime)
 					Emplacement.ExitEmplacement(); //Get out of the turret. Since there's nothing to do here.
 			}
@@ -498,6 +502,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 	UInt FireRecheckZoom; //Track how many sets of shots have been fired before checking again if you should zoom in.
 	Int TurretIdleTime; //Keep track of how long the marine has been on doing nothing, resets every time something happens.
 	Int AimPos; //The FAF aim pos, basically just the FAF_ flags lol.
+	Bool MarineFuckingAround; //The turret was entered while a marine was idle and decided to get on it.
 	
 	Bool IsGenericNPC; //This morph is a generic, non-marine NPC on the turret. So no zooming in mode, and not marine-on-turret sprites, use a fake operator instead.
 	

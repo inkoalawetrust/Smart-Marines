@@ -143,7 +143,7 @@ Extend Class SM_Marine
 					//The jump destination is longer than half the jump distance, so do a long jump if there's space behind you for it.
 					If (Level.Vec2Diff (Pos.XY,JumpPosition).Length() >= MARINE_JUMPLENGTH/1.5 && (Reachable = SM_CanRunBack()))
 					{
-						PreJumpPos = Vec3Angle(256,Angle-180);
+						PreJumpPos = Vec3Angle(MARINE_JUMPRUNLENGTH,Angle-180);
 						SetStateLabel ("Jump.Running");
 						MovedAlready = True;
 					}
@@ -253,10 +253,12 @@ Extend Class SM_Marine
 		{
 			Vector3 RealPos = Pos;
 			SetXYZ (NearbyCoverPos); //Check from the desired position.
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			//Make sure the target didn't get behind the cover or something while you are still going there !.
 			Bool StillValidCover = SM_UpdateCover (Other,False,256);
 			SetXYZ (RealPos);
-			Bool CanWalkThere = (Random (0,255) < 220) ? True : IsPosReachable (NearbyCoverPos); //Only SOMETIMES check if we can still go there.
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
+			Bool CanWalkThere = (Random (0,255) < 220) ? True : IsPosReachable (NearbyCoverPos,spacing:Speed,ignoreactors:True); //Only SOMETIMES check if we can still go there.
 			if (!stillvalidcover && KAI_DebugPrintMessages) console.printf ("SM_CHASE(): THE COVER THE MARINE IS MOVING TO AT %d %d %d IS NO LONGER VALID",NearbyCoverPos);
 			if (!canwalkthere && KAI_DebugPrintMessages) console.printf ("SM_CHASE(): THE COVER THE MARINE IS MOVING TO AT %d %d %d IS NOW OUTTA REACH",NearbyCoverPos);
 			If (Level.Vec3Diff (Pos,NearbyCoverPos).Length() > Radius*1.2 && StillValidCover && CanWalkThere)
@@ -269,9 +271,9 @@ Extend Class SM_Marine
 			}
 			Else //We are basically at our destination, so get rid of the goal and try crouching behind here.
 			{
-				If (KAI_DebugPrintMessages)console.printf ("clearing cover pos !");
+				If (KAI_DebugPrintMessages)console.printf ("clearing cover pos (%d %d %d) !",nearbycoverpos);
 				NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
-				If (!StillValidCover) //If we are no longer heading to NearbyCoverPos because it's now unsafe, just abort.
+				If (StillValidCover) //If we are no longer heading to NearbyCoverPos because it's now unsafe, just abort.
 				{
 					SM_StartCrouch(); //Just to be sure, if it's not valid for some reason, the marine uncrouches on his own anyway.
 					If (StopRetreating) //Used when called by SM_RunAway() to put the marine back into the See state with its' special crouch handling.
@@ -287,7 +289,7 @@ Extend Class SM_Marine
 		Return MovePos, DoZigZag, CancelAttack;
 	}
 	
-	//Search for the closest cover between the marine and the target and marine (e.g if there's cover 4 meters towards the target) and the marines' flanks.
+	//Search for the closest cover between the marine and the target (e.g if there's cover 4 meters towards the target) and the marines' flanks.
 	//Other: The actor to check if you can hide from.
 	//Distance: How far the check traces can move forward to check for cover + how far to check on each side for said cover.
 	//PitchBounds: The maximum and minimum pitch, in that order, of the marine. If the pitch is out of those bounds, the many side checks are aborted for optimization. 0 disables each pitch check.
@@ -310,33 +312,38 @@ Extend Class SM_Marine
 		If (PitchBounds.Y != 0 && PitchTo > PitchBounds.Y) Return FrontCover;
 		
 		Vector3 RealPos = Pos;
-		Vector3 LeftCover, RightCover;
+		Vector3 LeftCover = (Double.NaN, Double.NaN, Double.NaN);
+		Vector3 RightCover = (Double.NaN, Double.NaN, Double.NaN);
 		Bool GotLeftCover, GotRightCover;
 		
 		Double Spacing = Radius*2; //Check spacing.
 		
 		For (Int DistDiv = Distance/Spacing; DistDiv < Distance; DistDiv += Spacing)
 		{
-			SetXYZ (Vec3Angle (DistDiv,AngleTo(Other)-90)); //Check left.
+			SetXYZ (Vec3Angle (DistDiv,AngleTo(Other)+90)); //Check left.
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			[GotLeftCover, LeftCover] = SM_UpdateCover (Other,False,Distance);
 			//actor point = spawn ("kai_debugpoint",leftcover);
 			If (GotLeftCover) LeftCover.Z = GetZAt();
 			SetXYZ (RealPos);
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS);
 			If (!GotLeftCover) LeftCover = (Double.NaN, Double.NaN, Double.NaN);
 			Else If (GotLeftCover && IsPosReachable (LeftCover,Radius*1.1))
-				/*{point.setxyz (point.pos.plusz(64));*/Break;//} //Found a spot to hide behind on the left.
+				Break; //Found a spot to hide behind on the left.
 		}
 		
 		For (Int DistDiv = Distance/Spacing; DistDiv < Distance; DistDiv += Spacing)
 		{
-			SetXYZ (Vec3Angle (DistDiv,AngleTo(Other)+90)); //Check Right.
+			SetXYZ (Vec3Angle (DistDiv,AngleTo(Other)-90)); //Check Right.
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			[GotRightCover, RightCover] = SM_UpdateCover (Other,False,Distance);
 			//actor point = spawn ("kai_debugpoint",rightcover);
 			If (GotRightCover) RightCover.Z = GetZAt();
 			SetXYZ (RealPos);
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS);
 			If (!GotRightCover) RightCover = (Double.NaN, Double.NaN, Double.NaN);
 			Else If (GotRightCover && IsPosReachable (RightCover))
-				/*{point.setxyz (point.pos.plusz(64));*/Break;//} //Found a spot to hide behind on the right.
+				Break; //Found a spot to hide behind on the right.
 		}
 		
 		//Get the smallest distance between these 3, and return the closest position.
@@ -354,26 +361,23 @@ Extend Class SM_Marine
 		
 		If (SmallestDist != INT.MAX)
 		{
-			If (SmallestDist == FrontDist)
-				/*{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking front cover %d %d %d",frontcover);*/Return FrontCover;//}
-			Else If (SmallestDist == LeftDist)
-				/*{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking left cover %d %d %d",leftcover);*/Return LeftCover;//}
-			Else If (SmallestDist == RightDist)
-				/*{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking right cover %d %d %d",rightcover);*/Return RightCover;//}
+			If (SmallestDist == FrontDist && !KAI_Math.IsEmptyVector3(FrontCover))
+				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking front cover %d %d %d",frontcover);Return FrontCover;}
+			Else If (SmallestDist == LeftDist && !KAI_Math.IsEmptyVector3(LeftCover))
+				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking left cover %d %d %d",leftcover);Return LeftCover;}
+			Else If (SmallestDist == RightDist && !KAI_Math.IsEmptyVector3(RightCover))
+				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking right cover %d %d %d",rightcover);Return RightCover;}
 		}
-		//If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): All checks failed, returning NaN vector.");
+		If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): All checks failed, returning NaN vector.");
 		Return (Double.NaN, Double.NaN, Double.NaN);
 	}
 	
-	Bool HipFalsePositive; //HACK: Sometimes traces go full retard and return that the marines' hip level isn't blocked, so only uncrouch if TWO hip checks are false.
-	
-	//BUG: URGENT: Fix the cover check causing them to teabag the air when on slopes.
 	Bool, Vector3 SM_UpdateCover (Actor Other, Bool IsCrouchingAlready, Double TraceDist = 48)
 	{
 		Vector3 HipHitPos = (Double.NaN, Double.NaN, Double.NaN);
 		
-		//Don't crouch if Who is invalid, you are patrolling, or it's just restricted.
-		If (!Other || IsPatrolling (Self) || SM_IsRestricted (RESTRICT_TAKECOVER))
+		//Don't crouch if Who is invalid, you are patrolling, crouching is restricted, or you're below the world.
+		If (!Other || IsPatrolling (Self) || SM_IsRestricted (RESTRICT_TAKECOVER) || Pos.Z < FloorZ)
 			Return False, HipHitPos;
 		
 		FLineTraceData EyeLevel, HipLevel;
@@ -422,29 +426,25 @@ Extend Class SM_Marine
 		//Only run this if the marine is not crouched already.
 		If (!IsCrouchingAlready)
 			If (EyelevelUnblocked && HipLevelBlocked && OtherInSight)
-				{If (KAI_DebugPrintMessages)console.printf ("SM_UpdateCover(): marine can take cover");Return True, HipHitPos;}
+			{
+				KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
+				KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
+				If (KAI_DebugPrintMessages)console.printf ("SM_UpdateCover(): marine can take cover");
+				Return True, HipHitPos;
+			}
 		
 		//If you are crouching already and have a line of sight to the other actor.
 		If (IsCrouchingAlready && OtherInSight)
-			//Then return if you can crouch based on whether or not your hips are blocked by cover still.
 		{if (!hiplevelblocked) console.printf ("SM_UpdateCover(): marine can no longer hide behind here");
-			If (!HipLevelBlocked && !HipFalsePositive) //HACK: Catch retarded false positives from the trace.
-			{If (KAI_DebugPrintMessages)console.printf ("SM_UPDATECOVER: CAUGHT RETARDED MALFORMED FALSE POSITIVE");
-				HipFalsePositive = True;
-				HipLevelBlocked = True;
-			}
-			If (!HipLevelBlocked && HipFalsePositive) //If it returns false a second time, it's probably for real.
-				{If (KAI_DebugPrintMessages)console.printf ("SM_UPDATECOVER: PROBABLY NOT A FALSE POSITIVE, COVER REALLY IS BROKEN");HipFalsePositive = False;}
 			Return HipLevelBlocked, HipHitPos; //Then return if you can crouch based on whether or not your hips are blocked by cover still.
 		}
 		
 		If (!OtherInSight && Random (0,255) < 4) //If the other actor is out of sight, the marine will eventually give up staying behind cover.
-			{If (KAI_DebugPrintMessages)console.printf ("SM_UpdateCover(): %p is out of sight",other);Return False, HipHitPos;}
+			/*{If (KAI_DebugPrintMessages)console.printf ("SM_UpdateCover(): %p is out of sight",other);*/Return False, HipHitPos;//}
 		
 		//If none of the other checks are true, but you are crouching already, then just assume you can keep doing so.
 		If (IsCrouchingAlready)
 		{
-			HipFalsePositive = True; //HACK: We need two false hip checks in a row to consider it to not be a fluke.
 			Return True, HipHitPos;
 		}
 		
@@ -508,11 +508,11 @@ Extend Class SM_Marine
 	Bool SM_CanRunBack()
 	{
 		Vector3 RealPos = Pos;
-		Bool Moved = IsPosReachable (Vec3Angle(256,Angle-180),dropoff:False); //Doesn't use the SM_ wrapper since it's supposed to be one continuous running leap.
+		Bool Moved = IsPosReachable (Vec3Angle(MARINE_JUMPRUNLENGTH,Angle-180),dropoff:False); //Doesn't use the SM_ wrapper since it's supposed to be one continuous running leap.
 		If (Moved)
 		{
-			SetOrigin (Vec3Angle(256,Angle-180),False);
-			Moved = IsPosReachable (Vec3Angle(256,Angle));
+			SetOrigin (Vec3Angle(MARINE_JUMPRUNLENGTH,Angle-180),False);
+			Moved = IsPosReachable (Vec3Angle(MARINE_JUMPRUNLENGTH,Angle));
 			SetOrigin (RealPos,False);
 		}
 		Return Moved;
@@ -1200,7 +1200,6 @@ Extend Class SM_Marine
 		Return False;
 	}
 	
-	//IDEA: Maybe add some kind of health sort, to pick the most frail or powerful ally ?
 	Actor SM_FindAllyToHelp (Double Range = 1024, Int HealthThreshold = 7)
 	{
 		If (SM_IsRestricted(RESTRICT_HEALING)) Return Null;
@@ -1654,7 +1653,7 @@ Extend Class SM_Marine
 		If (!IsDead(Self))
 		{
 			NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
-			If (MarineState == MARINE_INCOVER)
+			If (MarineState & MARINE_INCOVER)
 				NextFireDelay /= 2; //Fire more frequently when hiding.
 		}
 		

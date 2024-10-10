@@ -24,7 +24,7 @@ Extend Class SM_Marine
 			Else If (IsInState (Self,"Melee.Jumpkick.Attack"))
 			{
 				If (HasBerserk)
-					Return "%o got %p head turned into a baseball by a marine";
+					Return "%o got %p head turned into a football by a marine";
 				Else
 					Return "%o was dropkicked to death by a marine";
 			}
@@ -51,7 +51,17 @@ Extend Class SM_Marine
 		
 		Return Super.GetObituary (Victim, Inflictor, MOD, PlayerAttack);
 	}
-
+	
+	Override Void OnDestroy() //I'd consider this to be a form of death.
+	{
+		If (!bDormant && Random (0,128) == Random (0,128))
+		{
+			Tracer = Spawn ("SM_MarineErasedEffect",Pos);
+			Tracer.Angle = Angle;
+		}
+		Super.OnDestroy();
+	}
+	
 	Int DeathAnimPlayed; //Keeps track of what death animation the marine played, so it can be played in reverse when resurrected.
 	
 	States

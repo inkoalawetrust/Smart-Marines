@@ -438,8 +438,6 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		DamageType "Grenade";
 		//Projectile;
 		-NoGravity;
-		-NoBlockmap; //So marines can find and run from them. MAYDO: Remove this probably, not sure how relevant it'll be once I add a VJ Base esque hazard system to the KAI.
-		//+Friendly; //Through arcane machinations unknown to man. This fixes a bug that makes friendly marines that were spawned in, run in place when finding a grenade near them.
 		+RollSprite;
 		+FloorClip;
 		+CanBounceWater;
@@ -1143,6 +1141,31 @@ Class SM_OrderText : Actor
 			Stop;
 		FollowingPlayer:
 			MARO D -1;
+			Stop;
+		Miss:
+			MARO G -1;
+			Stop;
+	}
+}
+
+//https://www.youtube.com/watch?v=nQ3DBS_SQDA
+Class SM_MarineErasedEffect : Actor
+{
+	Default
+	{
+		+NoInteraction;
+		+NoTimeFreeze;
+		+CastSpriteShadow;
+	}
+	States
+	{
+		Spawn:
+			TNT1 A 0 NoDelay A_Jump (255/2,"Alt");
+			MARA E 4 A_StartSound ("Marine/Gone",CHAN_VOICE);
+			TNT1 A 35;
+			Stop;
+		Alt:
+			TNT1 A 75 A_StartSound ("Marine/GoneAlt",CHAN_VOICE);
 			Stop;
 	}
 }
