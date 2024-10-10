@@ -1252,8 +1252,25 @@ Extend Class SM_Marine
 		If (Players.Size() > 0) //Just pick the first player you find.
 			Return Actor(Players[0]);
 		
+		//If (Friends.Size() > 0)
+		//	Return Friends[Random (0,Friends.Size()-1)];
 		If (Friends.Size() > 0)
-			Return Friends[Random (0,Friends.Size()-1)];
+		{
+			Int LowestHealth = INT.MAX;
+			Actor WeakestActor = Friends[Random (0,Friends.Size()-1)]; //Pick a random one just in case the sort fails or someshit.
+			
+			For (Int I = Friends.Size()-1; I >= 0; I--)
+			{
+				Int CurrentHealth = Friends[I].Health;
+				If (LowestHealth > CurrentHealth)
+				{
+					LowestHealth = CurrentHealth;
+					WeakestActor = Friends[I];
+				}
+			}
+			
+			Return WeakestActor;
+		}
 		
 		Return Null;
 	}

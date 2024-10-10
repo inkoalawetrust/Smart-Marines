@@ -1,12 +1,12 @@
 //IDEA:
-//Give them slight height variations.
 //Give them Flashbangs.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
-//Make them reload twice as fast with -fastmonsters.
 //Marines have less retreat loops when running to reload, up to just reloading in place, based on how many allies are around them.
-//MAYDO:
-//Add a user variable that controls the base amount of retreats marines do to reload, -1 means they will not retreat at all to reload.
-//Also, or maybe instead, add a user variable in the marine restrictor that makes them reload in place instead of trying to run away.
+//TODO:
+//Fix, or rather, FINISH the code that makes them sit in place after using a door or lift until it finishes moving before they go again.
+//Uh, not actually related to THIS mod, but the MVP vehicle radio doesn't seem to work with the marines?
+//BUG:
+//I think marines don't actually go to players the want to heal because of the FollowDist code that tries to prevent dogpiling.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -69,6 +69,20 @@ Class SM_Marine : KAI_Humanoid
 		FollowDist = 128+Random (-16,48);
 		FollowDist = Clamp (FollowDist,0, INT.MAX); //In case the variable becomes configurable.
 		AmmoCount = 30;
+		
+		//Height variation, very realistic.
+		Double XMul = FRandom (0.95f,1.05f);
+		Double YMul = FRandom (0.90f,1.10f);
+		Scale.X *= XMul; //Dwarfmaxxing
+		Scale.Y *= YMul;
+		//The biggest marines are slightly stronger.
+		If (YMul >= 1.06)
+			Health += 5;
+		If (XMul >= 1.03)
+			Health += 5;
+		StartHealth = Health;
+		
+		//Set attack states.
 		MissileState = FindState ("Fire",True);
 		MeleeState = FindState ("Melee",True);
 		//The melee state should be passed automatically, since I have a state just called "Melee"
@@ -466,10 +480,24 @@ Class SM_Marine : KAI_Humanoid
 	
 	/*MAYDO: Give marines a very low chance of getting on a turret even when idle for shits and giggles? Maybe in place of them just standing in place.
 	In which case the turret seeking logic should be in the Idle: state code in general, instead of here in OnWander(), maybe.*/
-	//MAYDO: Add a call to KAI_Chase_FriendsAttackPlayerEnemies() when the marine is wandering?
 	Override Bool OnWander()
 	{
 		Super.OnWander();
+		
+		//MAYDO: Currently it seems that this code doesn't make them properly go back to See:, or at least, they don't actually chase the target despite having it.
+		/*//Check if the friend player currently in sight of you is being attacked.
+		If (bFriendly && Random(0,255) < 16 && KAI_Chase_FriendsAttackPlayerEnemies(0))
+		{
+			Actor PMo = Players[KAI_GetFriendPlayer()].Mo;
+			If (Target && PMo && !CheckSight(PMo))
+				Target = Null;
+			Else 
+			{
+				console.printf ("coming to the rescue of inkoalawetrust");
+				SetStateLabel ("See");
+				Return False;
+			}
+		}*/
 		
 		If (CurrentOrder == ORDER_STAY)
 		{
@@ -564,8 +592,8 @@ Class SM_Marine : KAI_Humanoid
 		//Marine is set to follow. Following the friendplayer is already handled by KAI_Wander() itself, so we just need to handle following the followtarget.
 		If (CurrentOrder == ORDER_FOLLOW && FollowTarget)
 		{//If (KAI_DebugPrintMessages)console.printf ("%p OnWander(): Marine already has a FollowTarget %s and ORDER_FOLLOW",self,master.getclassname());
-			//Only follow if you aren't too close to the FollowTarget already, to avoid crowding..
-			If (Distance3DSquared(FollowTarget) >= FollowDist*FollowDist)
+			//Only follow if you aren't too close to the FollowTarget already, to avoid crowding... unless you're supposed to be HEALING them!
+			If (HealTarget != FollowTarget && Distance3DSquared(FollowTarget) >= FollowDist*FollowDist)
 			{
 				If (!bFriendly || bFriendly && bDontFollowPlayers)
 				{//If (KAI_DebugPrintMessages)console.printf ("following %s instead of friendplayer",FollowTarget.getclassname());
@@ -661,7 +689,7 @@ Class SM_Marine : KAI_Humanoid
 	
 	Override Bool Used (Actor User)
 	{
-		Super.Used(User); //IDEA: In the future, when I add generic player and NPC usable emplacements in the KAI, add "use to get NPC off" handling here.
+		Super.Used(User);
 		
 		If (!User || bDormant || IsDead(Self) || IsPatrolling (Self) || User_IgnoreOrders) //Ignore commands when busy patrolling or dormant.
 			Return False;
@@ -863,7 +891,7 @@ Class SM_Marine : KAI_Humanoid
 			MARI D 0 
 			{
 				//Dump the heal target if it's out of reachable.
-				If (!HealDelay && HealTarget && (!CheckSight (HealTarget,SF_IGNOREWATERBOUNDARY) || SM_IsPosReachable(HealTarget.Pos,ignoreactors:True)))
+				If (!HealDelay && HealTarget && (!CheckSight (HealTarget,SF_IGNOREWATERBOUNDARY) || !SM_IsPosReachable(HealTarget.Pos,ignoreactors:True)))
 					HealTarget = Null;
 				
 				If (!Crouching && !HealTarget && !IsPatrolling (Self) && (CurrentOrder != ORDER_FOLLOW && (Master || bFriendly))) //Might stand around if not busy.
@@ -1225,7 +1253,7 @@ Class SM_Marine : KAI_Humanoid
 		Reload: //Reload the rifle.
 			TNT1 A 0 SM_SetMarineState (MARINE_RELOAD,0);
 			TNT1 A 0 A_JumpIf (RemovedOldMag,5); //We probably flinched mid reload or some shit, so go right to the end of the reload sequence.
-			MARA ABC 6
+			MARA ABC 6 Fast Slow
 			{
 				SM_UpdateHeight();
 				SM_RunFromHazards();
@@ -1247,26 +1275,26 @@ Class SM_Marine : KAI_Humanoid
 					}
 				}
 			}
-			MARA D 4
+			MARA D 4 Fast Slow
 			{
 				A_SpawnItemEx ("SM_EmptyMagazine",0,-16,27,0,FRandom(-2,-5),FRandom(-1,-0.5));
 				RemovedOldMag = True;
 				If (MarineState & MARINE_KNEELING || MarineState & MARINE_INCOVER)
 					Frame = 16; //Frame Q
 			}
-			MARA C 6
+			MARA C 6 Fast Slow
 			{
 				If (MarineState & MARINE_KNEELING || MarineState & MARINE_INCOVER)
 					Frame = 15; //Frame P
 			}
-			MARA B 6
+			MARA B 6 Fast Slow
 			{
 				A_StartSound ("Marine/Reload",CHAN_WEAPON);
 				AmmoCount = MAGAZINE_SIZE; //Reset counter to the magazine size.
 				If (MarineState & MARINE_KNEELING || MarineState & MARINE_INCOVER)
 					Frame = 14; //Frame O
 			}
-			MARA A 4
+			MARA A 4 Fast Slow
 			{
 				SM_SetMarineState (0,MARINE_RELOAD); //We're done here.
 				RemovedOldMag = False;
@@ -1600,14 +1628,14 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0 {InteractWaits++;}
 			Loop;
 		Climb:
-			MARA F 6 //Stop the marines momentum and turn on no gravity, to allow him to ledge grab when jumping, or if the sector below him begins moving down.
+			MARA F 6 Fast Slow //Stop the marines momentum and turn on no gravity, to allow him to ledge grab when jumping, or if the sector below him begins moving down.
 			{
 				SetOrigin ((ClimbPos.XY,Pos.Z),True);
 				Crouching = False;
 				A_Stop();
 				bNoGravity = True;
 			}
-			MARA G 5 A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
+			MARA G 5 Fast Slow A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
 			TNT1 A 0
 			{
 				WorldOffset.Z = -31; //MARAG has the mid-climb sprite offset, so when the marine actually moves to the climb pos, it looks like he's flying without this.
@@ -1701,6 +1729,7 @@ Class SM_Marine : KAI_Humanoid
 			}
 			MARA H 1;
 			Goto Jump.Loop;
+		//URGENT: Why the fuck are we not using IsPosReachable()? Wtf?
 		Jump.Running:
 			MARI AABBCCDDAABBCCDDAABBCCDD 2 //Move back.
 			{If (KAI_DebugPrintMessages)console.printf ("MARINE IS TRYING TO DO A RUNNING JUMP BECAUSE HE'S STUPID !");
@@ -1760,7 +1789,7 @@ Class SM_Marine : KAI_Humanoid
 		Pain:
 			//Being hurt interrupts staying idle, wandering, attacking (Except firing), and kneeling or lying down..
 			MARA E 0 SM_SetMarineState (0,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_MELEE|MARINE_KNEELING|MARINE_LYINGDOWN);
-			MARA E Random (7,14)
+			MARA E Random (7,14) Fast
 			{
 				If (Crouching)
 				{
@@ -1830,7 +1859,7 @@ Class SM_Marine_BlueArmor : SM_Marine
 //https://www.youtube.com/watch?v=18rZxvB5rDA
 Class SM_GigaMarine : SM_Marine
 {
-	Default {KAI_Actor.ThreatLevel THREAT_DANGEROUS;}
+	Default {KAI_Actor.ThreatLevel THREAT_DANGEROUS; +ALWAYSFAST;}
 	Override Void PostBeginPlay ()
 	{
 		User_Color = "Blue";
@@ -1838,5 +1867,10 @@ Class SM_GigaMarine : SM_Marine
 		GiveInventory ("PowerStrength",1);
 		Health = 200;
 		Super.PostBeginPlay();
+		//Maxxed out height and width.
+		Scale.X = Default.Scale.X * 1.05;
+		Scale.Y = Default.Scale.Y * 1.10;
+		StartHealth = 110;
+		Health += 10;
 	}
 }

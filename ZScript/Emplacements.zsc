@@ -113,12 +113,24 @@ Class SM_MGTurret : KAI_Emplacement
 		ARG_OPERATOR = 2, //Find the first KAI_Humanoid or player in radius and have them enter the turret. For spawning actors immediately on a turret.
 	}
 	
+	Bool IsMapCreated; //KLUDGE: There's no built-in way to check if something is map spawned, console spawned, or spawned by another actor until I PR it.
+	Override Bool ShouldSpawn()
+	{
+		IsMapCreated = True; //So we need to add a bespoke flag for that, to handle setting default arguments for console-spawned turrets or whatever.
+		Return Super.ShouldSpawn();
+	}
+	
 	Override Void PostBeginPlay()
 	{
 		Super.PostBeginPlay();
 		
 		AddNPCMorph ("SM_Marine","SM_MGTurretMarine");
 		
+		If (!IsMapCreated)
+		{
+			Args[ARG_AMMO] = -1;
+			Args[ARG_IDLETIME] = 700;
+		}
 		If (Args[ARG_OPERATOR]) AbsorbOperator(); //Om nom nom
 	}
 	

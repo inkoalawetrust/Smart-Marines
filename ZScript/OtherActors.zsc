@@ -14,7 +14,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 		//$NotAngled
 		
 		//$Arg0 Range
-		//$Arg0Tooltip "The range in which marines have to be to listen to the restrictor.\nA negative range affects all marines in the sector the zone is in."
+		//$Arg0Tooltip "The range in which marines have to be to listen to the restrictor.\nA range of -1 affects all marines in the sector the zone is in."
 		//$Arg0Default 256
 		//$Arg1 Don't Take Cover
 		//$Arg1Tooltip "Marines won't take cover when in range."
@@ -60,8 +60,8 @@ Class SM_ActionRestrictor : KAI_MixinActor
 		
 		If (IsFrozen())
 			Return;
-		
-		If (!Args[ARG_RANGE]) //Range is negative, so find all marines in the sector we are in instead.
+		if (user_nododging) console.printf ("DODGING IS RESTRICTED");
+		If (Args[ARG_RANGE] == -1) //Range is -1, so find all marines in the sector we are in instead.
 		{
 			For (Actor CurMo = CurSector.ThingList; CurMo != Null; CurMo = CurMo.SNext)
 				RunRestrictor (CurMo);
@@ -79,18 +79,16 @@ Class SM_ActionRestrictor : KAI_MixinActor
 		If (!Marine || !(Marine Is "SM_Marine") || Marine.bDormant || IsDead (Marine))
 			Return;
 		
-		If (Marine.FindInventory ("SM_RestrictionToken")) //Already have a token.
-			Return;
-		
-		If (Distance3DSquared (Marine) > Args[ARG_RANGE]*Args[ARG_RANGE])
+		If (Args[ARG_RANGE] != -1 && Distance3DSquared (Marine) > Args[ARG_RANGE]*Args[ARG_RANGE])
 			Return;
 		
 		If (User_CheckSight && !CheckSight (Marine,SF_IGNOREWATERBOUNDARY)) //Outta sight outta mind.
 			Return;
 		
-		//IDEA: Optimize this by making the token not be destroyed every tick maybe?
-		//Since the token is remade every tick, it allows the restrictions to be changed, like to only prevent a certain action after a scripted event.
-		SM_RestrictionToken Restrictor = SM_RestrictionToken(Spawn("SM_RestrictionToken"));
+		SM_RestrictionToken Restrictor = SM_RestrictionToken(Marine.FindInventory ("SM_RestrictionToken")); //Already have a token.
+		If (!Restrictor)
+			Restrictor = SM_RestrictionToken(Spawn("SM_RestrictionToken"));
+			else console.printf("marine already got a token");
 		
 		If (Restrictor)
 		{
@@ -142,11 +140,12 @@ Class SM_RestrictionToken : Inventory
 		If (Master && Owner && Random (0, 255) < 88) //Don't check every tick, for performance.
 		{
 			//Too far from the zone or the zone is out of sight.
-			If (Owner.Distance3DSquared (Master) > MaxTargetRange*MaxTargetRange || (CheckSight && !Owner.CheckSight (Master,SF_IGNOREWATERBOUNDARY)))
-			{If (KAI_DebugPrintMessages)console.printf ("The restrictor tokens' owner is too far from the tokens' spawner or out of its' sight.");
+			If (MaxTargetRange != -1 && Owner.Distance3DSquared (Master) > MaxTargetRange*MaxTargetRange || MaxTargetRange == -1 && Owner.CurSector != Master.CurSector ||
+			(CheckSight && !Owner.CheckSight (Master,SF_IGNOREWATERBOUNDARY)))
 				GoAwayAndDie();
-			}
 		}
+		If (!Master)
+			GoAwayAndDie();
 	}
 }
 
