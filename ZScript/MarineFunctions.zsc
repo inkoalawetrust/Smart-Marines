@@ -83,16 +83,6 @@ Extend Class SM_Marine
 			//Only update the nearest enemy to run from when not focused on a route.
 			If (bAvoidMelee && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //IDEA: Unhardcode the retreat range.
 			
-			//URGENT: MAYDO: I think I commented this out for test? So probably put it back in.
-			/*Bool MeleeAnyway; //The enemy is weak and nearby, go up to them and kick their ass even without berserk.
-			//Sometimes, be less afraid to do melee if the enemy is weak enough.
-			If (bAvoidMelee && NearestEnemy && !IsIndestructible (NearestEnemy) && !HasGodMode (NearestEnemy))
-			{
-				If (!NearestEnemy.MissileState && NearestEnemy.Health <= 80 || //If they are melee only and weak enough.
-				NearestEnemy.MissileState && NearestEnemy.Health <= 40) //But even if they are ranged, but VERY weak.
-					QuickMelee = True;
-			}*/
-			
 			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby. Get away.
 			If (bAvoidMelee && NearestEnemy)
 			{
@@ -116,7 +106,7 @@ Extend Class SM_Marine
 				If (!IsDangerNearby())
 				{
 					NoStockUse = KMT_NOLINEUSE;
-					UsedLine = SM_MarineUseLine(faceline:!(Flags & SMC_NOUSESTATE)); //Check if there's a line in front of use to use.
+					UsedLine = SM_MarineUseLine(faceline:!(Flags & SMC_NOUSESTATE)); //Check if there's a line in front of us to use.
 				}
 				
 				//Crouching comes first.
@@ -171,7 +161,7 @@ Extend Class SM_Marine
 					{
 						If (Level.Vec3Diff (Pos,LastSeenPos).Length() >= Radius*1.2)
 						{
-							If (!CheckSight (Target,SF_IGNOREWATERBOUNDARY)) //Run the actual sight check last to save on performance a little.
+							If (!Target || !CheckSight (Target,SF_IGNOREWATERBOUNDARY)) //Run the actual sight check last to save on performance a little.
 								MovePos = LastSeenPos;
 						}
 						Else
@@ -180,8 +170,11 @@ Extend Class SM_Marine
 					Else
 						MovePos = HandleFollowingActor (MovePos); //Check if we should be following anyone, if not, just focus on chasing the target or whatever.
 					
-					If (TargetTurret)
+					If (TargetTurret) //Jog towards turret.
+					{
 						MovePos = TargetTurret.Pos;
+						Speed *= 1.5;
+					}
 					
 					If (KAI_DebugPrintMessages)console.printf ("heading to %d %d %d",movepos);
 					If (Crouching)
@@ -372,6 +365,8 @@ Extend Class SM_Marine
 		Return (Double.NaN, Double.NaN, Double.NaN);
 	}
 	
+	Bool HipFalsePositive; //HACK: Sometimes traces go full retard and return that the marines' hip level isn't blocked, so only uncrouch if TWO hip checks are false.
+	
 	Bool, Vector3 SM_UpdateCover (Actor Other, Bool IsCrouchingAlready, Double TraceDist = 48)
 	{
 		Vector3 HipHitPos = (Double.NaN, Double.NaN, Double.NaN);
@@ -436,6 +431,13 @@ Extend Class SM_Marine
 		//If you are crouching already and have a line of sight to the other actor.
 		If (IsCrouchingAlready && OtherInSight)
 		{if (!hiplevelblocked) console.printf ("SM_UpdateCover(): marine can no longer hide behind here");
+			If (!HipLevelBlocked && !HipFalsePositive) //HACK: Catch retarded false positives from the trace.
+			{If (KAI_DebugPrintMessages)console.printf ("SM_UPDATECOVER: CAUGHT RETARDED MALFORMED FALSE POSITIVE");
+				HipFalsePositive = True;
+				HipLevelBlocked = True;
+			}
+			If (!HipLevelBlocked && HipFalsePositive) //If it returns false a second time, it's probably for real.
+				{If (KAI_DebugPrintMessages)console.printf ("SM_UPDATECOVER: PROBABLY NOT A FALSE POSITIVE, COVER REALLY IS BROKEN");HipFalsePositive = False;}
 			Return HipLevelBlocked, HipHitPos; //Then return if you can crouch based on whether or not your hips are blocked by cover still.
 		}
 		
@@ -445,6 +447,7 @@ Extend Class SM_Marine
 		//If none of the other checks are true, but you are crouching already, then just assume you can keep doing so.
 		If (IsCrouchingAlready)
 		{
+			HipFalsePositive = True; //HACK: We need two false hip checks in a row to consider it to not be a fluke.
 			Return True, HipHitPos;
 		}
 		
@@ -455,8 +458,12 @@ Extend Class SM_Marine
 	//MAYDO: I should probably look for a way to integrate this into KAI_HandleClimbing() ?
 	Bool SM_HandleClimbDown (Double DropoffHeight = 56)
 	{
+		If (Pos.Z > FloorZ) //In the air.
+			Return False;
 		Vector2 Ahead = Vec2Angle(Radius*2.2,Angle);
 		Double ZAt = GetZAt (Ahead.X,Ahead.Y,0,GZF_ABSOLUTEPOS);
+		If (!Level.IsPointInLevel((Ahead,ZAt))) //Welcome to boundary break.
+			Return False;
 		If (DropoffHeight > Pos.Z - ZAt && MaxDropoffHeight < Pos.Z - ZAt) //The dropoff height is as tall or shorter than the specified MaxDropoff.
 		{
 			JumpPos = (Vec2Angle (104,Angle),ZAt);
@@ -530,6 +537,7 @@ Extend Class SM_Marine
 		MarineState &= ~(MARINE_INCOVER);
 		Crouching = False;
 		Height = Default.Height;
+		HipFalsePositive = False; //We're not crouching, turn off hack variable.
 	}
 	
 	//Increment the chase timer as long as the target is nonexistent, dead, or out of sight. And reset it if any of these conditions are false.
@@ -557,15 +565,16 @@ Extend Class SM_Marine
 	
 	//Marines use lines in front of them.
 	//IDEA: Make the marine detect doors or platforms in front of him, then if it's switch activated, search for nearby switches he can go up to and use. Dynamically.
+	//IDEA: Make this account for polyobject doors and stuff?
 	Sector UseSec;
-	Bool SM_MarineUseLine (Double UseRange = 64, Bool FaceLine = False)
+	Bool SM_MarineUseLine (Double UseRange = 48, Bool FaceLine = False)
 	{
 		InteractWaits = 0; //Reset it here just in case.
-		//Let LineSearch = BlockLinesIterator.Create (Self,Radius+64);
+		
 		//Count pushable lines as uses too.
         If (bCanPushWalls && BlockingLine && BlockingLine.Special && BlockingLine.Activate (Self,0,SPAC_Push))
 		{
-			//If (FaceLine) Angle = GetAngleToPos ((GetLinePos(BlockingLine),0));
+			If (FaceLine) Angle = VectorAngle(-BlockingLine.Delta.X,-BlockingLine.Delta.Y) - 90;
 			UseSec = GetLiftOrDoorSector(BlockingLine);//BlockingLine.BackSector;
 			Return True;
 		}
@@ -582,9 +591,10 @@ Extend Class SM_Marine
 		Line UseLine = Usage.HitLine;
 		If (UseLine && UseLine.Special && UseLine.Activate (Self,Usage.LineSide,SPAC_Use))
 		{
-			//If (FaceLine) Angle = GetAngleToPos ((GetLinePos(UseLine),0));
+		//spawn ("kai_debugpoint",(GetLinePos(UseLine),0));
+			If (FaceLine) Angle = VectorAngle(-UseLine.Delta.X,-UseLine.Delta.Y) - 90;
 			UseSec = GetLiftOrDoorSector(UseLine);//UseLine.BackSector;
-			If (KAI_DebugPrintMessages)a_log ("a marine ran his custom line use function");
+			If (KAI_DebugPrintMessages)console.printf ("a marine ran his custom line use function, his angle is %.2f",angle);
 			Return True;
 		}
 		
@@ -609,28 +619,36 @@ Extend Class SM_Marine
 				Result = Level.Sectors[TagIter.Next()];
 				Break;
 			}
+			Default: //No relevant special on the line lol.
+				Return Null;
 		}
 		
+		//Line has no sector tag it moves with the door or platform specials, so it only affects the sector behind the line.
 		If (TheLine.Args[0] == 0)
 			Return TheLine.BackSector;
 		
 		Return Result;
-	}
-	
-	//KLUDGE: Sector.PlaneMoving doesn't work, despite doing the same thing as this. So we have to use this, epic.
-	Bool SM_SectorInMotion (Sector Sec)
+	}	
+	//HACK: We ASSUME this is some for of door or platform in the sector, so wait for it to have moved enough for the marine to go through.
+	Bool SM_DoorOrLiftFinished()
 	{
-		If (!Sec)
-			Return False;
+		If (!UseSec || !UseSec.PlaneMoving(Sector.Floor) && !UseSec.PlaneMoving(Sector.Ceiling)) Return True; //No sector we used apparently, or there's not plane thinkers at all attached.
 		
-		If (Sec.FloorData || Sec.CeilingData)
+		/*Check if we can walk through the UseSec. AND there is a visible line of sight, because IsPosReachable() can be fucking stupid, and then cause a stack
+		overflow in the Interact: state.*/
+		//NOTE: The sectors' centerspot can be out of bounds if it's a weird shape, that's probably a problem.
+		Vector3 CheckPos = Vec3Angle (64+8,Angle);
+		Actor Temp = Spawn("KAI_DebugPoint",CheckPos);
+		If (UseSec && CheckSight (Temp,SF_IGNOREWATERBOUNDARY)/* && SM_IsPosReachable (CheckPos,ignoreactors:True,dontclimb:True)*/)
+		{
+			If (Temp) Temp.Destroy();
 			Return True;
-		
+		}
+		If (Temp) Temp.Destroy();
 		Return False;
 	}
 	
-	//Get the middle point of a line.
-	//KLUDGE: GZDoom really doesn't like this formula I found on the Unreal Engine forum. Probably because it's too straightforward for its' esoteric tastes.
+	//Get the middle point of a line to face it.
 	Vector2 GetLinePos (Line TheLine)
 	{
 		If (!TheLine)
@@ -898,8 +916,9 @@ Extend Class SM_Marine
 	{
 		//Don't bother if the other actor doesn't exist, it's not time yet, or if the enemy flies and is over your head !
 		If (Threshold <= 0 || !Against || GrenadeDelay || IsFlying (Against) && Pos.Z+Height < Against.Pos.Z) Return GRENADE_NONE;
-		If (Distance3DSquared (Against) >= 768*768 || !SM_CheckLOF((0,0,Height),0)) //Not in throwing range. Or there is no direct LOF, yes, this doesn't account for arcing, I WILL NOT TRY.
-			{If (KAI_DebugPrintMessages)console.printf ("DecideGrenadeType(): target is too close or the LOF is bad");Return GRENADE_NONE;}
+		//Not in throwing range. Or there is no direct LOF, yes, this doesn't account for arcing, I WILL NOT TRY.
+		If (Distance3DSquared (Against) >= MARINE_GRENADERANGE*MARINE_GRENADERANGE || !SM_CheckLOF((0,0,Height),0))
+			{If (KAI_DebugPrintMessages)console.printf ("DecideGrenadeType(): target is too far or the LOF is bad");Return GRENADE_NONE;}
 		
 		Bool ImmuneToBlasts = (Against.bNoRadiusDmg || Against.GetRadiusDamage (Against,256,256,128,False,True) <= 256/8); //The enemy is immune or HIGHLY resistant to blasts.
 		Bool UseHE, UseSmoke;
@@ -1169,7 +1188,8 @@ Extend Class SM_Marine
 	//Search for dangerous enemies around you.
 	Bool IsDangerNearby (Double Range = 1024)
 	{
-		If (Target && CheckSight (Target, SF_IGNOREWATERBOUNDARY)) //My target is visible, that's an enemy.
+		//My target is visible, that's an enemy. Or they're just very dangerous.
+		If (Target && (CheckSight (Target, SF_IGNOREWATERBOUNDARY) || AssessThreatLevel(Target,False) >= ThreatLevelThreshold))
 			{If (KAI_DebugPrintMessages)a_log ("IsDangerNearby(): Found target");Return True;}
 		
 		For (Int pn = 0; pn < MAXPLAYERS; pn++)  //An enemy player is visible, now THAT'S an enemy.
@@ -1282,7 +1302,7 @@ Extend Class SM_Marine
 		STRAFE_RIGHT = 2 //Strafe right.
 	};
 	
-	//After a projectile to dodge is found by SM_ShouldDodgeProjectile, this function handles picking a direction, if any, to dodge out of the way towards.
+	//After a projectile to dodge is found by SM_Projectile, this function handles picking a direction, if any, to dodge out of the way towards.
 	Bool SM_HandleDodging (Actor Projectile, Bool DontJump = False)
 	{
 		If (!Projectile || bDormant || IsDead(Self) || Pos.Z > FloorZ+8 || SM_IsRestricted (RESTRICT_DODGING)) Return False;
@@ -1400,7 +1420,7 @@ Extend Class SM_Marine
 			Bool DodgeAllyProjectiles; //If on, the marine will dodge the projectile even if it's fired by an ally.
 			
 			Bool IsHoming = Proj.bSeekerMissile;
-			//HACK: Why did Carmack fucking code the stupid rocket like this.
+			//HACK: Why did Carmack fucking code the stupid rocket like this. This is literally THE WORST way to implement a homing projectile!!!!!
 			If (Proj.GetClassName() == "RevenantTracer")
 				IsHoming = Proj.FindInventory ("SM_RevenantTracerToken");
 
@@ -1415,7 +1435,7 @@ Extend Class SM_Marine
 				Continue;
 			
 			//Don't return true if the projectile is too far away from the marines' peripheral vision. Or if it isn't so close that it's impossible not to notice it.
-			If (!CheckFOV (Proj,120/2) && Dist > MeleeRange*MeleeRange)
+			If (!CheckFOV (Proj,120/2) && Dist > (MeleeRange*MeleeRange)*2)
 				Continue;
 			
 			//Is the projectile about to hit me ? Weird math nonsense written by RaveYard.
@@ -1509,15 +1529,17 @@ Extend Class SM_Marine
 	}
 	
 	//Identical to KAI's IsPosReachable, but also accounts for the marines' ability to climb, if available.
-	Bool SM_IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
+	Bool SM_IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False, Bool DontClimb = False)
 	{
 		Double RealStepHeight = MaxStepHeight;
 		Double RealHeight = Height;
-		If (!SM_IsRestricted(RESTRICT_CLIMBING)) MaxStepHeight = (Height*1.75); //Maximum height the marine can reach, by jumping and ledge grabbing.
+		If (!SM_IsRestricted(RESTRICT_CLIMBING) && !DontClimb) MaxStepHeight = (Height*1.75); //Maximum height the marine can reach, by jumping and ledge grabbing.
 		If (!SM_IsRestricted(RESTRICT_CROUCHING)) Height = MARINE_CROUCHHEIGHT;
+		console.printf ("sm_isposreachable(): temp maxstepheight is %.2f",maxstepheight);
 		Bool Res = IsPosReachable (TargetPos, DistCutoff, Spacing, IgnoreActors);
 		MaxStepHeight = RealStepHeight;
 		Height = RealHeight;
+		console.printf ("isposreachable returned %d",res);
 		Return Res;
 	}
 	

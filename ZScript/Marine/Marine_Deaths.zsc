@@ -71,10 +71,10 @@ Extend Class SM_Marine
 			TNT1 A 0 A_JumpIf (Crouching,"CrouchDeath");
 			TNT1 A 0 A_Jump (256,"DeathAnim1","DeathAnim2","DeathAnim3","DeathAnim4","DeathAnim5");
 		DeathAnim1: //The vanilla player death.
-			PLAY H 5 {DeathAnimPlayed = 1;}
-			PLAY I 5 A_ScreamAndUnblock();
-			PLAY JKLM 5;
-			PLAY N -1;
+			MRDV H 5 {DeathAnimPlayed = 1;}
+			MRDV I 5 A_ScreamAndUnblock();
+			MRDV JKLM 5;
+			MRDV N -1;
 			Stop;
 		DeathAnim2: //Alternate falling forward death.
 			MARD A 5 {DeathAnimPlayed = 2;}
@@ -116,11 +116,11 @@ Extend Class SM_Marine
 		XDeath: //Mega oof
 			TNT1 A 0 {If (!User_NoWeaponDrop) A_DropItem ("SM_Rifle",-1,48);}
 			TNT1 A 0 A_JumpIf (Crouching,"CrouchXDeath");
-			PLAY O 5;
-			PLAY P 5 A_StartSound("Marine/XDeath",CHAN_VOICE);
-			PLAY Q 5 A_NoBlocking();
-			PLAY RSTUV 5;
-			PLAY W -1;
+			MRDV O 5;
+			MRDV P 5 A_StartSound("Marine/XDeath",CHAN_VOICE);
+			MRDV Q 5 A_NoBlocking();
+			MRDV RSTUV 5;
+			MRDV W -1;
 			Stop;
 		CrouchXDeath:
 			MARP L 5
@@ -159,7 +159,7 @@ Extend Class SM_Marine
 			}
 			Goto See;
 		RaiseAnim1:
-			PLAY NMLKJIH 5;
+			MRDV NMLKJIH 5;
 			Goto See;
 		RaiseAnim2:
 			MARD ONMGFEDCBA 5;
@@ -177,7 +177,7 @@ Extend Class SM_Marine
 			MARP KJIHG 5;
 			Goto See;
 		GenericFreezeDeath:
-			PLAY G 0;
+			MARA E 0;
 			#### # 5 A_GenericFreezeDeath;
 			---- A 1 A_FreezeDeathChunks;
 			Wait;

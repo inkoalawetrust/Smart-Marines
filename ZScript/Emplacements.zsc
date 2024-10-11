@@ -19,7 +19,7 @@ Extend Class SM_Marine
 			
 			Candidate = KAI_Emplacement(TurretFinder.Thing);
 			
-			If (ShouldUseTurret (Candidate)) //TODO: Probably add a turret threshold user variable.
+			If (ShouldUseTurret (Candidate))
 				Turrets.Push (Actor(Candidate));
 		}
 		
@@ -346,6 +346,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 					Marine.LastDodged = Projectile; //Don't immediately stop the retreat to try jumping out of the way, this IS the dodging! 
 					Marine.DodgingHomingProjectile = True; //Treat it as a homing projectile to run away from it.
 					console.printf ("RUNNING AWAY FROM TURRET");
+					Marine.RetreatedFromTurret = True; //So no turret delay is set on OnEmplacementExit().
 					Marine.SetStateLabel("Retreat");
 				}
 				Else //Other humanoid NPCs just get off.

@@ -374,6 +374,7 @@ Class SM_BulletCasing : Actor
 		Height 8;
 		XScale 0.1;
 		YScale 0.08333; //0.1 / 1.2
+		Mass 1; //Very light, mainly so it doesn't make huge splashes on TERRAIN flats.
 		+NoBlockmap;
 		//+NoInteraction;
 	}

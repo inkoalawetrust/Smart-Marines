@@ -3,10 +3,7 @@
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
 //Marines have less retreat loops when running to reload, up to just reloading in place, based on how many allies are around them.
 //TODO:
-//Fix, or rather, FINISH the code that makes them sit in place after using a door or lift until it finishes moving before they go again.
 //Uh, not actually related to THIS mod, but the MVP vehicle radio doesn't seem to work with the marines?
-//BUG:
-//Fix marines behind cover never popping back up again to shoot.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -169,7 +166,7 @@ Class SM_Marine : KAI_Humanoid
 		If (MeleeTime) //How long the marine does melee without running away.
 			MeleeTime--;
 		
-		If (TurretDelay)
+		If (TurretDelay > 0)
 		{
 			//Check every half second that we're waiting before using a turret again for anything that should decrement the timer faster.
 			If (Age % GameTicRate/2 == 0)
@@ -279,10 +276,12 @@ Class SM_Marine : KAI_Humanoid
 			User_HealCooldown = 40;
 		If (User_AlertRange == 0)
 			User_AlertRange = 512;
-		If (User_GrenadeChance == 0)
-			User_GrenadeChance = MARINE_GRENADECHANCE;
+		If (User_GrenadeThreshold == 0)
+			User_GrenadeThreshold = MARINE_GRENADECHANCE;
 		If (User_RetreatFactor == 0)
 			User_RetreatFactor = 1.0;
+		If (User_TurretDelay == 0)
+			User_TurretDelay = 8*GameTicRate;
 		
 		SM_HandleMarineColoring (User_Color);
 	}
@@ -307,11 +306,15 @@ Class SM_Marine : KAI_Humanoid
 		//Check if you should fire your gun.
 		Double Dist = Distance3D (Target);
 		
-		GrenadeType = DecideGrenadeType (Target, User_GrenadeChance);
+		GrenadeType = DecideGrenadeType (Target, User_GrenadeThreshold);
 		
 		Double OldHeight = Height;
 		If (Crouching && MarineState & MARINE_INCOVER)
-			{If (KAI_DebugPrintMessages)console.printf ("ShouldAttack(): Uncrouching marine to be able to fire at crouched players.");Height = Default.Height;} //Uncrouch marine for the firing check if he's behind cover.
+		{
+			If (KAI_DebugPrintMessages)console.printf ("ShouldAttack(): Uncrouching marine to be able to fire at crouched players.");
+			Height = Default.Height; //Uncrouch marine for the firing check if he's behind cover.
+			FirePos.Z += 4; //Give a more leeway when firing out of cover.
+		}
 		
 		//Random chance that the marine might decide to fire lying down. Like kneeling, this scales with distance as well, but less, for even larger distances.
 		Bool MightLie = (Random (0,255) < 24 + KAI_Math.LinearMap(Dist,0,MaxTargetRange,0,255));
@@ -330,9 +333,18 @@ Class SM_Marine : KAI_Humanoid
 			FirePos.Z = 30; //Lower firing height.
 		}
 		
+		//Sometimes, be less afraid to do melee if the enemy is weak enough. Even without berserk.
+		If (bAvoidMelee && NearestEnemy && Random (0,255) < 64 && AssessThreatLevel (NearestEnemy) <= THREAT_ABOVENORMAL)
+		{
+			If (!NearestEnemy.MissileState && NearestEnemy.Health <= 50 || //If they are melee only and weak enough.
+			NearestEnemy.MissileState && NearestEnemy.Health <= 20) //But even if they are ranged, but VERY weak.
+				MeleeNearest = True;
+		}
+		If (!NearestEnemy) MeleeNearest = False;
+		
 		//If low on ammo, do a quick melee attack on your enemy instead, if its' close enough and less dangerous than you. And then retreat to reload.
 		QuickMelee = (AmmoCount <= 4 && Threat < Self.ThreatLevel && Dist <= MeleeRange*3);
-		If ((GrenadeType == GRENADE_NONE || Crouching) && !QuickMelee && !NextFireDelay && SM_CheckLOF (FirePos))
+		If ((GrenadeType == GRENADE_NONE || Crouching) && !QuickMelee && !MeleeNearest && !NextFireDelay && SM_CheckLOF (FirePos))
 		{
 			Height = OldHeight;
 			Double Buff = SM_IsCrouched() ? 0.5 : 1.0;
@@ -389,6 +401,7 @@ Class SM_Marine : KAI_Humanoid
 			Return True;
 		}
 		
+		
 		//Check if you should do melee. But only on weak-ish enemies.
 		Int MeleeChance = bAvoidMelee ? 32 : 128;
 		If (QuickMelee && Health < SpawnHealth()/4) //Additional melee chance if you are low on ammo but not on health.
@@ -397,9 +410,10 @@ Class SM_Marine : KAI_Humanoid
 			MeleeChance -= 32; //Lower melee chance if you are low on health.
 		If (HasBerserk && Health <= SpawnHealth ()/3) //Unless you have berserk, in which case be MORE likely to melee because it does more damage.
 			MeleeChance += 64;
-		If (!Crouching && Random (0,255) < MeleeChance && Threat < THREAT_DANGEROUS)
+		If (!Crouching && (Random (0,255) < MeleeChance || MeleeNearest) && Threat < THREAT_DANGEROUS)
 		{
 			Bool CanSee = CheckSight(Target,SF_IGNOREWATERBOUNDARY);
+			If (!CanSee) MeleeNearest = False;
 			
 			If (KAI_CheckMeleeRange (Target) && CanSee) //Check the standard melee range.
 			{
@@ -437,7 +451,8 @@ Class SM_Marine : KAI_Humanoid
 				}
 				Return True;
 			}
-			Else If (!TargetTurret && CanSee && Random (0,255) < (bAvoidMelee ? 88 : 224) && KAI_CheckMeleeRange (Target,MeleeRange*4)) //Check 4 times further sometimes.
+			//Check 4 times further sometimes. To do a running kick to the target, or the nearest enemy if meleenearest is true.
+			Else If (!TargetTurret && CanSee && (Random (0,255) < (bAvoidMelee ? 88 : 224) || MeleeNearest) && KAI_CheckMeleeRange (Target,MeleeRange*4))
 			{
 				ChaseTimer = 0;
 				If (!NoStateJump)
@@ -478,8 +493,6 @@ Class SM_Marine : KAI_Humanoid
 		Return Vec, Act;
 	}
 	
-	/*MAYDO: Give marines a very low chance of getting on a turret even when idle for shits and giggles? Maybe in place of them just standing in place.
-	In which case the turret seeking logic should be in the Idle: state code in general, instead of here in OnWander(), maybe.*/
 	Override Bool OnWander()
 	{
 		Super.OnWander();
@@ -505,9 +518,13 @@ Class SM_Marine : KAI_Humanoid
 			Return False;
 		}
 		
-		Bool UsedLine;
-		//If (!IsDangerNearby())
-			UsedLine = SM_MarineUseLine(faceline:True); //Check if there's a line in front of us to use.
+		
+		//Check if there's a line in front of us to use. If there is, go to the interact state and wait for it to finish.
+		If (SM_MarineUseLine(faceline:True)) 
+		{
+			SetStateLabel ("Interact");
+			Return False;
+		}
 		
 		If (!SM_IsRestricted (RESTRICT_CROUCHING)) Crouching = KAI_HandleCrouching (Default.Height,MARINE_CROUCHHEIGHT);
 		
@@ -584,7 +601,7 @@ Class SM_Marine : KAI_Humanoid
 				KAI_MoveTowards (TargetTurret.Pos,anglelimit:20);
 				//We're in range to try using the turret we're heading to.
 				If (TargetTurret && Distance3DSquared(TargetTurret) <= MeleeRange*MeleeRange)
-				{console.printf ("I DID IT, I AM USING THE STUPID GUN");
+				{
 					TargetTurret.EnterEmplacement(Self);
 					//We're on the machine gun the mod comes with in particular, so make us stay on it longer when idling.
 					If (Emplacement && Emplacement Is "SM_MGTurret" && Emplacement.OperatorMorph)
@@ -630,9 +647,6 @@ Class SM_Marine : KAI_Humanoid
 				}
 			}
 		}
-		
-		//If (UsedLine) 
-			//SetStateLabel ("Interact");
 		
 		Return True;
 	}
@@ -702,8 +716,9 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.OnEmplacementExit();
 		TargetTurret = Null;
-		TurretDelay = Random(2,10)*GameTicRate; //Don't constantly enter turrets.
-		If (MarineState & MARINE_RELOAD) SetStateLabel ("Reload");
+		If (!RetreatedFromTurret) TurretDelay = User_TurretDelay; //Don't constantly enter turrets. Unless we left because of a threat
+		Else RetreatedFromTurret = False;
+		If (MarineState & MARINE_RELOAD) SetStateLabel ("Reload"); //We needed to reload before getting on, in case we got to a turret in place of reloading.
 	}
 	
 	Override Bool Used (Actor User)
@@ -773,9 +788,10 @@ Class SM_Marine : KAI_Humanoid
 	Const MARINE_HEARDIST = 4096; //How far can the marine hear.
 	Const MARINE_FOV = 120; //How wide the marine can see.
 	Const MAGAZINE_SIZE = 30; //How much ammo does the marine have per magazine ?
-	Const MARINE_USEPATIENCE = 10; //How long the marine stays in the interact state.
+	Const MARINE_USEPATIENCE = 10; //How long the marine stays in the interact state before giving up and beginning to move again.
 	Const MARINE_CHASETIME = 350; //Chase your target for approximately 30 seconds after he has gone out of sight or died, before going to your idle state.
-	Const MARINE_GRENADECHANCE = 130; //The default chance threshold over which the marine will throw a grenade if in range.
+	Const MARINE_GRENADECHANCE = 96; //The default chance threshold over which the marine will throw a grenade if in range.
+	Const MARINE_GRENADERANGE = 1024; //How far can the marine roughly throw a grenade?
 	Const MARINE_JUMPLENGTH = 288; //How far the marine can jump to cross obstacles.
 	Const MARINE_JUMPRUNLENGTH = 256; //How far back the marine runs to do a running jump for particularly long obstacles.
 	Const MARINE_CROUCHHEIGHT = 30; //The height the marine crouches down to.
@@ -826,14 +842,16 @@ Class SM_Marine : KAI_Humanoid
 		FIRE_FULLAUTO, //Fire everything, pretty inaccurate, adds recoil, and faster than normal fire.
 	}
 	
-	//Other attacks
+	//Other attacks, melee, grenade, emplacements.
 	Bool HasBerserk; //Has an active berserk pack.
 	Int JumpkickDelay; //How long before the marine does a flying kick again.
 	Bool QuickMelee; //If the marine does a melee attack while this is on, he will retreat a bit before going back to See.
+	Bool MeleeNearest; //Hit the closest enemy realy quick.
 	Bool QuickGrenade; //Marine quickly throws a grenade in front of him to retreat.
 	Int GrenadeDelay; //How long until the marine throws another grenade.
 	UInt8 GrenadeType; //What grenade are we throwing exactly ?
-	UInt TurretDelay; //How long until we decide to go on a turret again?
+	Int TurretDelay; //How long until we decide to go on a turret again?
+	Bool RetreatedFromTurret; //The marine left his last emplacement (Almost certainly the ones in this mod) because a of a threat, so do NOT set a turret delay.
 	
 	//Dawg
 	Int DeadDogTimer; //Incremented up by SM_MarineHandler when a friendly dog dies near a friendly marine, makes the marine furious.
@@ -857,8 +875,9 @@ Class SM_Marine : KAI_Humanoid
 	Int User_HealCooldown; //How often, in seconds, the marine can give stimpacks to friends, default is 40 seconds.
 	Bool User_NoCover; //Marines never take cover from enemies.
 	Double User_AlertRange; //How far away marines can alert KAI NPC allies. For group members that can be alerted regardless of distance, that is turned off if the range is -1s or less.
-	Int User_GrenadeChance; //How likely is the marine to throw a grenade?
-	Double User_RetreatFactor;
+	Int User_GrenadeThreshold; //How likely is the marine to throw a grenade? The lower it is the more likely he is. -1 means no grenades, default is 96
+	Double User_RetreatFactor; //A multiplier for how much marines run away, i.e a value of 0.5 makes them take half the amount of retreat steps, roughly.
+	Int User_TurretDelay; //The delay, in tics, that the marine waits for before using a turret again, default is 8 seconds.
 	
 	States
 	{
@@ -1058,7 +1077,7 @@ Class SM_Marine : KAI_Humanoid
 				if (DodgingHomingProjectile && lastdodged) console.printf ("RETREAT STATE: Running from homing missile %s",lastdodged.getclassname());
 				If (DodgingHomingProjectile && LastDodged)
 				{
-					RetreatPos = LastDodged.Pos; //Update the retreat position every step, since the projectile moves. MAYDO: Or maybe after every loop?
+					RetreatPos = LastDodged.Pos; //Update the retreat position every step, since the projectile moves.
 					Speed *= 1.1; //Also move a little FASTER.
 					//Homing projectile is very close, duck down to try throwing it off.
 					If (!SM_IsRestricted (RESTRICT_CROUCHING))
@@ -1370,7 +1389,7 @@ Class SM_Marine : KAI_Humanoid
 					Case GRENADE_SMOKE:
 						GrenCls = "SM_SmokeGrenade";
 						Break;
-					/*Case STUN_GRENADE:
+					/*Case GRENADE_STUN:
 						GrenCls = "SM_StunGrenade";
 						Break;*/
 					Default:
@@ -1416,14 +1435,16 @@ Class SM_Marine : KAI_Humanoid
 		Melee.Kick: //Kick enemy in place, 50/50 chance on which one the marine will use since they are more or less the same.
 			#### # 0 A_FaceTarget();
 			MARI A 2 SM_SetMarineState (MARINE_MELEE,MARINE_IDLING|MARINE_THROWING|MARINE_FIRING|MARINE_IDLING);
-			//#### # 0 A_JumpIf ((Distance2D(Target) >= (MeleeRange/2)+Target.Radius),"Melee.Kick.Run");
+			#### # 0 A_JumpIf ((Distance2D(Target) >= (MeleeRange/2)+Target.Radius),"Melee.Kick.Run");
 			MARM F 8
 			{
+				Actor ActualTarget = Target;
+				If (MeleeNearest && NearestEnemy) {console.printf ("punting %p into orbit",nearestenemy);Target = NearestEnemy;} //We're kicking the shit out of our nearest enemy instead.
 				Double DmgMul = HasBerserk ? 6 : 1;
 				If (DeadDogTimer)
 					DmgMul += 5;
 				Sound HitSound = HasBerserk ? "Marine/PowerMelee" : "Marine/Melee";
-				A_CustomMeleeAttack (Random[Punch](4,8)*DmgMul,HitSound,"Marine/MeleeMiss",'Melee',HasBerserk);
+				A_CustomMeleeAttack (Random[Punch](6,10)*DmgMul,HitSound,"Marine/MeleeMiss",'Melee',HasBerserk);
 				Target.TriggerPainChance ('Melee'); //Additional pain chance.
 				If (HasBerserk)
 				{
@@ -1432,14 +1453,17 @@ Class SM_Marine : KAI_Humanoid
 					Target.Vel.Z += 10; //Wee
 					Target.bBlasted = True; //Even more damage.
 				}
+				Target = ActualTarget;
 			}
 			Goto Melee.End;
 		Melee.Kick.Run: //Too far to kick, run to the enemy.
 			MARM DDEE 2
 			{
+				Actor PuntVictim = Target;
+				If (MeleeNearest && NearestEnemy) PuntVictim = NearestEnemy; //We're kicking the shit out of our nearest enemy instead.
 				//Give up on the target if its' dead, nonexistent, or way too far away.
 				Int RunSeconds = HasBerserk ? 6 : 3; //How many seconds to run before giving up.
-				If (!KAI_CheckMeleeRange(Target,1024) || IsDead (Target) || ++ChaseTimer >= (GameTicRate*RunSeconds)/CurState.Tics)
+				If (!KAI_CheckMeleeRange(PuntVictim,1024) || IsDead (PuntVictim) || ++ChaseTimer >= (GameTicRate*RunSeconds)/CurState.Tics)
 				{
 					ChaseTimer = 0;
 					Return SeeState;
@@ -1450,9 +1474,9 @@ Class SM_Marine : KAI_Humanoid
 					A_SetSpeed (Speed*2.5); //The marine is just slightly faster than the stock players' walking speed.
 				Else
 					A_SetSpeed (Speed*3);
-				KAI_MoveTowards (Target.Pos,0.25,25);
+				KAI_MoveTowards (PuntVictim.Pos,0.25,25);
 				A_SetSpeed (OldSpeed);
-				If (Distance2D(Target) <= (MeleeRange/2)+Target.Radius)
+				If (Distance2D(PuntVictim) <= (MeleeRange/2)+PuntVictim.Radius)
 					Return FindState ("Melee.Kick",True); //Now we can punt it.
 				Return State (Null);
 			}
@@ -1579,10 +1603,10 @@ Class SM_Marine : KAI_Humanoid
 			#### # 0
 			{
 				ChaseTimer = 0;
-				If (QuickMelee) //We came here to just do a quick attack.
+				If (QuickMelee || MeleeNearest) //We came here to just do a quick attack.
 				{
-					QuickMelee = False;
-					RetreatLoops += Random (2,6);
+					QuickMelee = MeleeNearest = False;
+					RetreatLoops += Random (1,3);
 					If (KAI_DebugPrintMessages)console.printf ("did my quick melee attack, retreating");
 					Return FindState ("Retreat",True);
 				}
@@ -1626,19 +1650,22 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0 A_JumpIf (MarineState & MARINE_IDLING,"Idle");
 			Goto See;
 		//The marine is interacting with a door or the likes, so stop in place. This has no MarineState since if the marine flinches during this, he should move anyway.
+		//Door thinkers (That we have to ASSUME are there because they AREN'T EXPOSED TO ZSCRIPT) take precedence over platforms.
 		Interact:
+			MARA J 10 A_StartSound ("switches/normbutn",CHAN_AUTO,CHANF_OVERLAP,attenuation:ATTN_STATIC);
 			MARI EEEEFFFFGGGGHHHH 3
 			{
-				If (KAI_DebugPrintMessages)A_Log ("waiting in the interact state for the sector to finish moving.");
+				If (KAI_DebugPrintMessages && UseSec)Console.Printf ("waiting in the interact state for door/platform sector %d to finish moving.",usesec.Index());
 				LookExParams MarineSight;
 				MarineSight.FOV = MARINE_FOV;
-				//Wait until you either run out of patience, the sector stops moving!
-				If (InteractWaits >= MARINE_USEPATIENCE || UseSec && (!UseSec.PlaneMoving(Sector.Floor) && !UseSec.PlaneMoving(Sector.Ceiling)) ||
+				
+				//Wait until you either run out of patience, or the sector is high or low enough for you to cross!
+				If (InteractWaits >= MARINE_USEPATIENCE || SM_DoorOrLiftFinished() ||
 				//Or you can see your target again.
 				Target && IsVisible (Target,False,MarineSight))
 				{
 					if (interactwaits >= MARINE_USEPATIENCE&&KAI_DebugPrintMessages) a_log ("too much waiting");
-					if (!SM_SectorInMotion (UseSec)&&KAI_DebugPrintMessages) a_log ("sector finished");
+					if (SM_DoorOrLiftFinished()&&KAI_DebugPrintMessages) a_log ("we can go through");
 					if (Target && IsVisible (Target,False,MarineSight)&&KAI_DebugPrintMessages) a_log ("enemy spotted");
 					InteractWaits = 0;
 					If (Target) //Had a target, go back to chasing.
@@ -1650,7 +1677,7 @@ Class SM_Marine : KAI_Humanoid
 				Return State (Null);
 			}
 			TNT1 A 0 {InteractWaits++;}
-			Loop;
+			Goto Interact+1;
 		Climb:
 			MARA F 6 Fast Slow //Stop the marines momentum and turn on no gravity, to allow him to ledge grab when jumping, or if the sector below him begins moving down.
 			{
