@@ -69,7 +69,26 @@ Extend Class SM_Marine
 		Death: //Plays one of 5 different animations.
 			TNT1 A 0 {If (!User_NoWeaponDrop) A_DropItem ("SM_Rifle",-1,48);}
 			TNT1 A 0 A_JumpIf (Crouching,"CrouchDeath");
-			TNT1 A 0 A_Jump (256,"DeathAnim1","DeathAnim2","DeathAnim3","DeathAnim4","DeathAnim5");
+			//TNT1 A 0 A_Jump (256,"DeathAnim1","DeathAnim2","DeathAnim3","DeathAnim4","DeathAnim5");
+			TNT1 A 0
+			{
+				State DedState;
+				Name MOD = DamageTypeReceived;
+				//We didn't die from some sort of explosion damage.
+				If (MOD != 'ExplosiveImpact' && MOD != 'Explosive' && MOD != 'HighExplosive' && MOD != 'Bomb' &&
+				MOD != 'Grenade' && MOD != 'Explosion')
+					DedState = FindStateByString (String.Format("DeathAnim%d",Random(1,5)));
+				//We DID die from a generic explosion, bias the death animations towards the ones that look like the marine being blasted off.
+				Else
+				{
+					If (Random (0,255) < 192)
+						DedState = FindStateByString (String.Format("DeathAnim%d",Random(1,5)));
+					Else
+						DedState = FindStateByString (String.Format("DeathAnim%d",RandomPick(3,4,5)));
+				}
+				
+				Return DedState;
+			}
 		DeathAnim1: //The vanilla player death.
 			MRDV H 5 {DeathAnimPlayed = 1;}
 			MRDV I 5 A_ScreamAndUnblock();
@@ -122,12 +141,20 @@ Extend Class SM_Marine
 			MRDV RSTUV 5;
 			MRDV W -1;
 			Stop;
+		XDeath.ExplosiveImpact:
+		XDeath.Explosive:
+		XDeath.Bomb:
+		XDeath.Grenade:
+		XDeath.HighExplosive:
+		XDeath.Explosion:
+			MRDB A 0 A_Jump (88,"XDeath"); //We have a decent chance of using the normal gib death too.
+			MRDB A 4 A_StartSound("Marine/XDeath",CHAN_VOICE);
+			MRDB B 4 A_NoBlocking();
+			MRDB CDEF 5;
+			MRDB F -1;
+			Stop;
 		CrouchXDeath:
-			MARP L 5
-			{
-				Crouching = False;
-				Height = Default.Height;
-			}
+			MARP L 5 SM_EndCrouch();
 			MARP M 5 A_StartSound("Marine/XDeath",CHAN_VOICE);
 			MARP N 5 A_NoBlocking();
 			MARP OPQRS 5;
@@ -136,26 +163,11 @@ Extend Class SM_Marine
 		Raise:
 			TNT1 A 0
 			{
-				//I could shorten this using String.Format(), if strings/names could even be converted to state labels that is.
-				Switch (DeathAnimPlayed)
-				{
-					Case 0:
-						Return ResolveState ("RaiseAnim1");
-					Case 1:
-						Return ResolveState ("RaiseAnim1");
-					Case 2:
-						Return ResolveState ("RaiseAnim2");
-					Case 3:
-						Return ResolveState ("RaiseAnim3");
-					Case 4:
-						Return ResolveState ("RaiseAnim4");
-					Case 5:
-						Return ResolveState ("RaiseAnim5");
-					Case 6:
-						Return ResolveState ("CrouchRaise");
-				}
+				//Special crouch death.
+				If (DeathAnimPlayed == 6)
+					Return FindState ("CrouchRaise");
 				
-				Return ResolveState (Null);
+				Return FindStateByString(String.Format("RaiseAnim%d",DeathAnimPlayed));
 			}
 			Goto See;
 		RaiseAnim1:

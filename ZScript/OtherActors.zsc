@@ -436,7 +436,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		ReactionTime 35*4; //Used as the fuse timer, similar to how A_Countdown uses it.
 		BounceType "Hexen";
 		BounceSound "Grenade/Bounce";
-		DamageType "Grenade";
+		DamageType "Explosive";
 		//Projectile;
 		-NoGravity;
 		+RollSprite;
@@ -692,7 +692,7 @@ Class SM_SmokeGrenade : KAI_BaseProjectile
 		ReactionTime 35*4; //Used as the fuse timer, similar to how A_Countdown uses it.
 		BounceType "Hexen";
 		BounceSound "Grenade/Bounce";
-		DamageType "Grenade";
+		//DamageType "Grenade";
 		-NoGravity;
 		+RollSprite;
 		+FloorClip;

@@ -525,6 +525,108 @@ Extend Class SM_Marine
 		Return Moved;
 	}
 	
+	//Decreases (Or maybe even increases) the retreat loops in certain cases where the marine decides to retreat, on factors like how many allies are near him.  
+	Int AlterRetreatLoops (Int Loops)
+	{
+		If (IsIndestructible (Self)) Return 0; //Nothing to worry about.
+		
+		Array<Actor> Allies;
+		Array<Actor> Groupies;
+		Double Reduction; //Score that is then used to subtract from the give retreat loops. This can be decimal for way weaker allies, like THREAT_LOW friends.
+		
+		//Find allies around.
+		ForEach(Mo : BlockThingsIterator.Create(Self, 1024))
+		{
+			//Unavailable.
+			If (!Mo || Mo == Self || IsInanimateObject(Mo) || IsDead (Mo) || Mo.bDormant || Mo.IsFrozen() || !CheckSight (Mo,SF_IGNOREWATERBOUNDARY))
+				Continue;
+			
+			//This is a group member in a group you're in. So they can be as far as 1024 MU away.
+			If (SM_IsSquadMate(Mo))
+			{
+				If (Distance3DSquared (Mo) > 1024*1024)
+					Continue;
+				//Friendly squadmate, add an additional minor loop reduction for that and move on.
+				Else If (!IsActorHostile(Mo))
+				{
+					Reduction += 2;
+					Allies.Push (Mo);
+					Continue;
+				}
+			}
+			Else //If they ain't, then they must be pretty damn close to count!
+			{
+				If (Distance3DSquared (Mo) > 512*512)
+					Continue;
+			}
+			
+			If (!IsActorHostile(Mo))
+				Allies.Push (Mo);
+		}
+		
+		If (Health <= 30) //We're low on health.
+			Reduction -= 2;
+		
+		//Reduce retreats based on the threat level of your allies and their quantity.
+		ForEach (Ally : Allies)
+		{
+			Switch (AssessThreatLevel(Ally))
+			{
+				Case THREAT_UNSTOPPABLE:
+					Reduction += 25;console.printf ("busted friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Case THREAT_SUPERDANGER:
+					Reduction += 16;console.printf ("super dangerous friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Case THREAT_VERYDANGEROUS:
+					Reduction += 8;console.printf ("very scary friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Case THREAT_DANGEROUS:
+					Reduction += 4; console.printf ("scary friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Case THREAT_ABOVENORMAL:
+					Reduction += 2.5; console.printf ("above normal friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Case THREAT_NORMAL: 
+					Reduction += 1; console.printf ("average friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Case THREAT_MILD:
+					Reduction += 0.5; console.printf ("mid friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Case THREAT_LOW:
+					Reduction += 0.25; console.printf ("weak friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Case THREAT_VERYLOW:
+					Reduction += 0.1; console.printf ("pathetic friend %s gave us a loop reduction",ally.getclassname());
+					Break;
+				Default:
+					Break;
+			}
+			If (Ally Is "SM_Marine")
+				Reduction += 0.5; //Slight increase for fellow marines.
+		}
+		
+		Double Score = Loops - Reduction;
+		If (Score > 0.2 && Score <= 1.0) //Our score is low, but not that low, so keep one loop for good measure instead of reloading in place.
+			Score = 1;
+		console.printf ("alterretreatloops(): %p now has %d loops",self,int(score));
+		Return Int(Score);
+	}
+	
+	//Is this actor in a group that we share?
+	Bool SM_IsSquadmate (Actor Who)
+	{
+		ForEach (Group : Groups)
+		{
+			ForEach (Member : Group.Members)
+			{
+				If (Who != Self && Member != Self && Who == Member)
+					{console.printf ("%p and %p are mutual members of group %p",self,who,group);Return True;}
+			}
+		}
+		Return False;
+	}
+	
 	Void SM_StartCrouch()
 	{
 		MarineState |= MARINE_INCOVER;
@@ -966,7 +1068,7 @@ Extend Class SM_Marine
 		If (Target && Distance3DSquared (Target) <= 256*256) //If the target is too close, don't bother. Like if running away from a melee enemy.
 			{If (KAI_DebugPrintMessages)A_LOG ("PrepareForSmokeThrow(): target is too close");Return False;}
 		
-		Chance += SM_AttackByQuantity (Target,flags:ABQ_Smokescreen); //Increase chance the more danger their is around.
+		Chance += SM_AttackByQuantity (Target,flags:ABQ_Smokescreen); //Increase chance the more danger there is around.
 		
 		If (Health <= SpawnHealth()/3) //Extra chance if low on health.
 			Chance += 30;

@@ -237,7 +237,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		Species "Military";
 		Decal "BulletChip";
 		Obituary "%o was blown up by a 12.7mm bullet.";
-		KAI_Actor.ThreatLevel THREAT_DANGEROUS;
+		KAI_Actor.ThreatLevel THREAT_VERYDANGEROUS;
 		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS;
 		KAI_Actor.Inaccuracy (10,10,10);
 		KAI_Actor.InaccuracyFrequency 0.5;

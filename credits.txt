@@ -13,6 +13,7 @@ Kick sprites made by Captain Toenail and edited by Sergeant_Mark_IV.
 Grenade air blast sprites by Gorman Freebmane.
 Grenade sprites made by inkoalawetrust.
 Grenade liquid explosion and small splash sprites are from Metal Slug.
+Wounded marine sprites my Sergeant_Mark_IV.
 Alternate marine death sprites made by DavidG/ItsNatureToDie and DoomJedi.
 Machine gun turret sprites made by Sergeant_Mark_IV, redrawn by TG5.
 Sprites of the machine gun firing unmanned were edited by inkoalawetrust, except the 2 back frame which were done by Craneo.
