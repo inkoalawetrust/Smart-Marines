@@ -437,6 +437,8 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		BounceType "Hexen";
 		BounceSound "Grenade/Bounce";
 		DamageType "Explosive";
+		ExplosionRadius 256;
+		ExplosionDamage 192;
 		//Projectile;
 		-NoGravity;
 		+RollSprite;
@@ -512,9 +514,12 @@ Class SM_FragGrenade : KAI_BaseProjectile
 				Tags.Push ("Grenade");
 				If (!HEGrenade) Tags.Push ("Shrapnel"); //Also mark it as producing shrapnel.
 				HazardInfo.EmitHazard (Self,256,HazardInfo.HAZARD_ATTACK,HazLevel,0,Tags);
+				If (Proximity && Tracer && Distance3DSquared(Tracer) <= (ExplosionRadius+Tracer.Radius)*(ExplosionRadius+Tracer.Radius))
+					Faster = True;
 			}
 			
 			ReactionTime--;
+			If (Faster) ReactionTime--;
 			//Play the beeping sound when the grenades' fuse is close to detonaton. But not when the grenade has exploded.
 			If (ReactionTime <= Default.ReactionTime/3)
 				A_StartSound ("Grenade/Warning",CHAN_WEAPON,CHANF_LOOPING,1.0,2);
@@ -525,20 +530,29 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		{
 			BounceFactor = 1.0; //Don't bounce underwater.
 			A_ScaleVelocity (0.98);
-			A_ChangeVelocity (z:0.25,CVF_RELATIVE);
+			A_ChangeVelocity (z:0.25,CVF_RELATIVE); //Float
 		}
 		Else
 			BounceFactor = Default.BounceFactor; //Can bounce again while not submerged.
 	}
 	
+	Override Void CollidedWith(Actor Other, Bool Passive)
+	{
+		Super.CollidedWith(Other, Passive);
+		If (Passive && Tracer && Other == Tracer) //We smacked our target, detonate faster.
+			Faster = True;
+	}
+	
 	DynamicLight Light;
 	Bool HEGrenade; //This is an HE grenade. Used by SM_HEGrenade to not have to just copy and paste all this code.
+	Bool Faster; //Grenade begins fuzing faster.
+	Bool Proximity; //Fuze faster when close to your tracer.
 	Const HazardAge = 8; //Only begin emitting a hazard zone once the grenade has been armed for longer than this date. So marines don't run from their own thrown grenades.
 	
 	States
 	{
 		Spawn:
-			TNT1 A 0 NoDelay
+			SMGR B 0 NoDelay
 			{
 				A_SpawnItemEx ("SM_GrenadeLever",yvel:FRandom(-2,-4),FRandom(2,4));
 				If (HEGrenade)
@@ -686,7 +700,7 @@ Class SM_SmokeGrenade : KAI_BaseProjectile
 		Mass 1;
 		Gravity 0.5;
 		Scale 0.2;
-		Speed 30;
+		Speed 25;
 		BounceFactor 0.4;
 		WallBounceFactor 0.5;
 		ReactionTime 35*4; //Used as the fuse timer, similar to how A_Countdown uses it.

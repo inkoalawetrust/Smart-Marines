@@ -853,9 +853,9 @@ Extend Class SM_Marine
 	}
 	
 	//Credit: Lewisk3
-	void SM_FireGrenade(Actor toAct, class<Actor> nade, double maxPitch = 90, double aimSens = 1.0, double aimDist = 128)
+	actor SM_FireGrenade(Actor toAct, class<Actor> nade, double maxPitch = 90, double aimSens = 1.1, double aimDist = 128)
 	{
-		if(!toAct) return;
+		if(!toAct) return null;
 		
 		// Source and Destination
 		vector3 fromPos = (
@@ -871,11 +871,12 @@ Extend Class SM_Marine
 		
 		// Spawn grenade, calculate values from instance.
 		let nade = Spawn(nade, fromPos);
-		if(!nade) return;    
+		if(!nade) return null;    
 		nade.target = self;
+		nade.tracer = target; //Pass target as tracer.
 		
 		// Modify toPos Z component based on how many units the thrown grenade
-		// fall by the time it reaches the destination.
+		// falls by the time it reaches the destination.
 		double dist = diff.xy.Length();
 		if(dist >= aimDist)
 		{
@@ -898,6 +899,7 @@ Extend Class SM_Marine
 			sin(a) * cos(p),
 			-sin(p)
 		) * nade.Speed;
+		return nade;
 	}
 	
 	State SM_CheckRefire (Int Chance, StateLabel AbortState, Double FOV = 360)
@@ -928,7 +930,7 @@ Extend Class SM_Marine
 	}
 	
 	//Marines just fire SM_Bullet, so for now at least, so we mostly just need the trace offsets.
-	Bool SM_CheckLOF (Vector3 CheckOffsets = (0,0,32), Int PropHealthThreshold = 25, Bool AimingAt = False)
+	Bool, TraceResults SM_CheckLOF (Vector3 CheckOffsets = (0,0,32), Int PropHealthThreshold = 25, Bool AimingAt = False)
 	{
 		Let Check = New ("KAI_ProjectileLOFCheck");
 		
@@ -945,7 +947,7 @@ Extend Class SM_Marine
 				Direction = (AngleToVector(AngleTo(Target), Cos(PitchTo)), -Sin(PitchTo));
 			}
 			Else
-				Return False; //Actor stopped existing, so no need to fire.
+				Return False, Null; //Actor stopped existing, so no need to fire.
 		}
 		
 		Double Distance = !AimingAt ? MaxTargetRange : Distance3D (Target)+8;
@@ -955,7 +957,7 @@ Extend Class SM_Marine
 		Check.FriendlyFire = True;
 		
 		Check.ProjInfo = New ('LOFProjInfo'); //Assign data class.
-		Check.ProjInfo.Projectile = "SM_Bullet"; //Pass projectile class to trace.
+		Check.ProjInfo.Projectile = "SM_Bullet"; //Pass projectile class to ProjInfo.
 		Check.ProjInfo.InitializeProjectileInfo(); //Let it infer the rest.
 		
 		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
@@ -965,7 +967,7 @@ Extend Class SM_Marine
 		Bool BadLoaf = Check.BadLOF;
 		If (Check.ProjInfo) Check.ProjInfo.Destroy();
 		Check.Destroy();
-		Return !BadLoaf;
+		Return !BadLoaf, Check.Results;
 	}
 	
 	Bool SM_FindInLOF (Actor Who, Vector3 CheckOffsets = (0,0,32), Bool AimingAt = False)
@@ -1451,13 +1453,13 @@ Extend Class SM_Marine
 		//Check if it's safe to strafe 56 map units to the left or right, or both. Or none even, like in the case of crammed corridors.
 		Bool DecidedLeft, DecidedRight;
 		Double Delta = DeltaAngle (Angle,AngleTo(Projectile));
-		If (Delta >= -2 && Random (0,255) < 200) //No, the projectile is heading too much towards the left side.
+		If (Delta >= -2 && (Random (0,255) < 200 || G_SkillPropertyInt(SKILLP_FASTMONSTERS))) //No, the projectile is heading too much towards the left side.
 		{
 			If (KAI_DebugPrintMessages)a_log ("the projectile is to the left of the marine");
 			LeftSafe = False;
 			DecidedLeft = True;
 		}
-		Else If (Delta <= 2 && Random (0,255) < 200) //Ditto, but for the right side.
+		Else If (Delta <= 2 && (Random (0,255) < 200 || G_SkillPropertyInt(SKILLP_FASTMONSTERS))) //Ditto, but for the right side.
 		{
 			If (KAI_DebugPrintMessages)a_log ("the projectile is to the right of the marine");
 			RightSafe = False;

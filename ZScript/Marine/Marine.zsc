@@ -1,8 +1,8 @@
 //IDEA:
 //Give them Flashbangs.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
-//Use BD XDeath marine sprites for XDeath.Explosive/Explosion/whatever? The ones where he flips in the air with missing limbs and head.
-//Maybe even add a bit of a bias when picking death anims for the ones where Doomguy flips or falls over if the death type was explosive.
+//When I make the marines' aim be affected by CheckForShadows(), maybe make the marine having the light amp powerup give him +SEEINVISIBLE?
+//Fuck it, we ball, give them taunts like I had considered doing super early in development.
 //TODO:
 //Uh, not actually related to THIS mod, but the MVP vehicle radio doesn't seem to work with the marines?
 
@@ -87,6 +87,7 @@ Class SM_Marine : KAI_Humanoid
 		AttackStates.Push (FindState ("Fire",True));
 		AttackStates.Push (FindState ("Fire.Loop",True));
 		AttackStates.Push (FindState ("Jump.Dodge.Attack",True));
+		AttackStates.Push (FindState ("Grenade",True));
 		
 		//That's a lot of melee states.
 		AttackStates.Push (FindState ("Melee",True));
@@ -110,7 +111,12 @@ Class SM_Marine : KAI_Humanoid
 		//Every tic that the marine is in a non-melee attack state, and not attacking mid-dodge, perform target prediction.
 		//NOTE: Hmm, should they do target prediction when throwing grenades too ?
 		If (/*GetAge() % 4 == 0 && */!(MarineState & MARINE_MELEE) && IsInAttackState() && !IsInState (Self,"Jump.Dodge.Attack"))
-			AimAtTarget (8/**4*/,8/**4*/,flags:AimPos,attackspeed:170,200);
+		{
+			If (!IsInState (Self,"Grenade"))
+				AimAtTarget (8/**4*/,8/**4*/,flags:AimPos,attackspeed:170,200);
+			Else //Grenade target prediction.
+				AimAtTarget (8/**4*/,8/**4*/,flags:AimPos,attackspeed:30,30);
+		}
 		
 		Int Age = GetAge();
 		//Update on whether or not the marine is berserking.
@@ -127,7 +133,7 @@ Class SM_Marine : KAI_Humanoid
 				bAvoidMelee = True;
 			}
 		}
-		
+		if (debugpoint) debugpoint.setorigin(getattacklocation(),true);
 		If (CountInv("SM_DogRageToken") && IsInState (Self,"AskDog"))
 		{
 			Actor Killer = SM_DogRageToken(FindInventory("SM_DogRageToken",True)).DogKiller;
@@ -164,9 +170,6 @@ Class SM_Marine : KAI_Humanoid
 		If (DeadDogTimer) //RAAAAAAH
 			DeadDogTimer--;
 		
-		If (MeleeTime) //How long the marine does melee without running away.
-			MeleeTime--;
-		
 		If (TurretDelay > 0)
 		{
 			//Check every half second that we're waiting before using a turret again for anything that should decrement the timer faster.
@@ -197,11 +200,37 @@ Class SM_Marine : KAI_Humanoid
 		If (TargetTurret && Age % 8 == 0 && !ShouldUseTurret(TargetTurret,False,True))
 			TargetTurret = KAI_Emplacement(FindEmplacements());
 		
-		//Update primary hazard to avoid every 4 ticks. Also handle altering target prediction inaccuracy here.
+		//Update primary hazard to avoid every 4 ticks. Also handle altering target prediction inaccuracy here. And EMITING hazards when shooting.
 		If (Age % 4 == 0)
 		{
 			HazardToAvoid = GetStrongestHazard(Hazards);
 			
+			If (MarineState & MARINE_FIRING)
+			{
+				Bool Aeiou; TraceResults Data;
+				[Aeiou, Data] = SM_CheckLOF(FirePos,0,True);
+				//Don't alert other marines, they can just dodge it, so don't make each other get stuck aim dodging.
+				If (Data && Data.HitActor && !(Data.HitActor Is "SM_Marine"))
+				{
+					console.printf ("warning %p that they may be shot",data.hitactor);
+					HazardInfo Hazard = New ("HazardInfo"); //Create hazard information.
+					If (Hazard)
+					{
+						Array <String> Tags;
+						Tags.Push ("Bullet");
+						Hazard.Position = Data.HitPos;
+						Hazard.Origin = Self;
+						Hazard.Range = 32;
+						Hazard.Type = HazardInfo.HAZARD_ATTACK;
+						Hazard.Level = HazardInfo.HAZARD_MEDIUM;
+						//Hazard.Flags = Flags;
+						Hazard.CustomTags.Copy (Tags);
+					}
+					HazardInfo.GiveHazard(Data.HitActor,Hazard);
+				}
+			}
+			
+			//Predict the targets' trajectory with less noise when locking in.
 			If (MarineState & MARINE_INCOVER || MarineState & MARINE_KNEELING || MarineState & MARINE_LYINGDOWN)
 				Inaccuracy = (2,2,2);
 			Else
@@ -287,9 +316,34 @@ Class SM_Marine : KAI_Humanoid
 		SM_HandleMarineColoring (User_Color);
 	}
 	
+	//Marines have 3 attacks, shooting, throwing a grenade, and melee. The first two need to return where those attacks will actually go.
+	Override Vector3 GetAttackLocation()
+	{
+		If (MarineState & MARINE_FIRING || MarineState & MARINE_THROWING && GrenadeType != GRENADE_SMOKE)
+		{
+			/*Let Check = New ("KAI_ProjectileLOFCheck");
+		
+			Vector3 Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
+			
+			Double Distance = INT16.MAX; //32 something thousand MU
+			Check.Shooter = Self;
+			Check.PropHealthThreshold = AttackType == FIRE_SINGLE ? 0 : 25;
+			Check.FriendlyFire = !KAI_Projectile(GetDefaultByType("SM_Bullet")).bNoFriendlyFire; //Yes, the marine bullet does have friendly fire.
+			
+			Check.ProjInfo = New ('LOFProjInfo'); //Assign "struct".
+			Check.ProjInfo.Projectile = "SM_Bullet"; //Pass projectile class to "struct".
+			Check.ProjInfo.InitializeProjectileInfo(); //Let it infer the rest.*/
+			Bool Ok; TraceResults Result;
+			[Ok, Result] = SM_CheckLOF(FirePos,AttackType == FIRE_SINGLE ? 0 : 50,True);
+			Return Result.HitPos; //Return where the LOF trace ended up at.
+		}
+		Return Super.GetAttackLocation(); //Return default KAI_Humanoid function, presumably just the targets' position.
+	}
+	
 	//Hack variables to handle when the area ally alerts should be emitted, since I'm not sure where they should even be handled lol.
 	Private Actor SMOldTarget;
 	
+	Vector3 FirePos; //Exists in general, for GetAttackLocation().
 	Override Bool ShouldAttack (Bool NoStateJump)
 	{
 		If (!Target || Target == Goal) Return False; //Don't attack if you have no target or just following a goal.
@@ -299,7 +353,7 @@ Class SM_Marine : KAI_Humanoid
 			SMOldTarget = Target;
 			SM_AlertNearbyAllies (User_AlertRange); //Alert friends of each new target.
 		}
-		Vector3 FirePos = (0,-6,42); //Will be changable once I implement kneeling and lying down.
+		FirePos = (0,-6,42); //Default firing position.
 		Int Threat = AssessThreatLevel (Target,False);
 		
 		//If (KAI_DebugPrintMessages)console.printf ("fire delay is %d tics",nextfiredelay);
@@ -345,7 +399,7 @@ Class SM_Marine : KAI_Humanoid
 		
 		//If low on ammo, do a quick melee attack on your enemy instead, if its' close enough and less dangerous than you. And then retreat to reload.
 		QuickMelee = (AmmoCount <= 4 && Threat < Self.ThreatLevel && Dist <= MeleeRange*3);
-		If ((GrenadeType == GRENADE_NONE || Crouching) && !QuickMelee && !MeleeNearest && !NextFireDelay && SM_CheckLOF (FirePos))
+		If ((GrenadeType == GRENADE_NONE || Crouching) && !QuickMelee && !MeleeNearest && !NextFireDelay && SM_CheckLOF (FirePos,50))
 		{
 			Height = OldHeight;
 			Double Buff = SM_IsCrouched() ? 0.5 : 1.0;
@@ -391,9 +445,11 @@ Class SM_Marine : KAI_Humanoid
 				ChaseTimer = 0;
 				SetStateLabel ("Fire");
 			}
+			FirePos = (0,-6,42);
 			Return True;
 		}
 		Height = OldHeight;
+		FirePos = (0,-6,42);
 		
 		If ((!Crouching || MarineState & MARINE_INCOVER) && GrenadeType != GRENADE_NONE)
 		{
@@ -401,7 +457,6 @@ Class SM_Marine : KAI_Humanoid
 				SetStateLabel ("Grenade");
 			Return True;
 		}
-		
 		
 		//Check if you should do melee. But only on weak-ish enemies.
 		Int MeleeChance = bAvoidMelee ? 32 : 128;
@@ -807,7 +862,6 @@ Class SM_Marine : KAI_Humanoid
 	Int AimPos; //Where is the marine aiming ? Similar to the TurretAimPos on the vehicles.
 	Int AimTimer; //If the marine has been trying to aim and fire at the target for this long, then it's not working.
 	Int ChaseTimer; //How long has the marines' target being dead or out of sight ?
-	Int MeleeTime; //When on, the marine will be less scared of entering melee, like if the other enemy is weak and nearby, and by extension more likely to do it.
 	
 	//Hardcore parkour stuff.
 	Vector3 ClimbPos; //Where the marine will move at after climbing up a sector in his climb state.
@@ -1147,6 +1201,7 @@ Class SM_Marine : KAI_Humanoid
 				
 				bNoFriction = Default.bNoFriction; //Just in case the marine somehow started firing mid-jump.
 			}
+			MARF A 0 SM_SetMarineState (MARINE_FIRING,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_CHASING); //Set marine actions.
 			MARF JJJ 2
 			{
 				SM_RunFromHazards();
@@ -1168,7 +1223,6 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Wait;
 		Fire.Loop:
-			MARF A 0 SM_SetMarineState (MARINE_FIRING,MARINE_IDLING|MARINE_THROWING|MARINE_IDLING|MARINE_CHASING); //Set marine actions.
 			MARF V 3 //Delay
 			{
 				If (SM_RunFromHazards()) //Handle abruptly running away from hazards when firing.
@@ -1265,6 +1319,7 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0
 			{
 				SM_EndFiring();
+				SM_SetMarineState (0,MARINE_FIRING);
 				If (AmmoCount <= 0) //Out of ammo.
 				{
 					RetreatLoops = 0; //RESET THE AMOUNT OF RETREATS, DO NOT FUCKING STACK THEM.
@@ -1436,7 +1491,11 @@ Class SM_Marine : KAI_Humanoid
 				A_StartSound ("Marine/Throw",CHAN_VOICE,CHANF_OVERLAP,attenuation:0.8); //Umf
 				
 				If (!QuickGrenade)
-					SM_FireGrenade (Target,GrenCls,55,1.0,1024+128);
+				{
+					Actor Grenade = SM_FireGrenade (Target,GrenCls,65,0.5,128);
+					//Faster proximity fuze for dangerous enemies.
+					If (Grenade && GrenadeType != GRENADE_SMOKE && AssessThreatLevel (Target,False) >= ThreatLevelThreshold) SM_FragGrenade(Grenade).Proximity = True;
+				}
 				Else
 				{
 					Bool Useless; Actor Gren;
@@ -1785,7 +1844,7 @@ Class SM_Marine : KAI_Humanoid
 					JumpPos.Z = GetZAt (JumpPos.X,JumpPos.Y); //So just get the Z at the XY coordinates.
 				bNoFriction = True; //Get rid of the god forsaken friction.
 				KAI_JumpTo (JumpPos,8);
-				If (Random (0,255) < 3)
+				If (Random (0,255) < 250)
 					A_StartSound ("Marine/Throw",CHAN_VOICE,attenuation:0.8); //Umf
 				Else
 				{
