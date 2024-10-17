@@ -1,10 +1,10 @@
 //IDEA:
 //Give them Flashbangs.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
+//Give them an extra delay if a nearby marine has already thrown a grenade?
 //When I make the marines' aim be affected by CheckForShadows(), maybe make the marine having the light amp powerup give him +SEEINVISIBLE?
 //Fuck it, we ball, give them taunts like I had considered doing super early in development.
-//TODO:
-//Uh, not actually related to THIS mod, but the MVP vehicle radio doesn't seem to work with the marines?
+//TODO: Make marines not do the healing sequence for an ally that's back to fully health by the time they get there.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -43,8 +43,8 @@ Class SM_Marine : KAI_Humanoid
 		DeathSound "Marine/Death";
 		KAI_Actor.ThreatLevel THREAT_ABOVENORMAL;
 		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS; //Marines are only really scared of super dangerous enemies like bosses and enemy vehicles.
-		KAI_Actor.Inaccuracy (4,4,4);
-		KAI_Actor.InaccuracyFrequency 1;
+		KAI_Actor.Inaccuracy (8,8,8);
+		KAI_Actor.InaccuracyFrequency 0.8;
 		Monster;
 		//+JumpDown;
 		+MissileMore;
@@ -58,15 +58,19 @@ Class SM_Marine : KAI_Humanoid
 		//+DropOff;
 	}
 	
-	Override Void PostBeginPlay ()
+	Override Void BeginPlay ()
 	{
-		Super.PostBeginPlay();
-		MarineState = MARINE_IDLING;
-		If (bFriendly) CurrentOrder = ORDER_FOLLOW;
-		If (KAI_DebugPrintMessages)console.printf ("%p spawned with order %d",self,currentorder);
-		FollowDist = 128+Random (-16,48);
-		FollowDist = Clamp (FollowDist,0, INT.MAX); //In case the variable becomes configurable.
-		AmmoCount = 30;
+		Super.BeginPlay();
+		
+		
+		//NOTE: The height variation, and User_Armor are handled here for cases where the marine is damaged immediately after spawning, like escaping a dead MVP vehicle.
+		If (!(User_Armor ~== "None" || User_Armor ~== "Nothing")) //If the marine doesn't explicitly spawn unarmored.
+		{
+			If (!User_Armor || User_Armor ~== "" || User_Armor ~== " ") //Default armor.
+				GiveInventory ("GreenArmor",1);
+			Else
+				GiveInventory (User_Armor,1); //Try giving whatever armor available in the current session that the mapper wants.
+		}
 		
 		//Height variation, very realistic.
 		Double XMul = FRandom (0.95f,1.05f);
@@ -79,6 +83,26 @@ Class SM_Marine : KAI_Humanoid
 		If (XMul >= 1.03)
 			Health += 5;
 		StartHealth = Health;
+		
+		//Head facing variation, very non-deterministic.
+		State LeState = SpawnState;
+		Int Forwards = Random (0,8);
+		For (Int I; I < Forwards*8; I++)
+		{
+			LeState = LeState.NextState;
+		}
+		SetState (LeState,True);
+	}
+	
+	Override Void PostBeginPlay ()
+	{
+		Super.PostBeginPlay();
+		MarineState = MARINE_IDLING;
+		If (bFriendly) CurrentOrder = ORDER_FOLLOW;
+		If (KAI_DebugPrintMessages)console.printf ("%p spawned with order %d",self,currentorder);
+		FollowDist = 128+Random (-16,48);
+		FollowDist = Clamp (FollowDist,0, INT.MAX); //In case the variable becomes configurable.
+		AmmoCount = 30;
 		
 		//Set attack states.
 		MissileState = FindState ("Fire",True);
@@ -132,6 +156,8 @@ Class SM_Marine : KAI_Humanoid
 				HasBerserk = False;
 				bAvoidMelee = True;
 			}
+			HasNods = CountInv("PowerLightAmp");
+			bSeeInvisible = !HasNods ? Default.bSeeInvisible : True;
 		}
 		if (debugpoint) debugpoint.setorigin(getattacklocation(),true);
 		If (CountInv("SM_DogRageToken") && IsInState (Self,"AskDog"))
@@ -230,11 +256,31 @@ Class SM_Marine : KAI_Humanoid
 				}
 			}
 			
-			//Predict the targets' trajectory with less noise when locking in.
-			If (MarineState & MARINE_INCOVER || MarineState & MARINE_KNEELING || MarineState & MARINE_LYINGDOWN)
-				Inaccuracy = (2,2,2);
-			Else
-				Inaccuracy = Default.Inaccuracy;
+			//Note: Lol, literally all of this is my own code.
+			//Handle increasing the marines' inaccuracy when attacking at shadow actors or through shadow blockers like smoke screens.
+			If (IsInAttackState())
+			{
+				Bool Found; Actor Ghost; Double Penalty = 1.0;
+				[Found, Ghost, Penalty] = PerformShadowChecks(Null,Level.Vec3Offset(Pos,FirePos));
+				If (!bSeeInvisible || bSeeInvisible && !bShadowAim)
+					Penalty = 1;
+				console.printf ("running shadow stuff IN ZSCRIPT!, %d %p %.2f",found,ghost,penalty);
+				//Predict the targets' trajectory with less noise when locking in.
+				If (MarineState & MARINE_INCOVER || MarineState & MARINE_KNEELING || MarineState & MARINE_LYINGDOWN)
+					Inaccuracy = (2,2,2)*Penalty;
+				Else
+					Inaccuracy = Default.Inaccuracy*Penalty;
+				
+				If (!Found && Target && Target.bShadow && !bSeeInvisible)
+					Inaccuracy *= Target.ShadowPenaltyFactor != 1.0 ? Target.ShadowPenaltyFactor : 2;
+				console.printf ("inaccuracy is %.2f %.2f %.2f, default is %.2f %.2f %.2f",inaccuracy,default.inaccuracy);
+				if (marinestate & marine_kneeling)
+					console.printf ("so, fvcking... zased...");
+					if (marinestate & marine_lyingdown)
+					console.printf ("eepy");
+					if (marinestate & marine_incover)
+					console.printf ("hiding");
+			}
 		}
 		
 		//Check dodging every 2 ticks.
@@ -294,13 +340,6 @@ Class SM_Marine : KAI_Humanoid
 	Override Void UserVariableDefaults()
 	{
 		Super.UserVariableDefaults();
-		If (!(User_Armor ~== "None" || User_Armor ~== "Nothing")) //If the marine doesn't explicitly spawn unarmored.
-		{
-			If (!User_Armor || User_Armor ~== "" || User_Armor ~== " ") //Default armor.
-				GiveInventory ("GreenArmor",1);
-			Else
-				GiveInventory (User_Armor,1); //Try giving whatever armor available in the current session that the mapper wants.
-		}
 		
 		If (User_HealCooldown == 0)
 			User_HealCooldown = 40;
@@ -321,18 +360,6 @@ Class SM_Marine : KAI_Humanoid
 	{
 		If (MarineState & MARINE_FIRING || MarineState & MARINE_THROWING && GrenadeType != GRENADE_SMOKE)
 		{
-			/*Let Check = New ("KAI_ProjectileLOFCheck");
-		
-			Vector3 Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
-			
-			Double Distance = INT16.MAX; //32 something thousand MU
-			Check.Shooter = Self;
-			Check.PropHealthThreshold = AttackType == FIRE_SINGLE ? 0 : 25;
-			Check.FriendlyFire = !KAI_Projectile(GetDefaultByType("SM_Bullet")).bNoFriendlyFire; //Yes, the marine bullet does have friendly fire.
-			
-			Check.ProjInfo = New ('LOFProjInfo'); //Assign "struct".
-			Check.ProjInfo.Projectile = "SM_Bullet"; //Pass projectile class to "struct".
-			Check.ProjInfo.InitializeProjectileInfo(); //Let it infer the rest.*/
 			Bool Ok; TraceResults Result;
 			[Ok, Result] = SM_CheckLOF(FirePos,AttackType == FIRE_SINGLE ? 0 : 50,True);
 			Return Result.HitPos; //Return where the LOF trace ended up at.
@@ -741,12 +768,9 @@ Class SM_Marine : KAI_Humanoid
 	
 	Override Void AfterOrderChange (NPCOrders OldOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS)
 	{
-		If (FromACS) //If SetNPCOrder is called from ACS, marines have their state switched.
-		{
-			//Have marine idle to follow whatever actor, or if they are in the spawn state and set to wander aimlessly.
-			If ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState (Self,"Spawn"))
-				SetStateLabel ("Idle");
-		}
+		//Have marine idle to follow whatever actor, or if they are in the spawn state and set to wander aimlessly.
+		If ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState (Self,"Spawn"))
+			SetStateLabel ("Idle");
 		
 		//Make all actors in the groups you are follow your order, if you are leading.
 		ForEach (Group : Groups)
@@ -797,10 +821,6 @@ Class SM_Marine : KAI_Humanoid
 			Return False;
 		If (KAI_DebugPrintMessages)console.printf ("%p: my order is now %d",self,currentorder);
 		A_StartSound ("Marine/Radio",CHAN_AUTO);
-		
-		//Begin idling to follow the player, or if you are in the spawn state and set to wander aimlessly.
-		If ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState (Self,"Spawn"))
-			SetStateLabel ("Idle");
 		
 		Actor Text = Spawn ("SM_OrderText",Pos.PlusZ(Height));
 		If (Text)
@@ -890,6 +910,7 @@ Class SM_Marine : KAI_Humanoid
 	UInt8 NextFireDelay; //How long until the marine can shoot again, so that they don't shoot constantly. This can only be a ~7 second delay at most.
 	Int AttackType; //How is the marine firing his gun ?
 	Bool RemovedOldMag; //Used for reloading, if the marine was interrupted by flinching mid-reload, this skips the part where he throws the old magazine out.
+	Bool HasNods; //Marine has the light amp goggles, meaning he can see through shadows.
 	Enum RifleFireModes
 	{
 		FIRE_BURST, //Fire a 3 round burst like the base M4 Carbine. Decently accurate.
@@ -2014,6 +2035,16 @@ Class SM_Marine_Berserk : SM_Marine
 	}
 }
 
+//Marine with light amp goggles (Has +SEEINVISIBLE).
+Class SM_Marine_Infrared : SM_Marine
+{
+	Override Void PostBeginPlay ()
+	{
+		Super.PostBeginPlay();
+		GiveInventory ("PowerLightAmp",1);
+	}
+}
+
 //Marine with no green armor.
 Class SM_Marine_Unarmored : SM_Marine
 {
@@ -2043,6 +2074,7 @@ Class SM_GigaMarine : SM_Marine
 		User_Color = "Blue";
 		User_Armor = "BlueArmor";
 		GiveInventory ("PowerStrength",1);
+		GiveInventory ("PowerLightAmp",1);
 		Health = 200;
 		Super.PostBeginPlay();
 		//Maxxed out height and width.

@@ -875,10 +875,10 @@ Class SM_SmokeParticle : Actor
 	Default
 	{
 		Speed 2; //How fast the smoke rolls around.
-		Radius 24;
-		Height 48;
+		Radius 32;
+		Height 64;
 		ReactionTime 35; //How long the smoke lasts.
-		ShadowPenaltyFactor 2.0;
+		ShadowPenaltyFactor 2.5;
 		Scale 0.75;
 		//RenderStyle "Add";
 		+NoGravity;
@@ -895,8 +895,7 @@ Class SM_SmokeParticle : Actor
 		Vector3 Old = Pos;
 		
 		//Copy of the basic MF5_NOINTERACTION movement code. Since that flag also disables blockmap linking, which is needed for SHADOWBLOCK.
-		If (!KAI_Math.IsEmptyVector3 (Vel))
-			SetOrigin (Vec3Offset(Vel.X,Vel.Y,Vel.Z),True);
+		SetOrigin (Vec3Offset(Vel.X,Vel.Y,Vel.Z,True),True); //Note: NO portal support, too expensive probably.
 		
 		Vel *= 0.98;
 		
@@ -921,7 +920,7 @@ Class SM_SmokeParticle : Actor
 		Spawn:
 			MSMK ABCDEFG 2 A_SetRoll (Roll+Speed,SPF_INTERPOLATE);
 			MSMK G 0 A_JumpIf (ReactionTime < 0, 2);
-			MSMK G 2 A_SetRoll (Roll+Speed,SPF_INTERPOLATE);
+			MSMK G Random(2,5) A_SetRoll (Roll+Speed,SPF_INTERPOLATE);
 			Goto Spawn+7;
 			MSMK HIJKLM 2
 			{

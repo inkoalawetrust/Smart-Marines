@@ -950,7 +950,7 @@ Extend Class SM_Marine
 				Return False, Null; //Actor stopped existing, so no need to fire.
 		}
 		
-		Double Distance = !AimingAt ? MaxTargetRange : Distance3D (Target)+8;
+		Double Distance = (!AimingAt || AimingAt && !Target) ? MaxTargetRange : Distance3D (Target)+8;
 		Check.Shooter = Self;
 		Check.Other = Target;
 		Check.PropHealthThreshold = PropHealthThreshold; //This can depend on factors like how many rounds the marine is firing.
