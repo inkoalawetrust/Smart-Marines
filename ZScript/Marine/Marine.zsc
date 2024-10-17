@@ -1,10 +1,7 @@
 //IDEA:
 //Give them Flashbangs.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
-//Give them an extra delay if a nearby marine has already thrown a grenade?
-//When I make the marines' aim be affected by CheckForShadows(), maybe make the marine having the light amp powerup give him +SEEINVISIBLE?
 //Fuck it, we ball, give them taunts like I had considered doing super early in development.
-//TODO: Make marines not do the healing sequence for an ally that's back to fully health by the time they get there.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -666,6 +663,9 @@ Class SM_Marine : KAI_Humanoid
 		If (HealTarget) //We have someone to heal, so go do that instead of wandering or following a player.
 		{
 			KAI_MoveTowards (HealTarget.Pos, 0.5, 20, 0, 0);
+			//Actor is back to full-ish health by the time we got there.
+			If (SM_GetMaxHealth (HealTarget) - 7 < HealTarget.Health)
+				HealTarget = Null;
 			Return False;
 		}
 		
@@ -1489,7 +1489,6 @@ Class SM_Marine : KAI_Humanoid
 			}
 			MARF G 4
 			{
-				//AnnounceGrenadeThrow();
 				Class <Actor> GrenCls;
 				Switch (GrenadeType) //Pick the right grenade type.
 				{
@@ -1513,6 +1512,7 @@ Class SM_Marine : KAI_Humanoid
 				
 				If (!QuickGrenade)
 				{
+					SM_AnnounceGrenadeThrow ();
 					Actor Grenade = SM_FireGrenade (Target,GrenCls,65,0.5,128);
 					//Faster proximity fuze for dangerous enemies.
 					If (Grenade && GrenadeType != GRENADE_SMOKE && AssessThreatLevel (Target,False) >= ThreatLevelThreshold) SM_FragGrenade(Grenade).Proximity = True;

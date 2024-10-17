@@ -902,6 +902,36 @@ Extend Class SM_Marine
 		return nade;
 	}
 	
+	//Give marines in an area a slight delay in how quickly they'll throw their next grenade, to prevent marines spamming like 2 grenades where it makes no sense.
+	Void SM_AnnounceGrenadeThrow (Double Range = 384)
+	{
+		If (!Target) Return;
+		
+		Int Delay;
+		Switch (AssessThreatLevel(Target))
+		{
+			Case THREAT_UNSTOPPABLE:
+			Case THREAT_SUPERDANGER:
+			Case THREAT_VERYDANGEROUS:
+				Return; //Spam at will.
+			Case THREAT_DANGEROUS:
+				Delay = GameTicRate;
+				Break;
+			Case THREAT_ABOVENORMAL:
+				Delay = GameTicRate*2;
+				Break;
+			Default:
+				Delay = GameTicRate*3;
+				Break;
+		}
+		
+		ForEach(Mo : BlockThingsIterator.Create(Self, Range))
+		{
+			If (Mo && Mo Is "SM_Marine" && !SM_Marine(Mo).GrenadeDelay && !IsDead(Mo) && !Mo.bDormant && !IsActorHostile(Mo) && Distance3DSquared(Mo) <= Range*Range && CheckSight(MO,SF_IGNOREWATERBOUNDARY))
+				SM_Marine(Mo).GrenadeDelay += Delay;
+		}
+	}
+	
 	State SM_CheckRefire (Int Chance, StateLabel AbortState, Double FOV = 360)
 	{
 		If (CurSector.Flags & Sector.SECF_NOATTACK)
