@@ -37,7 +37,7 @@ Smoke sprites are from unknown source, ripped from Project Brutality and edited 
 Giant blast sprites made by inkoalawetrust.
 
 ======|Sounds|======
-Taunt voice line by Zero X Diamond.
+Taunt sound by unknown, apparently, despite how common that sound is.
 Reloading and rocket travelling sound is from Half-Life.
 Gun clicking sound made by knova https://freesound.org/people/knova/sounds/170272/
 Rifle melee sound made by newagesoup https://freesound.org/people/newagesoup/sounds/348244/
