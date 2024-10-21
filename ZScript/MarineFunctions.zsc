@@ -1319,6 +1319,18 @@ Extend Class SM_Marine
 		Return RUN_NONE;
 	}
 	
+	//Check if the marine should taunt after kill their target in an attack state.
+	Bool SM_CheckTaunt (Actor Victim, Int Chance = 64)
+	{
+		If (!Victim)
+			Return False;
+		
+		//We just killed a powerful enemy.
+		If (IsDead(Victim) && IsActorHostile(Victim) && Victim.Target == Self && (Target.Player || AssessThreatLevel(Victim,checkdead:True) >= ThreatLevelThreshold))
+			Return (Random(0,255) < Chance);
+		Return False;
+	}
+	
 	//Search for dangerous enemies around you.
 	Bool IsDangerNearby (Double Range = 1024)
 	{
@@ -1344,7 +1356,7 @@ Extend Class SM_Marine
 			Actor Mobj = FindEnemies.Thing;
 			
 			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
-			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
+			If (!Mobj || IsInanimateObject(Mobj) || IsDead (Mobj) || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
 			
 			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
 			If (KAI_DebugPrintMessages)a_log ("IsDangerNearby(): Found random enemy NPC");

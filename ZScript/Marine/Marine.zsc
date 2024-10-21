@@ -261,7 +261,7 @@ Class SM_Marine : KAI_Humanoid
 				[Found, Ghost, Penalty] = PerformShadowChecks(Null,Level.Vec3Offset(Pos,FirePos));
 				If (!bSeeInvisible || bSeeInvisible && !bShadowAim)
 					Penalty = 1;
-				console.printf ("running shadow stuff IN ZSCRIPT!, %d %p %.2f",found,ghost,penalty);
+				
 				//Predict the targets' trajectory with less noise when locking in.
 				If (MarineState & MARINE_INCOVER || MarineState & MARINE_KNEELING || MarineState & MARINE_LYINGDOWN)
 					Inaccuracy = (2,2,2)*Penalty;
@@ -270,13 +270,6 @@ Class SM_Marine : KAI_Humanoid
 				
 				If (!Found && Target && Target.bShadow && !bSeeInvisible)
 					Inaccuracy *= Target.ShadowPenaltyFactor != 1.0 ? Target.ShadowPenaltyFactor : 2;
-				console.printf ("inaccuracy is %.2f %.2f %.2f, default is %.2f %.2f %.2f",inaccuracy,default.inaccuracy);
-				if (marinestate & marine_kneeling)
-					console.printf ("so, fvcking... zased...");
-					if (marinestate & marine_lyingdown)
-					console.printf ("eepy");
-					if (marinestate & marine_incover)
-					console.printf ("hiding");
 			}
 		}
 		
@@ -332,6 +325,7 @@ Class SM_Marine : KAI_Humanoid
 		bNoFriction = Default.bNoFriction;
 		bNoGravity = Default.bNoGravity;
 		RetreatPos = NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
+		TauntTarget = Null;
 	}
 	
 	Override Void UserVariableDefaults()
@@ -348,6 +342,8 @@ Class SM_Marine : KAI_Humanoid
 			User_RetreatFactor = 1.0;
 		If (User_TurretDelay == 0)
 			User_TurretDelay = 8*GameTicRate;
+		If (User_TauntChance == 0)
+			User_TauntChance = 64;
 		
 		SM_HandleMarineColoring (User_Color);
 	}
@@ -882,6 +878,7 @@ Class SM_Marine : KAI_Humanoid
 	Int AimPos; //Where is the marine aiming ? Similar to the TurretAimPos on the vehicles.
 	Int AimTimer; //If the marine has been trying to aim and fire at the target for this long, then it's not working.
 	Int ChaseTimer; //How long has the marines' target being dead or out of sight ?
+	Actor TauntTarget; //The guy we are taunting.
 	
 	//Hardcore parkour stuff.
 	Vector3 ClimbPos; //Where the marine will move at after climbing up a sector in his climb state.
@@ -954,6 +951,7 @@ Class SM_Marine : KAI_Humanoid
 	Int User_GrenadeThreshold; //How likely is the marine to throw a grenade? The lower it is the more likely he is. -1 means no grenades, default is 96
 	Double User_RetreatFactor; //A multiplier for how much marines run away, i.e a value of 0.5 makes them take half the amount of retreat steps, roughly.
 	Int User_TurretDelay; //The delay, in tics, that the marine waits for before using a turret again, default is 8 seconds.
+	Int User_TauntChance; //How likely the marine is to taunt a powerful enemy they killed if safe to do so, twice as likely if beaten to death. Default is 64; 
 	
 	States
 	{
@@ -1272,8 +1270,19 @@ Class SM_Marine : KAI_Humanoid
 			}
 			MARF A 0
 			{
+				//Look for a new target. Also taunt if nothing was found.
 				If (AttackType == FIRE_FULLAUTO && !Target || IsDead (Target))
-					LookForPlayers (True); //Look for a new target.
+				{
+					Actor OldTarget = Target;
+					Bool FoundOtherEnemy = LookForPlayers (True);
+					//No new enemy found, so the coast is clear. Decide to taunt or not.
+					If (OldTarget && !FoundOtherEnemy && SM_CheckTaunt(OldTarget,User_TauntChance))
+					{
+						TauntTarget = OldTarget;
+						Target = Null; //Target is dead.
+						Return FindState ("Fire.End",True);
+					}
+				}
 				
 				//When firing, be likely to engage in melee if an enemy got too close.
 				//The target itself is out of range, so search for some other nearby enemy we may need to melee.
@@ -1341,6 +1350,8 @@ Class SM_Marine : KAI_Humanoid
 			{
 				SM_EndFiring();
 				SM_SetMarineState (0,MARINE_FIRING);
+				If (TauntTarget)
+					Return FindState ("Taunt",True);
 				If (AmmoCount <= 0) //Out of ammo.
 				{
 					RetreatLoops = 0; //RESET THE AMOUNT OF RETREATS, DO NOT FUCKING STACK THEM.
@@ -1725,12 +1736,33 @@ Class SM_Marine : KAI_Humanoid
 				bDontThrust = Default.bDontThrust;
 			}
 			Goto Melee.End;
-		Melee.End: //Just in case I need to add any shit here.
+		Melee.End:
 			#### # 0 SM_SetMarineState (0,MARINE_MELEE); //We are no longer doing melee.
-			#### # 0 A_JumpIf ((MarineState & MARINE_RELOAD),"Reload");
 			#### # 0
 			{
 				ChaseTimer = 0;
+				
+				//Melee taunt handling. Marines are twice as likely to taunt if they meleed a power foe to death.
+				If (Target && IsDead(Target))
+				{
+					Actor RealTarget = Target;
+					If (SM_CheckTaunt (RealTarget,User_TauntChance*2) && !LookForPlayers(True)) //Look for any enemies in sight.
+					{
+						QuickMelee = MeleeNearest = False;
+						Target = Null;
+						TauntTarget = Target;
+						Return FindState ("Taunt",True);
+					}
+					Else //Found one? Abort.
+						Target = RealTarget;
+				}
+				
+				If (MarineState & MARINE_RELOAD)
+				{
+					QuickMelee = MeleeNearest = False;
+					Return FindState ("Reload",True);
+				}
+				
 				If (QuickMelee || MeleeNearest) //We came here to just do a quick attack.
 				{
 					QuickMelee = MeleeNearest = False;
@@ -1739,7 +1771,7 @@ Class SM_Marine : KAI_Humanoid
 					Return FindState ("Retreat",True);
 				}
 				Return State (Null);
-			}
+			}tnt1 a 0 a_log ("going to see: regardless, I guess!!");
 			Goto See;
 		HealAlly:
 			TNT1 A 0 A_JumpIf (!HealTarget,17); //Skip this if we have no heal target for some reason.
@@ -1976,6 +2008,96 @@ Class SM_Marine : KAI_Humanoid
 				Return State (Null);
 			}
 			Goto MarineShaker+1;
+		Taunt:
+			TNT1 A 0
+			{
+				String TauntStates[] = {"Taunt.Twerk","Taunt.Wave1","Taunt.Wave2"};
+				If (TauntTarget && !TauntTarget.bSolid && Random (0,255) < 64 && Distance3DSquared(TauntTarget) <= 2048*2048 && SM_IsPosReachable(TauntTarget.Pos))
+					Return FindState ("Taunt.Teabag");
+				Else
+					{console.printf ("going to random taunt state");Return FindStateByString (TauntStates[Random(0,TauntStates.Size()-1)]);}
+				
+				Return State (Null);
+			}
+			//TNT1 A 0 A_Jump(255,"Taunt.Twerk","Taunt.Wave1","Taunt.Wave2");
+		Taunt.Twerk:
+			TNT1 A 0 {ChaseTimer = Random(4,8); A_Face(TauntTarget);}
+			MARA KLMKLMKLMKLM 2
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
+			}
+			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
+			Goto Taunt.Twerk+1;
+		//Wave twice
+		Taunt.Wave1:
+			TNT1 A 0 {ChaseTimer = Random(2,5); A_StartSound ("Marine/Taunt",CHAN_VOICE,volume:0.25); A_Face(TauntTarget);}
+			MWAV ABCDEFGHGFEDCB 5
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
+			}
+			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
+			Goto Taunt.Wave1+1;
+		//Ditto, but for a different wave.
+		Taunt.Wave2:
+			TNT1 A 0 {ChaseTimer = Random(2,5); A_StartSound ("Marine/Taunt",CHAN_VOICE,volume:0.25); A_Face(TauntTarget);}
+			MWAV IJKLMNMLKJ 5
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
+			}
+			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
+			Goto Taunt.Wave2+1;
+		/*Taunt.Jump:
+			TNT1 A 0 {ChaseTimer = Random(2,6);}
+			TNT1 A 0 A_StartSound ("Marine/Throw",CHAN_VOICE,volume:0.25);
+			MARA HHHHHHH 1 {SpriteOffset.Y += KAI_Math.LerpValue(0,-7,0.5); A_SetAngle(Angle+(360/28),SPF_INTERPOLATE);}
+			MARA HHHHHHH 1 {SpriteOffset.Y -= KAI_Math.LerpValue(-7,0,0.5); A_SetAngle(Angle+(360/28),SPF_INTERPOLATE);}
+			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
+			Goto Taunt.Jump+1;*/
+		//Walk up to the dead enemy.
+		Taunt.Teabag:
+			MARI AAAABBBBCCCCDDDD 2
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (HazardToAvoid)
+					Return FindState ("Taunt.Finish",True);
+				//Double RealSpeed = Speed;
+				//Speed *= 2;
+				KAI_MoveTowards (TauntTarget.Pos, 0.5, 20, 0, 0);
+				//Speed = RealSpeed;
+				If (Distance3DSquared  (TauntTarget) <= 16*16)
+					Return FindState ("Taunt.Teabag.Loop");
+				If (!TauntTarget)
+					Return FindState ("Taunt.Finish",True);
+				Return State (Null);
+			}
+			TNT1 A 0
+			{
+				If (!TauntTarget || !SM_IsPosReachable(TauntTarget.Pos,ignoreactors:True))
+					{console.printf ("exiting teabag");Return FindState ("Taunt.Finish",True);}
+				Return State (Null);
+			}
+			Loop;
+		Taunt.Teabag.Loop:
+			TNT1 A 0 {ChaseTimer = Random(5,15);}
+			MARI AAAA 2
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
+			}
+			TNT1 A 0 A_StartSound ("Marine/Throw");
+			MARC AAAA 2
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
+			}
+			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
+			Goto Taunt.Teabag.Loop+1;
+		Taunt.Finish:
+			TNT1 A 0 {ChaseTimer = 0; TauntTarget = Null;console.printf ("finished taunting");}
+			Goto Idle;
 		AskDog: //What peculiar act is the domesticated canine performing.
 			TNT1 A 0
 			{
@@ -2006,6 +2128,7 @@ Class SM_Marine : KAI_Humanoid
 				RetreatPos = (Double.NaN, Double.NaN, Double.NaN);
 				WorldOffset = (0,0,0);
 				DodgingHomingProjectile = False;
+				TauntTarget = Null;
 				If ((MarineState & MARINE_RELOAD)) //We were reloading before retreating.
 				{
 					If (!RetreatLoops) //Go to reloading, like if the marine was hurt mid reload. But do run away a bit first.

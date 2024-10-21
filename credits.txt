@@ -23,6 +23,8 @@ Lying down marine sprites made by TG5.
 Climbing marine sprites made by Yify.
 Marine giving stimpack sprites by TG5.
 Grenade sprites by inkoalawetrust.
+Marine wave 1 taunt (MWAVA-H) made by unknown.
+Marine wave 2 taunt (MWAVI-N) made by Das M., edited by Sergeant_Mark_IV.
 
 ======|Other graphics|======
 Alternate marine colors by inkoalawetrust, partially based on the ones made by DBJ87 for the Allied Marines Realm667 resource.
@@ -35,6 +37,7 @@ Smoke sprites are from unknown source, ripped from Project Brutality and edited 
 Giant blast sprites made by inkoalawetrust.
 
 ======|Sounds|======
+Taunt voice line by Zero X Diamond.
 Reloading and rocket travelling sound is from Half-Life.
 Gun clicking sound made by knova https://freesound.org/people/knova/sounds/170272/
 Rifle melee sound made by newagesoup https://freesound.org/people/newagesoup/sounds/348244/

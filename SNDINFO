@@ -18,6 +18,7 @@ Marine/PowerMelee "Sounds/RifleHitHard.ogg"
 Marine/MeleeMiss "Sounds/RifleSwoosh.ogg"
 Marine/WhatDaDogDoin "Sounds/Dog.ogg"
 Marine/Boolet "Sounds/Reload.ogg" //Woah, a lot of protein sir!
+Marine/Taunt "Sounds/Taunt.ogg" //HMM, HA HA
 
 $Random Marine/Death
 {
