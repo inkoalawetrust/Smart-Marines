@@ -146,6 +146,10 @@ Class SM_MGTurret : KAI_Emplacement
 		If (Operator && OperatorMorph && (Operator Is "SM_Marine" || OperatorMorph.Player && OperatorMorph.Player.GetSkin() == 0))
 			OperatorMorph.Translation = Operator.Translation;
 		
+		//Pass shadow aiming flags to the NPC morph. So if the operator can see past shadows, then so will they when using the MG.
+		OperatorMorph.bShadowAim = Operator.bShadowAim;
+		OperatorMorph.bSeeInvisible = Operator.bSeeInvisible;
+		
 		Return Result;
 	}
 	
@@ -293,10 +297,13 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		//Player told you to GTFO.
 		If (User && User.Player && Emplacement && !IsActorHostile(User))
 		{
-			A_StartSound ("Marine/Radio",CHAN_AUTO);
+			If (!IsGenericNPC) A_StartSound ("Marine/Radio",CHAN_AUTO);
 			Emplacement.ExitEmplacement();
-			Actor Text = Spawn ("SM_OrderText",Pos.PlusZ(Height));
-			If (Text) Text.SetStateLabel("LeavingEmplacement");
+			If (!IsGenericNPC)
+			{
+				Actor Text = Spawn ("SM_OrderText",Pos.PlusZ(Height));
+				If (Text) Text.SetStateLabel("LeavingEmplacement");
+			}
 			Return True;
 		}
 		Return False;
@@ -312,13 +319,16 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		//console.printf ("inaccuracy vector is %.2f %.2f %.2f",inaccuracy);
 		
 		//Check every half second if it's too dangerous to stay on the turret. If it is, get out.
+		//Also check our aim penalty.
 		If (GetAge() % GameTicRate/2 == 0 && Emplacement)
 		{
+			HandleShadowAim();
 			//We're in a far too dangerous hazard zone's radius.
 			ForEach (Hazard : Hazards)
 			{
-				//Just flat out too dangerous,.
-				If (Hazard.Level >= Hazard.HAZARD_MEDIUM && !IsIndestructible (Self))
+				//Just flat out too dangerous.
+				//Normally this'd also return true if the threat is OVER HAZARD_MEDIUM, but that would make them always get off when
+				If (Hazard.Level > Hazard.HAZARD_MEDIUM && !IsIndestructible (Self))
 					Emplacement.ExitEmplacement();
 				
 				//The hazard is fairly weak, but you're also super weak, so don't risk it.
@@ -456,6 +466,24 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		Return State (Null);
 	}
 	
+	//Handle increasing or decreasing inaccuracy based on if the target is a shadow or a shadow blocker is in the way.
+	Void HandleShadowAim()
+	{
+		Bool Found; Actor Ghost; Double Penalty = 1.0;
+		[Found, Ghost, Penalty] = PerformShadowChecks(Null,Level.Vec3Offset(Pos,Pos.PlusZ(GetAimPosOffset())));
+		If (!bSeeInvisible || bSeeInvisible && !bShadowAim)
+			Penalty = 1;
+		
+		//Predict the targets' trajectory with less noise when locking in.
+		If (LockedIn)
+			Inaccuracy = (Default.Inaccuracy*0.5)*Penalty; //HACK: (Default.Inaccuracy*0.5) doesn't work because uh, fuck you.
+		Else
+			Inaccuracy = Default.Inaccuracy*Penalty;
+		
+		If (!Found && Target && Target.bShadow && !bSeeInvisible)
+			Inaccuracy *= Target.ShadowPenaltyFactor != 1.0 ? Target.ShadowPenaltyFactor : 2;
+	}
+	
 	Bool SM_TurretLOF (Actor Other = Null, Int PropHealthThreshold = 400, Vector3 CheckOffsets = (0,0,32))
 	{
 		Let Check = New ("KAI_ProjectileLOFCheck");
@@ -501,7 +529,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 	Int AimPos; //The FAF aim pos, basically just the FAF_ flags lol.
 	Bool MarineFuckingAround; //The turret was entered while a marine was idle and decided to get on it.
 	
-	Bool IsGenericNPC; //This morph is a generic, non-marine NPC on the turret. So no zooming in mode, and not marine-on-turret sprites, use a fake operator instead.
+	Bool IsGenericNPC; //This morph is a generic, non-marine NPC on the turret. So no zooming in mode, and no marine-on-turret sprites, use a fake operator instead.
 	
 	States
 	{
@@ -517,6 +545,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		See:
 			MTUR B 2
 			{
+				
 				If (IsGenericNPC) Frame = 0; //A
 				LookExParams Looking;
 				Looking.FOV = 120;
