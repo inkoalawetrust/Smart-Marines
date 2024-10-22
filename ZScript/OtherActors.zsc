@@ -1233,8 +1233,8 @@ Class SM_DogRageToken : Inventory
 		Super.AttachToOwner(Other);
 		If (Other && DeadDog && Other Is "SM_Marine" && Other.IsFriend (DeadDog))
 		{
-			NormalAggro = KAI_Actor(Other).AggressionMultiplier;
-			KAI_Actor(Other).AggressionMultiplier = Aggro;
+			NormalAggro = Other.MissileChanceMult;
+			Other.MissileChanceMult = Aggro;
 			SM_Marine(Other).DeadDogTimer = ReactionTime;
 		}
 		Else
@@ -1246,8 +1246,8 @@ Class SM_DogRageToken : Inventory
 		
 		If (GetAge() >= ReactionTime)
 		{
-			If (KAI_Actor(Owner))
-				KAI_Actor(Owner).AggressionMultiplier = Aggro;
+			If (Owner)
+				Owner.MissileChanceMult = Aggro;
 			GoAwayAndDie();
 		}
 	}

@@ -1224,7 +1224,7 @@ Extend Class SM_Marine
 			Alerted.Push (Mobj);
 		}
 		
-		//Alert all actors in the groups you are leading chase that target if possible. If no alerted already.
+		//Alert all actors in the groups you are leading chase that target if possible. If not alerted already.
 		ForEach (Group : Groups)
 		{
 			If (Group.Leader != Self) Continue;

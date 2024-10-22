@@ -1,7 +1,7 @@
 //IDEA:
 //Give them Flashbangs.
+//Make marines fire at dangerous objects near their target like explosive barrels.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
-//Fuck it, we ball, give them taunts like I had considered doing super early in development.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -573,7 +573,7 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.OnWander();
 		
-		//MAYDO: Currently it seems that this code doesn't make them properly go back to See:, or at least, they don't actually chase the target despite having it.
+		//BUG: Currently it seems that this code doesn't make them properly go back to See:, or at least, they don't actually chase the target despite having it.
 		/*//Check if the friend player currently in sight of you is being attacked.
 		If (bFriendly && Random(0,255) < 16 && KAI_Chase_FriendsAttackPlayerEnemies(0))
 		{
