@@ -976,7 +976,7 @@ Class SM_EmptyMagazine : Actor
 			{
 				If (Pos.Z - FloorZ >= 1)
 					Roll += 5;
-				Else {SpriteOffset.X = 3; Roll = 90;} //Fall sideways on the floor.
+				Else {SpriteOffset.Y = -2; Roll = 90;} //Fall sideways on the floor.
 			}
 			Loop;
 	}
