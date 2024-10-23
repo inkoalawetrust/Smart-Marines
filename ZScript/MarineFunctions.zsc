@@ -412,7 +412,7 @@ Extend Class SM_Marine
 		
 		//Only take cover behind level geometry, and large enough actors that aren't other NPCs or players. And aren't about to break.
 		If ((HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling) ||
-		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height <= 40 && Mobj.Health >= 40))
+		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height <= 40 && Mobj.Health >= 30))
 			HipLevelBlocked = True;
 			
 		//If (KAI_DebugPrintMessages)console.printf ("SM_UPDATECOVER YADDA YADDA FUCK OFF: HIPLEVELBLOCKED IS %d",hiplevelblocked);
@@ -1581,7 +1581,7 @@ Extend Class SM_Marine
 				Continue;
 			
 			//Don't return true if the projectile is too far away from the marines' peripheral vision. Or if it isn't so close that it's impossible not to notice it.
-			If (!CheckFOV (Proj,120/2) && Dist > (MeleeRange*MeleeRange)*2)
+			If (!CheckFOV (Proj,120/2) && Dist > (MeleeRange*MeleeRange)*3)
 				Continue;
 			
 			//Is the projectile about to hit me ? Weird math nonsense written by RaveYard.

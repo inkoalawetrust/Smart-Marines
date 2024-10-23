@@ -49,6 +49,10 @@ Extend Class SM_Marine
 		If (Inflictor && Inflictor Is "SM_Bullet" && AttackType == FIRE_SINGLE && Random (True, False) == True)
 			Return "%o was sniped by a marine";
 		
+		//50/50 chance for the marine to display the bullets' obituary instead of the generic one.
+		If (Random (0,255) < 128 && Inflictor Is "SM_Bullet")
+			Return Inflictor.Obituary;
+		
 		Return Super.GetObituary (Victim, Inflictor, MOD, PlayerAttack);
 	}
 	

@@ -19,7 +19,7 @@ Class SM_Marine : KAI_Humanoid
 		YScale 0.98;
 		Mass 100;
 		Speed 10;
-		FastSpeed 10;
+		FastSpeed 12;
 		MeleeRange 64;
 		PainChance 96;
 		PainThreshold 5;
@@ -2183,6 +2183,7 @@ Class SM_Marine_BlueArmor : SM_Marine
 {
 	Override Void PostBeginPlay ()
 	{
+		User_Color = "Blue";
 		User_Armor = "BlueArmor";
 		Super.PostBeginPlay();
 	}
