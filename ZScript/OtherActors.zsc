@@ -169,6 +169,7 @@ Class SM_MarineGroup : KAI_NPCGroup
 	
 	Override Void HandleGroupEvent (Int EventType, Actor Affected)
 	{
+		Bool EveryoneDied = GetNPCGroupFlags() & NPCGRP_EVERYONEDIED; //Need to grab this flag before the Super. call, which removes said flag.
 		Super.HandleGroupEvent(EventType,Affected);
 		
 		//Use "(Player name)'s Fireteam/Squad/Platoon/Whatever" naming scheme if led by a player.
@@ -180,8 +181,7 @@ Class SM_MarineGroup : KAI_NPCGroup
 		}
 		
 		//One NPC was revived after everyone died already. They're now the new leader by virtue of actually being alive.
-		//BUG: Marines in a situation where they're a member of a group where everyone died will remove themselves from the group before they can become leader.
-		If (EventType == GRPEVNT_REVIVAL && Leader != Affected && GetNPCGroupFlags() == NPCGRP_EVERYONEDIED)
+		If (EventType == GRPEVNT_REVIVAL && Leader != Affected && EveryoneDied)
 			ChangeLeader(Affected);
 		
 		//Update group name to reflect the size of it. Only used if the groups' leader is a player.
