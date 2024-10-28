@@ -3,6 +3,7 @@
 //Make marines fire at dangerous objects near their target like explosive barrels.
 //Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
 
+
 Class SM_Marine : KAI_Humanoid
 {
 	Default
@@ -501,7 +502,7 @@ Class SM_Marine : KAI_Humanoid
 					If (!CheckMove (Vec2Angle (64,AngleTo(Target)),PCM_NOACTORS|PCM_DROPOFF))
 						DropkickChance = -1;
 					//Check if the enemy can move this far back. And doesn't fly.
-					If (!IsFlying (Target) && DropkickChance != 1 && CheckMove ( Target.Vec2Angle(128, AngleTo(Target) ),tm:TM))
+					If (!IsFlying (Target) && DropkickChance != -1 && CheckMove ( Target.Vec2Angle(128, AngleTo(Target) ),tm:TM))
 					{
 						//If there is a dropoff bigger than the targets' height, 128 MU from the direction you will face him at, be extra likely to punt him.
 						If ((TM.FloorZ+Target.Height) <= Target.FloorZ)
@@ -815,7 +816,6 @@ Class SM_Marine : KAI_Humanoid
 		SetNPCOrder (0,True,User); //Loop through the order list.
 		If (Enemy)
 			Return False;
-		If (KAI_DebugPrintMessages)console.printf ("%p: my order is now %d",self,currentorder);
 		A_StartSound ("Marine/Radio",CHAN_AUTO);
 		
 		Actor Text = Spawn ("SM_OrderText",Pos.PlusZ(Height));
@@ -1161,7 +1161,7 @@ Class SM_Marine : KAI_Humanoid
 		Retreat: //Run away a certain number of steps.
 			TNT1 A 0
 			{
-				SM_SetMarineState (MARINE_RETREAT,MARINE_IDLING|MARINE_CHASING|MARINE_INCOVER);
+				SM_SetMarineState (MARINE_RETREAT, MARINE_IDLING|MARINE_CHASING|MARINE_INCOVER);
 				NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
 			}
 			MARI AAABBBCCCDDD 1
@@ -1395,7 +1395,7 @@ Class SM_Marine : KAI_Humanoid
 						If (NoRetreat) SmokeChance -= 32; //Less likely to throw smoke if set to never retreat.
 						
 						RetreatLoops *= User_RetreatFactor;
-						If (!NoRetreat)
+						If (!NoRetreat) //Remove or add retreat loops after the initial calculation.
 						{
 							RetreatLoops = Clamp (RetreatLoops,1,INT.MAX); //Clamp for the reduction factor.
 							RetreatLoops = AlterRetreatLoops(RetreatLoops);

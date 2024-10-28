@@ -1295,9 +1295,9 @@ Extend Class SM_Marine
 		Return Strongest;
 	}
 	
-	Enum RunAwayTypes //How should the marine run from a dangerous hazard, if at all ?
+	Enum RunAwayTypes
 	{
-		RUN_NONE, //The marine doesn't need to run.
+		RUN_NONE, //The marine doesn't need to move away at all.
 		RUN_WALK, //The marine should probably avoid it, but just walk around it if possible, since it's not that serious.
 		RUN_FAST, //Stop what you are doing and run away. Original marine behavior to grenades and the old SM_ImInDanger token.
 	}
@@ -1387,7 +1387,7 @@ Extend Class SM_Marine
 				Continue;
 			
 			If (IsActorHostile (Mobj)) //Duh
-				{If (KAI_DebugPrintMessages)console.printf ("%s %p is hostile",mobj.getclassname(),mobj);Continue;}
+				Continue;
 			
 			//Out of range, sight, or reach, in order of cost.
 			If (Distance3DSquared (Mobj) > Range*Range || !CheckSight (Mobj,SF_IGNOREWATERBOUNDARY) || !SM_IsPosReachable (Mobj.Pos,ignoreactors:True))
@@ -1495,13 +1495,13 @@ Extend Class SM_Marine
 		//Check if it's safe to strafe 56 map units to the left or right, or both. Or none even, like in the case of crammed corridors.
 		Bool DecidedLeft, DecidedRight;
 		Double Delta = DeltaAngle (Angle,AngleTo(Projectile));
-		If (Delta >= -2 && (Random (0,255) < 200 || G_SkillPropertyInt(SKILLP_FASTMONSTERS))) //No, the projectile is heading too much towards the left side.
+		If (Delta >= -2 && (Random (0,255) < 200 || IsFast(Self))) //No, the projectile is heading too much towards the left side.
 		{
 			If (KAI_DebugPrintMessages)a_log ("the projectile is to the left of the marine");
 			LeftSafe = False;
 			DecidedLeft = True;
 		}
-		Else If (Delta <= 2 && (Random (0,255) < 200 || G_SkillPropertyInt(SKILLP_FASTMONSTERS))) //Ditto, but for the right side.
+		Else If (Delta <= 2 && (Random (0,255) < 200 || IsFast(Self))) //Ditto, but for the right side.
 		{
 			If (KAI_DebugPrintMessages)a_log ("the projectile is to the right of the marine");
 			RightSafe = False;

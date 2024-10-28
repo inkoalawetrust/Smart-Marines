@@ -149,6 +149,10 @@ Class SM_MGTurret : KAI_Emplacement
 		//Pass shadow aiming flags to the NPC morph. So if the operator can see past shadows, then so will they when using the MG.
 		OperatorMorph.bShadowAim = Operator.bShadowAim;
 		OperatorMorph.bSeeInvisible = Operator.bSeeInvisible;
+		//Pass industructibility flags too
+		OperatorMorph.bBuddha = Operator.bBuddha;
+		OperatorMorph.bInvulnerable = Operator.bInvulnerable;
+		OperatorMorph.bNoDamage = Operator.bNoDamage;
 		
 		Return Result;
 	}
@@ -360,6 +364,8 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 			}
 		}
 		
+		SM_MGHazardWarning(Self); //Yeah, I think it makes sense to always emit the warning.
+		
 		If (IsInAttackState ())
 		{
 			Double BooletSpeed = GetDefaultByType(SM_MGMorphWeapon.Get50CalRound()).Speed;
@@ -413,6 +419,49 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 				Return Proj;
 		}
 		Return Null;
+	}
+	
+	//Emit hazards for anything in the MG's line of fire.
+	//MAYDO: Uh, I should probably use the actual LOF check raycast and use IT'S Mobjs array instead for this, since it accounts for rip levels and such.
+	Static Void SM_MGHazardWarning (Actor Caller)
+	{
+		Let Check = New ("KAI_LOFActorFinder");
+		Vector3 Direction = (Caller.AngleToVector(Caller.Angle, Cos(Caller.Pitch)), -Sin(Caller.Pitch));
+		
+		Let Boolet = SM_MGMorphWeapon.Get50CalRound();
+		Bool NoHurtFriends = KAI_BaseProjectile(GetDefaultByType(Boolet)).bNoFriendlyFire;
+		Check.Shooter = Caller;
+		Check.ActorLimit = KAI_BaseProjectile(GetDefaultByType(Boolet)).RipDepth;
+		
+		Check.Trace (Caller.Pos.PlusZ(32),Caller.CurSector,Direction,INT16.MAX,0);
+		
+		KAI_LOFRaycast.VisualizeTracePath(Caller.Pos.PlusZ(32),Check.Results.HitPos,Check.Results.Distance);
+		
+		ForEach (Mobj : Check.Mobjs)
+		{
+			If (!Mobj)
+				Continue;
+			
+			//The projectile will not hurt the shooters' friends, so no need to warn them.
+			If (NoHurtFriends && !Check.IsHostile(Caller,Mobj))
+				Continue;
+			
+			HazardInfo Hazard = New ("HazardInfo"); //Create hazard information.
+			If (Hazard)
+			{
+				Hazard.Position = (Double.NaN, Double.NaN, Double.NaN);
+				Hazard.Origin = Caller;
+				Hazard.Range = 32;
+				Hazard.Type = HazardInfo.HAZARD_ATTACK;
+				Hazard.Level = HazardInfo.HAZARD_LARGE;
+				Hazard.CustomTags.Push("Emplacement");
+			}
+			
+			If (!HazardInfo.GiveHazard(Mobj,Hazard)) //Pass hazard
+				Hazard.Destroy(); //Or destroy it if Mobj didn't heed our warning for some reason, probably cuz they can't receive hazards to begin with.
+		}
+		
+		Check.Destroy();
 	}
 	
 	//Check if the turret should be zooming in to fire or nah.
@@ -767,8 +816,9 @@ Class SM_MGTurretPlayer : KAI_EmplacementPlayer
 			MTUR B 1 {If (DoFakeOperator) Frame = 0; /*A*/}
 			Loop;
 		Missile:
-			MTUR CD 3
+			MTUR CCCDDD 1
 			{
+				SM_MGTurretMarine.SM_MGHazardWarning (Self); //Alert other NPCs when firing.
 				If (DoFakeOperator) ///oOoOOOOoOOoOO ghost gun
 				{
 					If (Frame == 2) //C
