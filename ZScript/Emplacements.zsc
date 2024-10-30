@@ -27,19 +27,18 @@ Extend Class SM_Marine
 		{
 			Bool PushTurret = True;
 			If (Turrets[I])
-			{console.printf ("ITERATING %p",turrets[i]);
+			{
 				ForEach (Marine : Marines)
 					If (Marine && Marine.TargetTurret == Turrets[I])
-						{PushTurret = False;CONSOLE.PRINTF ("%p IS GOING TO %p ALREADY",marine,turrets[i]);}
+						PushTurret = False;
 				
 				//We check if the turret is reachable dead last for performance.
 				If (PushTurret && Distance3DSquared(Turrets[I]) > MeleeRange*MeleeRange && !SM_IsPosReachable(Turrets[I].Pos,(Turrets[I].Radius*2)+(Radius*2)*2.2))
-					{PushTurret = False;console.printf ("I CAN'T GO THERE! EVEN IF UNOCCUPIED!");}
+					PushTurret = False;
 			}
 			
-			If (PushTurret) {console.printf ("this is a valid turret");AvailableTurrets.Push(Turrets[I]);}
+			If (PushTurret) AvailableTurrets.Push(Turrets[I]);
 		}
-		//if (GetClosestActor(AvailableTurrets,Self.Pos)) console.printf ("we got %p in FindEmplacements()!",GetClosestActor(AvailableTurrets,Self.Pos));
 		Return GetClosestActor(AvailableTurrets,Self.Pos);
 	}
 	
@@ -72,7 +71,7 @@ Extend Class SM_Marine
 		
 		//We can't even go there lol.
 		If (!NoWalkCheck && !SM_IsPosReachable(Turret.Pos,(Turret.Radius*2)+(Radius*2)*2,0,IgnoreActors))
-			{console.printf ("I CAN'T GO THERE!");Return False;}
+			Return False;
 		
 		Return True;
 	}
@@ -189,7 +188,6 @@ Class SM_MGTurret : KAI_Emplacement
 				//Note: Kinda hacky but whatever, it's literally for the primary NPC actor the turret is for.
 				If (Mobj Is "SM_Marine") SM_Marine(Mobj).UserVariableDefaults();
 				EnterEmplacement (Mobj);
-				Console.printf ("Trying to make %s (%p) enter %p",mobj.getclassname(),mobj,self);
 				Return;
 			}
 		}
@@ -320,8 +318,6 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		If (IsFrozen())
 			Return;
 		
-		//console.printf ("inaccuracy vector is %.2f %.2f %.2f",inaccuracy);
-		
 		//Check every half second if it's too dangerous to stay on the turret. If it is, get out.
 		//Also check our aim penalty.
 		If (GetAge() % GameTicRate/2 == 0 && Emplacement)
@@ -355,7 +351,6 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 					Marine.RetreatLoops = 4;
 					Marine.LastDodged = Projectile; //Don't immediately stop the retreat to try jumping out of the way, this IS the dodging! 
 					Marine.DodgingHomingProjectile = True; //Treat it as a homing projectile to run away from it.
-					console.printf ("RUNNING AWAY FROM TURRET");
 					Marine.RetreatedFromTurret = True; //So no turret delay is set on OnEmplacementExit().
 					Marine.SetStateLabel("Retreat");
 				}
@@ -407,7 +402,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 			//Projectile has friendly fire off, no need to leave.
 			If (Proj Is "KAI_BaseProjectile" && KAI_BaseProjectile(Proj).bNoFriendlyFire && Proj.Target && !Caller.IsActorHostile(Proj.Target))
 				Continue;
-			console.printf ("%s will do %d damage",proj.getclassname(),Caller.ApplyDamageFactor(Proj.DamageType,Proj.GetMissileDamage (1,7)));
+			
 			//This projectile will do too little damage to you when it hits to warrant trying to escape.
 			If (HealthDivisionFactor > 0 && Caller.ApplyDamageFactor(Proj.DamageType,Proj.GetMissileDamage (1,7)) < Caller.Health/HealthDivisionFactor)
 				Continue;
@@ -435,7 +430,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		
 		Check.Trace (Caller.Pos.PlusZ(32),Caller.CurSector,Direction,INT16.MAX,0);
 		
-		KAI_LOFRaycast.VisualizeTracePath(Caller.Pos.PlusZ(32),Check.Results.HitPos,Check.Results.Distance);
+		//KAI_LOFRaycast.VisualizeTracePath(Caller.Pos.PlusZ(32),Check.Results.HitPos,Check.Results.Distance);
 		
 		ForEach (Mobj : Check.Mobjs)
 		{
@@ -479,7 +474,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 	{
 		If (IsGenericNPC) Return; //Generic NPCs are too stupid to zoom in and out with the turret, or something. I dunno, maybe I'll change this lol.
 		If (LockInCheck() <= 15)
-		{console.printf ("zooming in");
+		{
 			PrevLockedIn = LockedIn;
 			LockedIn = True;
 			Inaccuracy = Default.Inaccuracy*0.5; //Halve target prediction inaccuracy.
@@ -487,7 +482,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 				A_StartSound ("Turret/Zoom",flags:CHANF_OVERLAP);
 		}
 		Else
-		{console.printf ("zooming out");
+		{
 			PrevLockedIn = LockedIn;
 			LockedIn = False;
 			Inaccuracy = Default.Inaccuracy;
@@ -642,7 +637,6 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 					Looking.FOV = 120;
 					Looking.MaxDist = MaxTargetRange;
 					LookForPlayers(False,Looking);
-					console.printf ("changing targets for the turret");
 					ShouldAttack(True); //Just run locking in stuff.
 				}
 				If (IsDead(Target)) //Still nothing. Prevent some cases of NPCs firing at corpses.
@@ -766,7 +760,6 @@ Class SM_MGTurretPlayer : KAI_EmplacementPlayer
 				DoFakeOperator = True;
 				If (Emplacement) Emplacement.CreateFakeOperator ((-32,0,0));
 			}
-			console.printf ("player morph tag is %s",gettag("epic fail"));
 		}
 		
 		RunAmmoMode = True;

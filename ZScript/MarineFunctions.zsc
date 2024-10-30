@@ -70,7 +70,7 @@ Extend Class SM_Marine
 		
 		//We're in range to try using the turret we're heading to.
 		If (!TurretDelay && TargetTurret && Distance3DSquared(TargetTurret) <= MeleeRange*MeleeRange)
-		{console.printf ("I DID IT, I AM USING THE STUPID GUN");
+		{
 			TargetTurret.EnterEmplacement(Self);
 			//TargetTurret = Null; //Nullify this, also just in case the EnterEmplacement() fails.
 			Return;
@@ -176,7 +176,6 @@ Extend Class SM_Marine
 						Speed *= 1.5;
 					}
 					
-					If (KAI_DebugPrintMessages)console.printf ("heading to %d %d %d",movepos);
 					If (Crouching)
 						Speed *= 0.7;
 					If (MovePos == LastSeenPos)
@@ -205,7 +204,7 @@ Extend Class SM_Marine
 	
 	//Marine will run away from major hazards.
 	//Unless it's patrolling and sticking to his path, and even then, he will still run if the hazard is like, a nuke or something.
-	Bool SM_RunFromHazards (Bool NoJump = FaLse)
+	Bool SM_RunFromHazards (Bool NoJump = False)
 	{
 		If (HazardToAvoid && ( !(Goal && bChaseGoal) || HazardToAvoid.Level >= HazardInfo.HAZARD_HUGE ) && SM_ShouldRunFromHazard(HazardToAvoid) == RUN_FAST)
 		{
@@ -223,12 +222,15 @@ Extend Class SM_Marine
 				If (CurTag ~== "Shrapnel")
 					HasShrapnel = True;
 			}
-			If (IsGrenade && HasShrapnel)
+			
+			//Add extra retreat loop for frag grenades.
+			//NOTE: But also if the marine was reloading, mainly to prevent a bug where they'll sometimes run from a hazard, try to reload, move again, repeat.
+			If (IsGrenade && HasShrapnel || MarineState & MARINE_RELOAD)
 				RetreatLoops++;
 			
 			If (KAI_DebugPrintMessages)
 			{
-				console.printf ("marine breaking action to run %d times away from hazard %p",retreatloops,hazardtoavoid);
+				Console.Printf ("SM_RunFronHazards(): Breaking action to run %d times away from this hazard:",RetreatLoops);
 				HAZARDTOAVOID.PRINTHAZARDINFO();
 			}
 			If (!NoJump) SetStateLabel ("Retreat");
@@ -252,11 +254,8 @@ Extend Class SM_Marine
 			SetXYZ (RealPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			Bool CanWalkThere = (Random (0,255) < 220) ? True : IsPosReachable (NearbyCoverPos,spacing:Speed,ignoreactors:True); //Only SOMETIMES check if we can still go there.
-			if (!stillvalidcover && KAI_DebugPrintMessages) console.printf ("SM_CHASE(): THE COVER THE MARINE IS MOVING TO AT %d %d %d IS NO LONGER VALID",NearbyCoverPos);
-			if (!canwalkthere && KAI_DebugPrintMessages) console.printf ("SM_CHASE(): THE COVER THE MARINE IS MOVING TO AT %d %d %d IS NOW OUTTA REACH",NearbyCoverPos);
 			If (Level.Vec3Diff (Pos,NearbyCoverPos).Length() > Radius*1.2 && StillValidCover && CanWalkThere)
 			{
-				If (KAI_DebugPrintMessages)console.printf ("taking a step towards cover");
 				MovePos = NearbyCoverPos;
 				Speed *= SpeedMul; //Hurry up to hide.
 				DoZigZag = 0; //Move in a straight line as well.
@@ -264,7 +263,6 @@ Extend Class SM_Marine
 			}
 			Else //We are basically at our destination, so get rid of the goal and try crouching behind here.
 			{
-				If (KAI_DebugPrintMessages)console.printf ("clearing cover pos (%d %d %d) !",nearbycoverpos);
 				NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
 				If (StillValidCover) //If we are no longer heading to NearbyCoverPos because it's now unsafe, just abort.
 				{
@@ -277,7 +275,6 @@ Extend Class SM_Marine
 					}
 				}
 			}
-		If (KAI_DebugPrintMessages)console.printf ("the distance to my cover is %.2f",Level.Vec3Diff (Pos,NearbyCoverPos).Length());
 		}
 		Return MovePos, DoZigZag, CancelAttack;
 	}
@@ -348,18 +345,16 @@ Extend Class SM_Marine
 		If (!KAI_Math.IsEmptyVector3 (LeftCover)) LeftDist = Level.Vec3Diff (Pos,LeftCover).Length();
 		If (!KAI_Math.IsEmptyVector3 (RightCover)) RightDist = Level.Vec3Diff (Pos,RightCover).Length();
 		
-		//If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): The distances to the 3 potential cover spots is %d %d %d",FrontDist,LeftDist,RightDist);
-		
 		Double SmallestDist = Min (FrontDist,LeftDist,RightDist);
 		
 		If (SmallestDist != INT.MAX)
 		{
 			If (SmallestDist == FrontDist && !KAI_Math.IsEmptyVector3(FrontCover))
-				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking front cover %d %d %d",frontcover);Return FrontCover;}
+				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): Taking front cover %d %d %d",frontcover);Return FrontCover;}
 			Else If (SmallestDist == LeftDist && !KAI_Math.IsEmptyVector3(LeftCover))
-				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking left cover %d %d %d",leftcover);Return LeftCover;}
+				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): Taking left cover %d %d %d",leftcover);Return LeftCover;}
 			Else If (SmallestDist == RightDist && !KAI_Math.IsEmptyVector3(RightCover))
-				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): taking right cover %d %d %d",rightcover);Return RightCover;}
+				{If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): Taking right cover %d %d %d",rightcover);Return RightCover;}
 		}
 		If (KAI_DebugPrintMessages)console.printf ("SM_LocateNearbyCover(): All checks failed, returning NaN vector.");
 		Return (Double.NaN, Double.NaN, Double.NaN);
@@ -382,7 +377,7 @@ Extend Class SM_Marine
 		
 		//If the other actor is this close to you, you probably can't crouch.
 		If (Distance3DSquared(Other) <= 72*72)
-			{If (KAI_DebugPrintMessages)console.printf ("SM_UpdateCover(): other is too close to take cover.");Return False, HipHitPos;}
+			Return False, HipHitPos;
 		
 		/*
 		This fires two raycasts from the marines' eyes and hips. Then the Eye and HipLevelBlocked booleans return true or false.
@@ -405,7 +400,6 @@ Extend Class SM_Marine
 		HasHit = HipLevel.HitType;
 		Mobj = HipLevel.HitActor;
 		HipHitPos = HipLevel.HitLocation - HipLevel.HitDir * (Radius*1.1);
-		//IF (MOBJ&&KAI_DebugPrintMessages)CONSOLE.PRINTF ("SM_UPDATECOVER: DEBUG: HIP CHECK HIT ACTOR %s %p",MOBJ.GETCLASSNAME(),MOBJ);
 		
 		//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
 		//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
@@ -415,34 +409,31 @@ Extend Class SM_Marine
 		(Mobj && !(Mobj.bIsMonster || Mobj.Player) && Mobj.Radius >= Radius && Mobj.Height <= 40 && Mobj.Health >= 30))
 			HipLevelBlocked = True;
 			
-		//If (KAI_DebugPrintMessages)console.printf ("SM_UPDATECOVER YADDA YADDA FUCK OFF: HIPLEVELBLOCKED IS %d",hiplevelblocked);
-		
 		Bool OtherInSight = CheckSight (Other,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY);
 		//Only run this if the marine is not crouched already.
 		If (!IsCrouchingAlready)
 			If (EyelevelUnblocked && HipLevelBlocked && OtherInSight)
 			{
-				KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
-				KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
-				If (KAI_DebugPrintMessages)console.printf ("SM_UpdateCover(): marine can take cover");
+				//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
+				//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
 				Return True, HipHitPos;
 			}
 		
 		//If you are crouching already and have a line of sight to the other actor.
 		If (IsCrouchingAlready && OtherInSight)
-		{if (!hiplevelblocked) console.printf ("SM_UpdateCover(): marine can no longer hide behind here");
+		{
 			If (!HipLevelBlocked && !HipFalsePositive) //HACK: Catch retarded false positives from the trace.
-			{If (KAI_DebugPrintMessages)console.printf ("SM_UPDATECOVER: CAUGHT RETARDED MALFORMED FALSE POSITIVE");
+			{
 				HipFalsePositive = True;
 				HipLevelBlocked = True;
 			}
 			If (!HipLevelBlocked && HipFalsePositive) //If it returns false a second time, it's probably for real.
-				{If (KAI_DebugPrintMessages)console.printf ("SM_UPDATECOVER: PROBABLY NOT A FALSE POSITIVE, COVER REALLY IS BROKEN");HipFalsePositive = False;}
+				HipFalsePositive = False;
 			Return HipLevelBlocked, HipHitPos; //Then return if you can crouch based on whether or not your hips are blocked by cover still.
 		}
 		
 		If (!OtherInSight && Random (0,255) < 4) //If the other actor is out of sight, the marine will eventually give up staying behind cover.
-			/*{If (KAI_DebugPrintMessages)console.printf ("SM_UpdateCover(): %p is out of sight",other);*/Return False, HipHitPos;//}
+			Return False, HipHitPos;
 		
 		//If none of the other checks are true, but you are crouching already, then just assume you can keep doing so.
 		If (IsCrouchingAlready)
@@ -487,6 +478,8 @@ Extend Class SM_Marine
         Return True;
     }
 	
+	//KLUDGE: Rest assured, this piece of shit is very broken.
+	//Check if Other is within Viewer's FOV.
 	Bool SM_CheckFOV (Actor Viewer, Actor Other, Double FOV)
 	{
 		Vector3 CameraPos;
@@ -504,11 +497,8 @@ Extend Class SM_Marine
 		}
 		
 		Vector3 Coords = Level.SphericalCoords (CameraPos,Other.Pos.PlusZ(Other.Height/2),(Viewer.Angle,Viewer.Pitch));
-		If (KAI_DebugPrintMessages)console.printf ("%s is in the %d FOV of %s, coords.z is %f, coords.x is %f, inverse square %f",other.getclassname(),fov/2,viewer.getclassname(),coords.z,coords.x,(Abs(Coords.X) / (Coords.Z * Coords.Z)));
 		If (Abs(Coords.X) <= FOV/2)
-		{If (KAI_DebugPrintMessages)a_log ("we passed");
 			Return True;
-		}
 		Return False;
 	}
 	
@@ -573,31 +563,31 @@ Extend Class SM_Marine
 			Switch (AssessThreatLevel(Ally))
 			{
 				Case THREAT_UNSTOPPABLE:
-					Reduction += 25;console.printf ("busted friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 25;
 					Break;
 				Case THREAT_SUPERDANGER:
-					Reduction += 16;console.printf ("super dangerous friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 16;
 					Break;
 				Case THREAT_VERYDANGEROUS:
-					Reduction += 8;console.printf ("very scary friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 8;
 					Break;
 				Case THREAT_DANGEROUS:
-					Reduction += 4; console.printf ("scary friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 4;
 					Break;
 				Case THREAT_ABOVENORMAL:
-					Reduction += 2.5; console.printf ("above normal friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 2.5;
 					Break;
 				Case THREAT_NORMAL: 
-					Reduction += 1; console.printf ("average friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 1;
 					Break;
 				Case THREAT_MILD:
-					Reduction += 0.5; console.printf ("mid friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 0.5;
 					Break;
 				Case THREAT_LOW:
-					Reduction += 0.25; console.printf ("weak friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 0.25;
 					Break;
 				Case THREAT_VERYLOW:
-					Reduction += 0.1; console.printf ("pathetic friend %s gave us a loop reduction",ally.getclassname());
+					Reduction += 0.1;
 					Break;
 				Default:
 					Break;
@@ -609,7 +599,6 @@ Extend Class SM_Marine
 		Double Score = Loops - Reduction;
 		If (Score > 0.2 && Score <= 1.0) //Our score is low, but not that low, so keep one loop for good measure instead of reloading in place.
 			Score = 1;
-		console.printf ("alterretreatloops(): %p now has %d loops",self,int(score));
 		Return Int(Score);
 	}
 	
@@ -621,7 +610,7 @@ Extend Class SM_Marine
 			ForEach (Member : Group.Members)
 			{
 				If (Who != Self && Member != Self && Who == Member)
-					{console.printf ("%p and %p are mutual members of group %p",self,who,group);Return True;}
+					Return True;
 			}
 		}
 		Return False;
@@ -662,7 +651,7 @@ Extend Class SM_Marine
 			LastSeenPos = (Double.NaN, Double.NaN, Double.NaN); //The target is dead or gone.
 		
 		If (!Target || Dead) ChaseTimer++; //Decrement the timer extra fast if the target is just flat out gone.
-		//If (KAI_DebugPrintMessages)Console.Printf ("SM_UpdateChaseTimer(): Time is %d",ChaseTimer);
+		If (KAI_DebugPrintMessages) Console.Printf ("SM_UpdateChaseTimer(): Time is %d",ChaseTimer);
 	}
 	
 	//Marines use lines in front of them.
@@ -686,8 +675,8 @@ Extend Class SM_Marine
 		
 		LineTrace (Angle,UseRange,0,TRF_BLOCKUSE,Height/2,data:Usage);
 		
-		FSpawnParticleParams P; P.Color1 = "Pink"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-		KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(Height/2),Usage.HitLocation,Usage.Distance,4,p);
+		//FSpawnParticleParams P; P.Color1 = "Pink"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+		//KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(Height/2),Usage.HitLocation,Usage.Distance,4,p);
 		
 		//Used a line in front of us.
 		Line UseLine = Usage.HitLine;
@@ -943,7 +932,7 @@ Extend Class SM_Marine
 			Return State (Null);
 		
 		If (!Target || IsDead (Target) || (Target && !CheckFOV (Target,FOV)))
-			{If (KAI_DebugPrintMessages)a_log ("marine refire cancelled");Return FindState (AbortState);}
+			Return FindState (AbortState);
 		
 		Double OldHeight = Height;
 		If (SM_IsCrouched())
@@ -951,7 +940,7 @@ Extend Class SM_Marine
 		
 		If (!CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
 		{
-			Height = OldHeight; If (KAI_DebugPrintMessages)a_log ("marine refire cancelled");
+			Height = OldHeight;
 			Return FindState (AbortState);
 		}
 		Height = OldHeight;
@@ -1052,7 +1041,10 @@ Extend Class SM_Marine
 		If (Threshold <= 0 || !Against || GrenadeDelay || IsFlying (Against) && Pos.Z+Height < Against.Pos.Z) Return GRENADE_NONE;
 		//Not in throwing range. Or there is no direct LOF, yes, this doesn't account for arcing, I WILL NOT TRY.
 		If (Distance3DSquared (Against) >= MARINE_GRENADERANGE*MARINE_GRENADERANGE || !SM_CheckLOF((0,0,Height),0))
-			{If (KAI_DebugPrintMessages)console.printf ("DecideGrenadeType(): target is too far or the LOF is bad");Return GRENADE_NONE;}
+		{
+			If (KAI_DebugPrintMessages) Console.Printf ("DecideGrenadeType(): Target is too far or the LOF is bad");
+			Return GRENADE_NONE;
+		}
 		
 		Bool ImmuneToBlasts = (Against.bNoRadiusDmg || Against.GetRadiusDamage (Against,256,256,128,False,True) <= 256/8); //The enemy is immune or HIGHLY resistant to blasts.
 		Bool UseHE, UseSmoke;
@@ -1082,7 +1074,8 @@ Extend Class SM_Marine
 				GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True); //Grenade chance is also based on crowd size.
 		}
 		If (GrenChance >= Threshold) //Decide if you should throw an HE or frag grenade.
-		{If (KAI_DebugPrintMessages)console.printf ("DecideGrenadeType(): grenade chance is over the threshold");
+		{
+			If (KAI_DebugPrintMessages) Console.Printf ("DecideGrenadeType(): Grenade chance is over the threshold, UseHE is %d, UseSmoke is %d",UseHE,UseSmoke);
 			If (UseHE)
 				Return GRENADE_HE;
 			Else If (UseSmoke)
@@ -1098,7 +1091,7 @@ Extend Class SM_Marine
 	Bool PrepareForSmokeThrow (Int Chance = 48)
 	{
 		If (Target && Distance3DSquared (Target) <= 256*256) //If the target is too close, don't bother. Like if running away from a melee enemy.
-			{If (KAI_DebugPrintMessages)A_LOG ("PrepareForSmokeThrow(): target is too close");Return False;}
+			Return False;
 		
 		Chance += SM_AttackByQuantity (Target,flags:ABQ_Smokescreen); //Increase chance the more danger there is around.
 		
@@ -1106,11 +1099,11 @@ Extend Class SM_Marine
 			Chance += 30;
 		
 		If (Random (0,255) >= Chance)
-			{If (KAI_DebugPrintMessages)console.printf ("a smoke chance of %d wasn't enough",chance);Return False;}
+			Return False;
 		
 		//SM_SetMarineState (MARINE_RETREAT,MARINE_IDLING|MARINE_CHASING); //Specifies to the grenade drop state that the marine needs to retreat afterwards.
 		GrenadeType = GRENADE_SMOKE;
-		QuickGrenade = True;If (KAI_DebugPrintMessages)a_log ("throwing quick grenade and dipping.");
+		QuickGrenade = True;
 		Return True;
 	}
 	
@@ -1157,7 +1150,6 @@ Extend Class SM_Marine
 			
 			If (Flags & ABQ_Infight && IsHostile && IsVisible && Mobj.OkayToSwitchTarget (Origin))
 				Chance += ViableEnemies; //Give an additional bonus if the monster can infight with the target, based on every additional monster in range.
-			//If (KAI_DebugPrintMessages)console.printf ("%s can infight with %s, so the chance is now %d",mobj.getclassname(),origin.getclassname(),chance);}
 			If (IsHostile && IsVisible && Mobj.Distance3DSquared (Origin) <= Range*Range)
 			{
 				Switch (AssessThreatLevel (Mobj))
@@ -1232,7 +1224,6 @@ Extend Class SM_Marine
 			{
 				If (Member Is "KAI_Actor" && Alerted.Find(Member) == Alerted.Size() && Member != Self)
 				{
-					If (KAI_DebugPrintMessages) console.printf ("alerting group member %p (%s) of %s",member,member.getclassname(),target.getclassname());
 					KAI_Actor(Member).KAI_ShareTarget (Self,Target);
 					AlertedSomeone = True;
 					Alerted.Push (Member);
@@ -1291,7 +1282,6 @@ Extend Class SM_Marine
 			}
 		}
 		
-		if (strongest) {console.printf ("running from this hazard:");strongest.printhazardinfo();}
 		Return Strongest;
 	}
 	
@@ -1336,7 +1326,7 @@ Extend Class SM_Marine
 	{
 		//My target is visible, that's an enemy. Or they're just very dangerous.
 		If (Target && (CheckSight (Target, SF_IGNOREWATERBOUNDARY) || AssessThreatLevel(Target,False) >= ThreatLevelThreshold))
-			{If (KAI_DebugPrintMessages)a_log ("IsDangerNearby(): Found target");Return True;}
+			Return True;
 		
 		For (Int pn = 0; pn < MAXPLAYERS; pn++)  //An enemy player is visible, now THAT'S an enemy.
 		{
@@ -1345,7 +1335,7 @@ Extend Class SM_Marine
 			PlayerInfo plr = Players[pn];
 			
 			If (Plr && !IsFriend (Plr.Mo) && CheckSight(Plr.Mo,SF_IGNOREWATERBOUNDARY))
-				{If (KAI_DebugPrintMessages)a_log ("IsDangerNearby(): Found enemy player");Return True;}
+				Return True;
 		}
 		
 		//Look for dangerous enemies.
@@ -1359,7 +1349,6 @@ Extend Class SM_Marine
 			If (!Mobj || IsInanimateObject(Mobj) || IsDead (Mobj) || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
 			
 			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
-			If (KAI_DebugPrintMessages)a_log ("IsDangerNearby(): Found random enemy NPC");
 			Return True;
 		}
 		
@@ -1398,7 +1387,6 @@ Extend Class SM_Marine
 			
 			If (Mobj.Player)
 				Players.Push (Mobj);
-			If (KAI_DebugPrintMessages)a_log ("SM_FindAllyToHelp: found a friend");
 			Friends.Push (Mobj);
 		}
 		
@@ -1452,11 +1440,12 @@ Extend Class SM_Marine
 	Bool SM_HandleDodging (Actor Projectile, Bool DontJump = False)
 	{
 		If (!Projectile || bDormant || IsDead(Self) || Pos.Z > FloorZ+8 || SM_IsRestricted (RESTRICT_DODGING)) Return False;
-		If (KAI_DebugPrintMessages)console.printf ("SM_HandleDodging(): Dodged a %s",projectile.getclassname());
+		If (KAI_DebugPrintMessages)
+			Console.Printf ("SM_HandleDodging(): Dodged a %s",Projectile.GetClassName());
 		
 		//The marine is behind cover but not crouching, so dodge by going prone.
 		If (MarineState & MARINE_INCOVER)
-		{If (KAI_DebugPrintMessages)console.printf ("marine is in cover, dodging by crouching down");
+		{
 			Crouching = True;
 			Height = MARINE_CROUCHHEIGHT;
 			GrenadeDelay += GameTicRate/2;
@@ -1475,7 +1464,6 @@ Extend Class SM_Marine
 		//...and as long as it does too much damage to you. TODO: Make it account for ALL damage methods, damage factors, virtual overrides, and armor items!
 		(Health <= SpawnHealth()/3 || ApplyDamageFactor(Projectile.DamageType,Projectile.GetMissileDamage (1,7)) >= Health/6))
 		{
-			If (KAI_DebugPrintMessages) console.printf ("SM_HandleDodging(): Running from %s",projectile.getclassname());
 			RetreatPos = Projectile.Pos;
 			RetreatLoops = 4;
 			DodgingHomingProjectile = True;
@@ -1497,13 +1485,11 @@ Extend Class SM_Marine
 		Double Delta = DeltaAngle (Angle,AngleTo(Projectile));
 		If (Delta >= -2 && (Random (0,255) < 200 || IsFast(Self))) //No, the projectile is heading too much towards the left side.
 		{
-			If (KAI_DebugPrintMessages)a_log ("the projectile is to the left of the marine");
 			LeftSafe = False;
 			DecidedLeft = True;
 		}
 		Else If (Delta <= 2 && (Random (0,255) < 200 || IsFast(Self))) //Ditto, but for the right side.
 		{
-			If (KAI_DebugPrintMessages)a_log ("the projectile is to the right of the marine");
 			RightSafe = False;
 			DecidedRight = True;
 		}
@@ -1681,11 +1667,9 @@ Extend Class SM_Marine
 		Double RealHeight = Height;
 		If (!SM_IsRestricted(RESTRICT_CLIMBING) && !DontClimb) MaxStepHeight = (Height*1.75); //Maximum height the marine can reach, by jumping and ledge grabbing.
 		If (!SM_IsRestricted(RESTRICT_CROUCHING)) Height = MARINE_CROUCHHEIGHT;
-		console.printf ("sm_isposreachable(): temp maxstepheight is %.2f",maxstepheight);
 		Bool Res = IsPosReachable (TargetPos, DistCutoff, Spacing, IgnoreActors);
 		MaxStepHeight = RealStepHeight;
 		Height = RealHeight;
-		console.printf ("isposreachable returned %d",res);
 		Return Res;
 	}
 	
@@ -1927,7 +1911,7 @@ Class SM_FindTargetInLOF : KAI_LOFRaycast
 	Override ETraceStatus TraceCallback ()
 	{
 		If (Other && Results.HitActor == Other)
-		{If (KAI_DebugPrintMessages)console.printf ("SM_FindTargetInLOF: %s found",Other.GetClassName());
+		{
 			BadLOF = False;
 			Return Trace_Stop;
 		}
@@ -1948,7 +1932,6 @@ Class SM_Find3DFloor : KAI_LOFRaycast
 	{
 		If (HitSwimmable && Results.Crossed3DWater)
 		{
-			If (KAI_DebugPrintMessages)console.printf ("hit swimmable water at %d %d %d",results.crossed3dwaterpos);
 			Return Trace_Stop;
 		}
 		

@@ -60,7 +60,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 		
 		If (IsFrozen())
 			Return;
-		if (user_nododging) console.printf ("DODGING IS RESTRICTED");
+		
 		If (Args[ARG_RANGE] == -1) //Range is -1, so find all marines in the sector we are in instead.
 		{
 			For (Actor CurMo = CurSector.ThingList; CurMo != Null; CurMo = CurMo.SNext)
@@ -88,7 +88,6 @@ Class SM_ActionRestrictor : KAI_MixinActor
 		SM_RestrictionToken Restrictor = SM_RestrictionToken(Marine.FindInventory ("SM_RestrictionToken")); //Already have a token.
 		If (!Restrictor)
 			Restrictor = SM_RestrictionToken(Spawn("SM_RestrictionToken"));
-			else console.printf("marine already got a token");
 		
 		If (Restrictor)
 		{
@@ -106,7 +105,6 @@ Class SM_ActionRestrictor : KAI_MixinActor
 			Restrictor.MaxTargetRange = Args[ARG_RANGE];
 			Restrictor.Master = Self;
 		}
-		If (KAI_DebugPrintMessages)console.printf ("restricting %p",marine);
 		Restrictor.CallTryPickup (Marine); //Pick up the token
 	}
 }
@@ -129,8 +127,6 @@ Class SM_RestrictionToken : Inventory
 		Super.AttachToOwner(Other);
 		If (Other && !(Other Is "SM_Marine"))
 			GoAwayAndDie();
-		
-		If (KAI_DebugPrintMessages)console.printf ("gave token %p to a %s",self,other.getclassname());
 	}
 	
 	Override Void DoEffect ()
@@ -469,10 +465,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		Splash.A_QuakeEx (0.5,0.5,0.5,24,0,1024,"",QF_Flags,rollintensity:0.3);
 		Double Size = FRandom (2,4);
 		If (FFloor) //Scale the splash down based on depth.
-		{
 			Size *= KAI_Math.LinearMap (WaterDepth,0,256,1.0,0.0);
-			If (KAI_DebugPrintMessages)console.printf ("swimmable floor falloff is %.3f",KAI_Math.LinearMap (WaterDepth,0,256,1.0,0.0));
-		}
 		If (HEGrenade) Size *= 1.5;
 		Splash.Scale.X = Splash.Scale.Y = (UpsideDown ? -Size : Size);
 		//Splash.Scale.X *= UpsideDown ? FRandom (-1.2,-2.5) : FRandom (1.2,2.5);
@@ -589,7 +582,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 			{
 				F3DFloor F3D = GetSwimmable3DFloor (Self); //Check if we are IN a swimmable floor.
 				If (!F3D)
-					{F3D = FindWaterBelow();If (KAI_DebugPrintMessages)console.printf ("we aren't IN water, but maybe it's right under our feet ?");}
+					F3D = FindWaterBelow();
 				If (!F3D)
 				{
 					//NOTE: Only handles solid liquid flats, swimmable 3D floors require different handling !
@@ -1196,7 +1189,7 @@ Class SM_DropoffToken : Inventory
 	{
 		Super.AttachToOwner(Other);
 		If (Other && !Other.bDropoff)
-		{If (KAI_DebugPrintMessages)console.printf ("gave %s the dropoff flag temporarily",other.getclassname());
+		{
 			PrevDropoff = Other.bDropoff;
 			Other.bDropoff = True;
 		}
@@ -1208,7 +1201,7 @@ Class SM_DropoffToken : Inventory
 		Super.DoEffect();
 		
 		If (GetAge() >= ReactionTime)
-		{If (KAI_DebugPrintMessages)console.printf ("took the dropoff flag from %s",owner.getclassname());
+		{
 			If (Owner) Owner.bDropoff = PrevDropoff;
 			GoAwayAndDie();
 		}
