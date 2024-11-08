@@ -956,7 +956,6 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 80;
 				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
-				CheckSpaceSize (256,256,32,True);
 			}
 			MARI FFFFFFFF 3 //Look 20 degrees to your right.
 			{
@@ -1150,9 +1149,7 @@ Class SM_Marine : KAI_Humanoid
 					
 					RetreatLoops += Int (Target.Speed/5); //Also add additional retreats for each additional bit of speed the target has, to run further from faster monsters.
 				}
-				console.printf ("running from melee with %d loops",retreatloops);
 				RetreatLoops -= CheckSpaceSize (384,384,16);
-				console.printf ("actually it's %d",retreatloops);
 			}
 		Retreat: //Run away a certain number of steps.
 			TNT1 A 0
