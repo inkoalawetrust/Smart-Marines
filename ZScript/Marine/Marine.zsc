@@ -155,7 +155,7 @@ Class SM_Marine : KAI_Humanoid
 			HasNods = CountInv("PowerLightAmp");
 			bSeeInvisible = !HasNods ? Default.bSeeInvisible : True;
 		}
-		if (debugpoint) debugpoint.setorigin(getattacklocation(),true);
+		//if (debugpoint) debugpoint.setorigin(getattacklocation(),true);
 		If (CountInv("SM_DogRageToken") && IsInState (Self,"AskDog"))
 		{
 			Actor Killer = SM_DogRageToken(FindInventory("SM_DogRageToken",True)).DogKiller;
@@ -956,6 +956,7 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 80;
 				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
+				CheckSpaceSize (256,256,32,True);
 			}
 			MARI FFFFFFFF 3 //Look 20 degrees to your right.
 			{
@@ -1128,7 +1129,9 @@ Class SM_Marine : KAI_Humanoid
 						Frame = 0; //Sit still, no movement animation when sitting behind cover.
 				}
 				
-				SM_Chase ("Idle.Decide","RunFromMelee",chaseflags:CHF_DONTIDLE);
+				//Don't look for cover when running to a turret.
+				Int Flags = !(!TurretDelay && !TargetTurret) ? SMC_SEARCHFORCOVER : 0;
+				SM_Chase ("Idle.Decide","RunFromMelee",Flags,chaseflags:CHF_DONTIDLE);
 			}
 			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
 			Goto See+1;
@@ -1147,6 +1150,9 @@ Class SM_Marine : KAI_Humanoid
 					
 					RetreatLoops += Int (Target.Speed/5); //Also add additional retreats for each additional bit of speed the target has, to run further from faster monsters.
 				}
+				console.printf ("running from melee with %d loops",retreatloops);
+				RetreatLoops -= CheckSpaceSize (384,384,16);
+				console.printf ("actually it's %d",retreatloops);
 			}
 		Retreat: //Run away a certain number of steps.
 			TNT1 A 0
@@ -1284,14 +1290,16 @@ Class SM_Marine : KAI_Humanoid
 				
 				If (Target && KAI_CheckMeleeRange (Target))
 				{
-					If (AssessThreatLevel (Target) >= ThreatLevelThreshold) //Target is WAY too dangerous.
+					UInt SpaceFactor = CheckSpaceSize (640,640,8); //Store how many iterations were left once the function found crammed space. If any.
+					If ((SpaceFactor < 6 || SpaceFactor == -1) && AssessThreatLevel (Target) >= ThreatLevelThreshold) //Target is WAY too dangerous.
 					{
 						RetreatLoops = 5;
+						RetreatLoops -= SpaceFactor;
 						Return FindState ("Retreat",True);
 					}
 					
 					//We don't have berserk and are at half health with an enemy very close.
-					If ( !HasBerserk && Health <= SpawnHealth ()/2 && Random (0,255) < 128)
+					If (SpaceFactor <= 2 && !HasBerserk && Health <= SpawnHealth ()/2 && Random (0,255) < 128)
 					{
 						SM_EndFiring();
 						Return FindState ("RunFromMelee",True);
@@ -1525,6 +1533,11 @@ Class SM_Marine : KAI_Humanoid
 				GrenadeType = GRENADE_NONE; //Reset GrenadeType
 				Bool NoRetreat = (OldType == GRENADE_SMOKE && QuickGrenade && RetreatLoops <= 0);
 				If (!(MarineState & MARINE_INCOVER) && !NoRetreat) RetreatLoops += Random (2,5)*User_RetreatFactor;
+				
+				Int Iterations; Double Rad; Double Eh;
+				[Iterations, Rad, Eh] = CheckSpaceSize (512,512,8);
+				If (Rad < 256) RetreatLoops = 1;
+				
 				SM_SetMarineState (0,MARINE_THROWING); //Were done.
 				
 				If (MarineState & MARINE_INCOVER) //Don't retreat if behind cover.
@@ -2004,23 +2017,25 @@ Class SM_Marine : KAI_Humanoid
 			Goto Taunt.Twerk+1;
 		//Wave twice
 		Taunt.Wave1:
-			TNT1 A 0 {ChaseTimer = Random(2,5); A_StartSound ("Marine/Taunt",CHAN_VOICE,volume:0.25); A_Face(TauntTarget);}
+			TNT1 A 0 {ChaseTimer = Random(2,5); A_StartSound ("Marine/Taunt",CHAN_VOICE); A_Face(TauntTarget);}
 			MWAV ABCDEFGHGFEDCB 5
 			{
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
 			}
 			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
+			TNT1 A 0 A_StartSound ("Marine/Taunt",CHAN_VOICE);
 			Goto Taunt.Wave1+1;
 		//Ditto, but for a different wave.
 		Taunt.Wave2:
-			TNT1 A 0 {ChaseTimer = Random(2,5); A_StartSound ("Marine/Taunt",CHAN_VOICE,volume:0.25); A_Face(TauntTarget);}
+			TNT1 A 0 {ChaseTimer = Random(2,5); A_StartSound ("Marine/Taunt",CHAN_VOICE); A_Face(TauntTarget);}
 			MWAV IJKLMNMLKJ 5
 			{
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
 			}
 			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
+			TNT1 A 0 A_StartSound ("Marine/Taunt",CHAN_VOICE);
 			Goto Taunt.Wave2+1;
 		/*Taunt.Jump:
 			TNT1 A 0 {ChaseTimer = Random(2,6);}
@@ -2107,6 +2122,9 @@ Class SM_Marine : KAI_Humanoid
 					If (!RetreatLoops) //Go to reloading, like if the marine was hurt mid reload. But do run away a bit first.
 					{
 						RetreatLoops = Random (1,3);
+						Int Iterations; Double Rad; Double Eh;
+						[Iterations, Rad, Eh] = CheckSpaceSize (512,512,16);
+						If (Rad < 192) RetreatLoops = 0;
 						Return FindState ("Retreat",True);
 					}
 					Else //If we have retreat loops, that means we were actually running before reloading.

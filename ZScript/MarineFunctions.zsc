@@ -7,6 +7,7 @@ Extend Class SM_Marine
 		SMC_NOCOVERSTOP		= 1 << 2, //The marine doesn't stop moving when in cover.
 		SMC_SEARCHFORCOVER	= 1 << 3, //The marine actively searches for nearby cover between the target and him, or on their sides.
 		SMC_USEEMPLACEMENTS	= 1 << 4, //The marine will try to use KAI emplacements like the machine gun turrets (And any future ones like ATGMs and mortars).
+		SMC_NOSPACECHECK	= 1 << 5, //The marine will try retreating even when in a crammed space.
 	}
 	
 	Vector3 NearbyCoverPos; //A bit of nearby cover the marine can run at to hide behind.
@@ -44,8 +45,17 @@ Extend Class SM_Marine
 		If (Flags & SMC_SEARCHFORCOVER && !(ChaseFlags & CHF_DONTMOVE) && KAI_Math.IsEmptyVector3 (NearbyCoverPos)/* && Random (0,255) < 64*/)
 			NearbyCoverPos = SM_LocateNearbyCover (Target);
 		
+		//Check if the space the marine is in is too crammed, so they don't try to uselessly run away in crammed areas.
+		Bool TooCrammed;
+		If (!(Flags & SMC_NOSPACECHECK))
+		{
+			Int Iterations; Double Rad; Double Eh;
+			[Iterations, Rad, Eh] = CheckSpaceSize (384,384,16);
+			TooCrammed = Rad < 192; //If there's any level geometry block us les than 192MU away, we're in a crammed area.
+		}
+		console.printf ("too cramed is %d",toocrammed);
 		//Run away from major actor threats.
-		If (!bNoFear && Target && !(Goal && bChaseGoal) && KAI_Math.IsEmptyVector3 (NearbyCoverPos))
+		If (!bNoFear && !TooCrammed && Target && !(Goal && bChaseGoal) && KAI_Math.IsEmptyVector3 (NearbyCoverPos))
 		{
 			If (!(ChaseFlags & CHF_DONTMOVE) && !MovedAlready)
 			{
@@ -84,7 +94,7 @@ Extend Class SM_Marine
 			If (bAvoidMelee && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //IDEA: Unhardcode the retreat range.
 			
 			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby. Get away.
-			If (bAvoidMelee && NearestEnemy)
+			If (!TooCrammed && bAvoidMelee && NearestEnemy)
 			{
 				If (!RetreatState)
 					KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
@@ -153,6 +163,14 @@ Extend Class SM_Marine
 					//Go to a nearby turret when in combat if you aren't weak and the target is particularly strong.
 					If (!TurretDelay && !TargetTurret && Target && !(TargetThreatLevel >= ThreatLevelThreshold && Health <= 30))
 						TargetTurret = KAI_Emplacement(FindEmplacements());
+					
+					//Sprint to turret, very likely to do so.
+					If (TargetTurret && Random (0,255) < 32)
+					{
+						RetreatLoops = 4;
+						SetStateLabel("Retreat");
+						Return;
+					}
 					
 					If (KAI_Math.IsEmptyVector3(MovePos))
 						[MovePos, DoZigZag, CancelAttack] = SM_RunToCoverPos (Target,dozigzag:KMT_ZIGZAG);
@@ -550,12 +568,15 @@ Extend Class SM_Marine
 					Continue;
 			}
 			
-			If (!IsActorHostile(Mo))
+			If (!IsActorHostile(Mo) && (Mo.Player && Mo.Player.Cheats & CF_NOTARGET))
 				Allies.Push (Mo);
 		}
 		
-		If (Health <= 30) //We're low on health.
+		If (Health <= 40) //We're low on health.
 			Reduction -= 2;
+		
+		If (TargetTurret) //We're eyeing an emplacement, so make room for running towards it.
+			Reduction -= 5;
 		
 		//Reduce retreats based on the threat level of your allies and their quantity.
 		ForEach (Ally : Allies)
@@ -592,12 +613,16 @@ Extend Class SM_Marine
 				Default:
 					Break;
 			}
-			If (Ally Is "SM_Marine")
-				Reduction += 0.5; //Slight increase for fellow marines.
+			//If (Ally Is "SM_Marine")
+			//	Reduction += 0.5; //Slight increase for fellow marines.
 		}
 		
-		Double Score = Loops - Reduction;
-		If (Score > 0.2 && Score <= 1.0) //Our score is low, but not that low, so keep one loop for good measure instead of reloading in place.
+		Int Iterations; Double Rad; Double Eh;
+		[Iterations, Rad, Eh] = CheckSpaceSize (512,512,24);
+		If (Iterations == -1) Iterations = 0; //Open space.
+		Double Score = Loops - Reduction - Iterations;
+		console.printf ("in alterretreatloops(), checkspacesize() returned %d iterations, pre-space score %d, final %d",Iterations,loops-reduction,score);
+		If (Score > 0.2 && Score <= 1.0 || Rad < 88) //Our score is low, but not that low (Or it's too crammed), so keep one loop for good measure instead of reloading in place.
 			Score = 1;
 		Return Int(Score);
 	}
@@ -781,8 +806,8 @@ Extend Class SM_Marine
 		}
 		
 		If (!FindInventory ("SM_DropoffToken") || bOnMobj) bDropoff = bOnMobj; //Allow the marine to walk up around really tall actors like trucks. But not do shit like walk of cliffs.
-		//We're running away because we need to reload, but we do have a turret to head to, so runs towards it to use it instead.
-		If (TargetTurret && MarineState & MARINE_RELOAD)
+		//We're running away, but we do have a turret to head to, so run towards it to use it instead.
+		If (TargetTurret)
 		{
 			If (TargetTurret && Distance3DSquared(TargetTurret) <= (MeleeRange*MeleeRange)*1.2)
 			{
@@ -1322,24 +1347,28 @@ Extend Class SM_Marine
 	}
 	
 	//Search for dangerous enemies around you.
-	Bool IsDangerNearby (Double Range = 1024)
+	Bool IsDangerNearby (Double Range = 1024, Bool DistOnly = False, Vector3 CheckPos = (Double.NaN, Double.NaN, Double.NaN))
 	{
 		//My target is visible, that's an enemy. Or they're just very dangerous.
-		If (Target && (CheckSight (Target, SF_IGNOREWATERBOUNDARY) || AssessThreatLevel(Target,False) >= ThreatLevelThreshold))
+		If (!DistOnly && Target && (CheckSight (Target, SF_IGNOREWATERBOUNDARY) || AssessThreatLevel(Target,False) >= ThreatLevelThreshold))
 			Return True;
 		
-		For (Int pn = 0; pn < MAXPLAYERS; pn++)  //An enemy player is visible, now THAT'S an enemy.
+		If (!DistOnly)
 		{
-			If(!PlayerInGame[pn])
-				Continue;
-			PlayerInfo plr = Players[pn];
-			
-			If (Plr && !IsFriend (Plr.Mo) && CheckSight(Plr.Mo,SF_IGNOREWATERBOUNDARY))
-				Return True;
+			For (Int pn = 0; pn < MAXPLAYERS; pn++)  //An enemy player is visible, now THAT'S an enemy.
+			{
+				If(!PlayerInGame[pn])
+					Continue;
+				PlayerInfo plr = Players[pn];
+				
+				If (Plr && !IsFriend (Plr.Mo) && CheckSight(Plr.Mo,SF_IGNOREWATERBOUNDARY))
+					Return True;
+			}
 		}
 		
 		//Look for dangerous enemies.
-		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
+		Vector3 ThePos = !DistOnly && KAI_Math.IsEmptyVector3(CheckPos) ? Self.Pos : CheckPos;
+		BlockThingsIterator FindEnemies = BlockThingsIterator.CreateFromPos (ThePos.X,ThePos.Y,ThePos.Z,Height,Range,False);
 		
 		While (FindEnemies.Next())
 		{
@@ -1637,6 +1666,7 @@ Extend Class SM_Marine
 			Target = Targ;
 		}
 		
+		bNoGravity = Default.bNoGravity; //We're checking for a landing? Then we shouldn't be floating.
 		If (!SM_IsRestricted (RESTRICT_CLIMBING)) KAI_HandleClimbing(ClimbPos,Null,"Climb",Null,1.1,1.75);
 		If (bOnMobj || Pos.Z <= GetZAt ()) //The eagle has landed.
 		{
