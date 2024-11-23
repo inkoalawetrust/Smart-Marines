@@ -46,14 +46,14 @@ Extend Class SM_Marine
 			NearbyCoverPos = SM_LocateNearbyCover (Target);
 		
 		//Check if the space the marine is in is too crammed, so they don't try to uselessly run away in crammed areas.
-		Bool TooCrammed;
+		Bool TooCrammed = False;
 		If (!(Flags & SMC_NOSPACECHECK))
 		{
 			Int Iterations; Double Rad; Double Eh;
 			[Iterations, Rad, Eh] = CheckSpaceSize (384,384,16);
-			TooCrammed = Rad < 192; //If there's any level geometry block us les than 192MU away, we're in a crammed area.
+			If (Rad != -1) TooCrammed = Rad < 192; //If there's any level geometry blocking us less than 192MU away, we're in a crammed area.
 		}
-		console.printf ("too cramed is %d",toocrammed);
+		
 		//Run away from major actor threats.
 		If (!bNoFear && !TooCrammed && Target && !(Goal && bChaseGoal) && KAI_Math.IsEmptyVector3 (NearbyCoverPos))
 		{
@@ -155,6 +155,7 @@ Extend Class SM_Marine
 				}
 				
 				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
+				Bool GoingToEnemy = True;
 				If (!MovedAlready)
 				{
 					Bool DoZigZag;
@@ -199,25 +200,88 @@ Extend Class SM_Marine
 					If (MovePos == LastSeenPos)
 						Speed *= 1.25;
 					
-					KAI_MoveTowards (MovePos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|DoZigZag|NoStockUse);
+					GoingToEnemy = (Target && MovePos == Target.Pos);
+					//Marines keep certain amounts of distance from powerful enough ranged attackers.
+					If (!(GoingToEnemy && Target.MissileState && Distance3DSquared(Target) <= SM_GetDistKept(Target,TargetThreatLevel)
+					//Check if we even have enough space to afford walking off like that.
+					&& CheckSpaceSize (256,64,1) == -1 ))
+					{
+						SM_RevertSpriteRotation();
+						KAI_MoveTowards (MovePos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|DoZigZag|NoStockUse);
+					}
+					Else //Back off if too close to the ranged target.
+					{
+						KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
+						SpriteRotation = -180;
+					}
 					Speed = RealSpeed;
 				}
 			}
 		}
 		
 		SM_UpdateChaseTimer();
-		If (!CancelAttack) ShouldAttack(); //Run attack decision code.
+		If (!CancelAttack)
+		{
+			If (ShouldAttack()) //Run attack decision code.
+				SM_RevertSpriteRotation();
+		}
 		
-		If (!(Flags & SMC_NOUSESTATE) && UsedLine) 
+		If (!(Flags & SMC_NOUSESTATE) && UsedLine)
+		{
 			SetStateLabel ("Interact");
+			SM_RevertSpriteRotation();
+		}
 		
 		//If you are set to not automatically idle, only do it when the timer is over the threshold.
 		If (ChaseFlags & CHF_DONTIDLE && ChaseTimer >= MARINE_CHASETIME)
 		{
+			SM_RevertSpriteRotation();
 			A_ClearTarget();
 			ChaseTimer = 0;
 			SetIdle();
 		}
+	}
+	
+	//No longer backing off, revert sprite rotation and make the the actual direction you're looking at.
+	Void SM_RevertSpriteRotation()
+	{
+		If (SpriteRotation != 0)
+		{
+			Angle += SpriteRotation;
+			SpriteRotation = 0;
+		}
+	}
+	
+	//Get the minimum distance that the marine general keeps from ranged enemies.
+	Double SM_GetDistKept (Actor Who, Int Threat = -1)
+	{
+		If (!Who)
+			Return 0;
+		
+		//No precached threat level passed.
+		If (Threat == -1)
+			Threat = AssessThreatLevel (Who);
+		
+		Switch (Threat)
+		{
+			Case THREAT_UNSTOPPABLE:
+			Case THREAT_SUPERDANGER:
+			Case THREAT_VERYDANGEROUS:
+			Case THREAT_DANGEROUS:
+				Return 768*768;
+			Case THREAT_ABOVENORMAL:
+				Return 512*512;
+			Case THREAT_NORMAL: 
+				Return 384*384;
+			Case THREAT_MILD:
+				Return 256*256;
+			Case THREAT_LOW:
+			Case THREAT_VERYLOW:
+			Default:
+				Break;
+		}
+		
+		Return 0;
 	}
 	
 	//Marine will run away from major hazards.
@@ -621,8 +685,7 @@ Extend Class SM_Marine
 		[Iterations, Rad, Eh] = CheckSpaceSize (512,512,24);
 		If (Iterations == -1) Iterations = 0; //Open space.
 		Double Score = Loops - Reduction - Iterations;
-		console.printf ("in alterretreatloops(), checkspacesize() returned %d iterations, pre-space score %d, final %d",Iterations,loops-reduction,score);
-		If (Score > 0.2 && Score <= 1.0 || Rad < 88) //Our score is low, but not that low (Or it's too crammed), so keep one loop for good measure instead of reloading in place.
+		If (Score > 0.2 && Score <= 1.0 || Rad != -1 && Rad < 88) //Our score is low, but not that low (Or it's too crammed), so keep one loop for good measure instead of reloading in place.
 			Score = 1;
 		Return Int(Score);
 	}
@@ -754,7 +817,7 @@ Extend Class SM_Marine
 		overflow in the Interact: state.*/
 		//NOTE: The sectors' centerspot can be out of bounds if it's a weird shape, that's probably a problem.
 		Vector3 CheckPos = Vec3Angle (64+8,Angle);
-		Actor Temp = Spawn("KAI_DebugPoint",CheckPos);
+		Actor Temp = Spawn("KAI_TempPoint",CheckPos);
 		If (UseSec && CheckSight (Temp,SF_IGNOREWATERBOUNDARY)/* && SM_IsPosReachable (CheckPos,ignoreactors:True,dontclimb:True)*/)
 		{
 			If (Temp) Temp.Destroy();
@@ -1237,6 +1300,9 @@ Extend Class SM_Marine
 			If (Distance3DSquared (Mobj) > Range*Range) Continue;
 			
 			KAI_Actor(Mobj).KAI_ShareTarget(Self,Target);
+			//NOTE: Marines need to have their LastSeenPos set to something to move towards the enemy, otherwise they just try following something instead.
+			If (Mobj Is "SM_Marine")
+				SM_Marine(Mobj).LastSeenPos = Target.Pos;
 			AlertedSomeone = True;
 			Alerted.Push (Mobj);
 		}
@@ -1832,9 +1898,17 @@ Extend Class SM_Marine
 		SM_SetMarineState (0,MARINE_FIRING|MARINE_THROWING|MARINE_MELEE|MARINE_KNEELING|MARINE_LYINGDOWN);
 		SM_UpdateHeight();
 		
+		//Set the next time we decide to fire.
 		If (!IsDead(Self))
 		{
-			NextFireDelay = GameTicRate*Random(2,4); //Only add the timer if you didn't stop shooting by dying.
+			If (!IsFast(Self))
+				NextFireDelay = GameTicRate*Random(1,4); //Only add the timer if you didn't stop shooting by dying.
+			Else
+				NextFireDelay = GameTicRate*Random(1,2); //Fire twice as frequently.
+				
+			If (G_SkillPropertyInt(SKILLP_SLOWMONSTERS))
+				NextFireDelay *= FRandom(1.2f,2);
+			
 			If (MarineState & MARINE_INCOVER)
 				NextFireDelay /= 2; //Fire more frequently when hiding.
 		}

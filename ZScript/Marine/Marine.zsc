@@ -59,16 +59,6 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.BeginPlay();
 		
-		
-		//NOTE: The height variation, and User_Armor are handled here for cases where the marine is damaged immediately after spawning, like escaping a dead MVP vehicle.
-		If (!(User_Armor ~== "None" || User_Armor ~== "Nothing")) //If the marine doesn't explicitly spawn unarmored.
-		{
-			If (!User_Armor || User_Armor ~== "" || User_Armor ~== " ") //Default armor.
-				GiveInventory ("GreenArmor",1);
-			Else
-				GiveInventory (User_Armor,1); //Try giving whatever armor available in the current session that the mapper wants.
-		}
-		
 		//Height variation, very realistic.
 		Double XMul = FRandom (0.95f,1.05f);
 		Double YMul = FRandom (0.90f,1.10f);
@@ -99,6 +89,14 @@ Class SM_Marine : KAI_Humanoid
 		FollowDist = 128+Random (-16,48);
 		FollowDist = Clamp (FollowDist,0, INT.MAX); //In case the variable becomes configurable.
 		AmmoCount = MAGAZINE_SIZE;
+		
+		If (!(User_Armor ~== "None" || User_Armor ~== "Nothing")) //If the marine doesn't explicitly spawn unarmored.
+		{
+			If (!User_Armor || User_Armor ~== "" || User_Armor ~== " ") //Default armor.
+				GiveInventory ("GreenArmor",1);
+			Else
+				GiveInventory (User_Armor,1); //Try giving whatever armor available in the current session that the mapper wants.
+		}
 		
 		//Set attack states.
 		MissileState = FindState ("Fire",True);
@@ -137,6 +135,10 @@ Class SM_Marine : KAI_Humanoid
 			Else //Grenade target prediction.
 				AimAtTarget (8/**4*/,8/**4*/,flags:AimPos,attackspeed:30,30);
 		}
+		
+		//The SpriteRotation render property is only ever used to make marines visually back off from enemies when chasing them in See:.
+		If (SpriteRotation != 0 && !IsInState(Self,"See"))
+			SpriteRotation = 0;
 		
 		Int Age = GetAge();
 		//Update on whether or not the marine is berserking.
@@ -651,8 +653,8 @@ Class SM_Marine : KAI_Humanoid
 		If (HealTarget) //We have someone to heal, so go do that instead of wandering or following a player.
 		{
 			KAI_MoveTowards (HealTarget.Pos, 0.5, 20, 0, 0);
-			//Actor is back to full-ish health by the time we got there.
-			If (SM_GetMaxHealth (HealTarget) - 7 < HealTarget.Health)
+			//Actor is back to full-ish health by the time we got there or dead.
+			If (SM_GetMaxHealth (HealTarget) - 7 < HealTarget.Health || IsDead(HealTarget))
 				HealTarget = Null;
 			Return False;
 		}
@@ -1074,6 +1076,7 @@ Class SM_Marine : KAI_Humanoid
 						SM_EndCrouch();
 				}
 				
+				Bool Reversing = SpriteRotation != 0; //Marine is backing off in SM_Chase().
 				//Bloodied marine sprites.
 				Bool Wounded = Health <= SpawnHealth()/4;
 				If (!Crouching && Wounded)
@@ -1084,13 +1087,13 @@ Class SM_Marine : KAI_Humanoid
 						Default:
 							Break;
 						Case 9: //J
-							Frame = 16; //Q
+							Frame = !Reversing ? 16 : 18; //Q or S
 							Break;
 						Case 10: //K
 							Frame = 17; //R
 							Break;
 						Case 11: //L
-							Frame = 18; //S
+							Frame = !Reversing ? 18 : 16; //S or Q
 							Break;
 						Case 12: //M
 							Frame = 17; //R
@@ -1111,16 +1114,16 @@ Class SM_Marine : KAI_Humanoid
 							Default:
 								Break;
 							Case 9: //J
-								Frame = 0; //A
+								Frame = !Reversing ? 0 : 3; //A or D
 								Break;
 							Case 10: //K
-								Frame = 1; //B
+								Frame = !Reversing ? 1 : 2; //B or C
 								Break;
 							Case 11: //L
-								Frame = 2; //C
+								Frame = !Reversing ? 2 : 1; //C or B
 								Break;
 							Case 12: //M
-								Frame = 3; //D
+								Frame = !Reversing ? 3 : 0; //D or A
 								Break;
 						}
 					}
@@ -1129,7 +1132,7 @@ Class SM_Marine : KAI_Humanoid
 				}
 				
 				//Don't look for cover when running to a turret.
-				Int Flags = !(!TurretDelay && !TargetTurret) ? SMC_SEARCHFORCOVER : 0;
+				Int Flags = (!TurretDelay && !TargetTurret) ? SMC_SEARCHFORCOVER : 0;
 				SM_Chase ("Idle.Decide","RunFromMelee",Flags,chaseflags:CHF_DONTIDLE);
 			}
 			TNT1 A 0 A_JumpIf (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2,"Reload"); //Reload if we have half ammo.
@@ -1172,7 +1175,7 @@ Class SM_Marine : KAI_Humanoid
 					//Homing projectile is very close, duck down to try throwing it off.
 					If (!SM_IsRestricted (RESTRICT_CROUCHING))
 					{
-						Bool Dist = (Distance3DSquared (LastDodged) <= MeleeRange*MeleeRange);
+						Bool Dist = (Distance3DSquared (LastDodged) <= (MeleeRange*MeleeRange)*2);
 						If (Dist && !Crouching)
 							SM_StartCrouch();
 						Else If (!Dist)
@@ -1533,7 +1536,7 @@ Class SM_Marine : KAI_Humanoid
 				
 				Int Iterations; Double Rad; Double Eh;
 				[Iterations, Rad, Eh] = CheckSpaceSize (512,512,8);
-				If (Rad < 256) RetreatLoops = 1;
+				If (Rad != -1 && Rad < 256) RetreatLoops = 1;
 				
 				SM_SetMarineState (0,MARINE_THROWING); //Were done.
 				
@@ -1995,7 +1998,7 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0
 			{
 				String TauntStates[] = {"Taunt.Twerk","Taunt.Wave1","Taunt.Wave2"};
-				If (TauntTarget && !TauntTarget.bSolid && Random (0,255) < 64 && Distance3DSquared(TauntTarget) <= 2048*2048 && SM_IsPosReachable(TauntTarget.Pos))
+				If (TauntTarget && !TauntTarget.bDontCorpse && Random (0,255) < 64 && Distance3DSquared(TauntTarget) <= 2048*2048 && SM_IsPosReachable(TauntTarget.Pos,ignoreactors:True))
 					Return FindState ("Taunt.Teabag");
 				Else
 					Return FindStateByString (TauntStates[Random(0,TauntStates.Size()-1)]);
@@ -2043,7 +2046,7 @@ Class SM_Marine : KAI_Humanoid
 			Goto Taunt.Jump+1;*/
 		//Walk up to the dead enemy.
 		Taunt.Teabag:
-			MARI AAAABBBBCCCCDDDD 2
+			MARI AABBCCDD 3
 			{
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 				If (HazardToAvoid)
@@ -2067,7 +2070,7 @@ Class SM_Marine : KAI_Humanoid
 			Loop;
 		Taunt.Teabag.Loop:
 			TNT1 A 0 {ChaseTimer = Random(5,15);}
-			MARI AAAA 2
+			MARI IIII 2
 			{
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
 				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
@@ -2121,7 +2124,7 @@ Class SM_Marine : KAI_Humanoid
 						RetreatLoops = Random (1,3);
 						Int Iterations; Double Rad; Double Eh;
 						[Iterations, Rad, Eh] = CheckSpaceSize (512,512,16);
-						If (Rad < 192) RetreatLoops = 0;
+						If (Rad != -1 && Rad < 192) RetreatLoops = 0;
 						Return FindState ("Retreat",True);
 					}
 					Else //If we have retreat loops, that means we were actually running before reloading.

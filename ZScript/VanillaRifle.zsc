@@ -1,3 +1,5 @@
+//IDEA: Check if the player is behind cover to also give them an accuracy buff like marines do when that's happening.
+
 Class SM_Rifle : Weapon
 { 
 	Default

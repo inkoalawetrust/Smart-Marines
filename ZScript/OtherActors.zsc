@@ -220,7 +220,7 @@ Class SM_Bullet : KAI_BaseProjectile
 		ProjectileKickback 10;
 		Decal "BulletChip";
 		DamageType "SmallRifleBullet";
-		Obituary "%o found out that rifle rounds are more dangerous than in the movies";
+		Obituary "%o found out that rifle rounds are more dangerous than in the movies"; //Actually used by the marines' GetObituary().
 		BounceSound "VRifle/BulletRicochet";
 	}
 	Bool HitLiquid;
