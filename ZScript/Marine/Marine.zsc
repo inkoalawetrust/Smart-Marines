@@ -1,3 +1,9 @@
+//TODO:
+//Add a User_NoReload variable, making marines not use their magazine ammo when shooting, and by extension not needing to ever reload. 
+
+//BUG:
+//Fix marines getting stuck walking in place for some fucking reason when trying to chase the player when the latter is out of sight.
+
 //IDEA:
 //Give them Flashbangs.
 //Make marines fire at dangerous objects near their target like explosive barrels.
