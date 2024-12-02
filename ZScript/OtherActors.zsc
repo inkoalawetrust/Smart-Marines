@@ -140,8 +140,8 @@ Class SM_RestrictionToken : Inventory
 			(CheckSight && !Owner.CheckSight (Master,SF_IGNOREWATERBOUNDARY)))
 				GoAwayAndDie();
 		}
-		//If (!Master)
-		//	GoAwayAndDie();
+		If (!Master)
+			GoAwayAndDie();
 	}
 }
 

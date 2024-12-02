@@ -187,7 +187,12 @@ Extend Class SM_Marine
 							LastSeenPos = (Double.NaN, Double.NaN, Double.NaN); //We're in position, begin chasing normally again.
 					}
 					Else
-						MovePos = HandleFollowingActor (MovePos); //Check if we should be following anyone, if not, just focus on chasing the target or whatever.
+					{
+						MovePos = HandleFollowingActor (MovePos); //Check if we should be following anyone.
+						//Nothing to follow? Try focusing on chasing your target. Especially if you were going to the last seen pos of them, and reached it.
+						If (KAI_Math.IsEmptyVector3(MovePos) && Target)
+							MovePos = Target.Pos;
+					}
 					
 					If (TargetTurret) //Jog towards turret.
 					{

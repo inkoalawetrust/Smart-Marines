@@ -1,13 +1,9 @@
 //TODO:
 //Add a User_NoReload variable, making marines not use their magazine ammo when shooting, and by extension not needing to ever reload. 
 
-//BUG:
-//Fix marines getting stuck walking in place for some fucking reason when trying to chase the player when the latter is out of sight.
-
 //IDEA:
 //Give them Flashbangs.
 //Make marines fire at dangerous objects near their target like explosive barrels.
-//Make some kind of extra handler addon with actual options, like spawning marines on map startup, replacing items with spawn beacons, etc.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -566,7 +562,7 @@ Class SM_Marine : KAI_Humanoid
 			If (DistCheck)
 				Return BasePos, Null;
 		}
-		
+		console.printf ("returning vec %d %d %d, actor %p",vec,act);
 		Return Vec, Act;
 	}
 	
