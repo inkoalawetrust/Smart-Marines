@@ -4,7 +4,7 @@ Extend Class SM_Marine
 	//Find the best emplacement for the marine to use, if any. And get the closest one.
 	Actor FindEmplacements (Double CheckRadius = 768)
 	{
-		If (TurretDelay) Return Null;
+		If (TurretDelay || User_TurretDelay == -1) Return Null;
 		Let TurretFinder = BlockThingsIterator.Create (Self, CheckRadius);
 		
 		KAI_Emplacement Candidate;

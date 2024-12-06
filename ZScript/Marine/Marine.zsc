@@ -196,7 +196,7 @@ Class SM_Marine : KAI_Humanoid
 		If (DeadDogTimer) //RAAAAAAH
 			DeadDogTimer--;
 		
-		If (TurretDelay > 0)
+		If (TurretDelay > 0 && User_TurretDelay == -1)
 		{
 			//Check every half second that we're waiting before using a turret again for anything that should decrement the timer faster.
 			If (Age % GameTicRate/2 == 0)
