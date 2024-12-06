@@ -1936,7 +1936,8 @@ Extend Class SM_Marine
 		RESTRICT_DODGING, //Marine dodging incoming projectiles.
 		RESTRICT_HEALING, //Marine occasionally giving stimpacks to allies.
 		RESTRICT_WARNALLIES, //Marine warning nearby friendly marines.
-		RESTRICT_RELOADRUN, //Marine run away a bit before reloading.
+		RESTRICT_RELOADRUN, //Marine running away a bit before reloading.
+		RESTRICT_EMPLACEMENTS, //Marine using emplacements.
 	}
 	
 	//Check if the following action is restricted by a token given from a restriction zone, or a user variable.
@@ -1964,6 +1965,8 @@ Extend Class SM_Marine
 		If (MarineAction == RESTRICT_WARNALLIES && Token && Token.NoWarn)
 			Return True;
 		If (MarineAction == RESTRICT_RELOADRUN && (User_RetreatFactor <= 0 || Token && Token.NoReloadRun))
+			Return True;
+		If (MarineAction == RESTRICT_EMPLACEMENTS && (User_TurretDelay <= 0 || Token && Token.NoEmplacements))
 			Return True;
 		
 		Return False;
