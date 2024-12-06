@@ -1,6 +1,3 @@
-//TODO:
-//Add a User_NoReload variable, making marines not use their magazine ammo when shooting, and by extension not needing to ever reload. 
-
 //IDEA:
 //Give them Flashbangs.
 //Make marines fire at dangerous objects near their target like explosive barrels.
@@ -285,7 +282,7 @@ Class SM_Marine : KAI_Humanoid
 			!InStateSequence (CurState,FindState("Jump")) &&
 			!IsInState (Self,"Climb"))
 			{
-				Actor Misl = SM_ShouldDodgeProjectile(ignore:LastDodged);
+				Actor Misl = SM_ShouldDodgeProjectile(User_DodgeRange,ignore:LastDodged);
 				If (SM_HandleDodging (Misl))
 				{
 					LastDodged = Misl;
@@ -355,6 +352,8 @@ Class SM_Marine : KAI_Humanoid
 			User_TurretDelay = 8*GameTicRate;
 		If (User_TauntChance == 0)
 			User_TauntChance = 64;
+		If (User_DodgeRange == 0)
+			User_DodgeRange = 384;
 		
 		SM_HandleMarineColoring (User_Color);
 	}
@@ -955,6 +954,7 @@ Class SM_Marine : KAI_Humanoid
 	Int User_TauntChance; //How likely the marine is to taunt a powerful enemy they killed if safe to do so, twice as likely if beaten to death. Default is 64; 
 	Bool User_NoReload; //Marine does not use ammo when firing, essentially never needing to reload.
 	Bool User_AllyClip; //Marine can phase through NPCs and players friendly to them.
+	Double User_DodgeRange; //How close a projectile must be to the marine for them to consider dodging it. 
 	
 	States
 	{

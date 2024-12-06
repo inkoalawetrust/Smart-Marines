@@ -1639,9 +1639,12 @@ Extend Class SM_Marine
 	}
 	
 	//Find and return a pointer to a projectile for the marine to dodge.
-	//Update: Seems like because the default dodge radius is smaller than the grenade hazard radius, they run from grenades anyway.
+	//Because the default dodge radius is smaller than the grenade hazard radius, they run from grenades anyway. So no special handling for that.
+	//Up to you if you set User_DodgeRange higher than the hazard radius of the grenades.
 	Actor SM_ShouldDodgeProjectile (Double Range = 384, Int DodgeMode = DODGE_STRONGEST, Actor Ignore = Null)
 	{
+		If (Range <= 0) //No dodging.
+			Return Null;
 		Array <Actor> Threats;
 		
 		//Actually find projectiles.
