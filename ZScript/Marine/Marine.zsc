@@ -332,6 +332,13 @@ Class SM_Marine : KAI_Humanoid
 		TauntTarget = Null;
 	}
 	
+	Override Bool CanCollideWith (Actor Other, Bool Passive)
+	{
+		If (User_AllyClip && Other && !IsInanimateObject(Other) && !IsActorHostile (Other)) Return False;
+		
+		Return Super.CanCollideWith(Other, Passive);
+	}
+	
 	Override Void UserVariableDefaults()
 	{
 		Super.UserVariableDefaults();
@@ -946,6 +953,8 @@ Class SM_Marine : KAI_Humanoid
 	Double User_RetreatFactor; //A multiplier for how much marines run away, i.e a value of 0.5 makes them take half the amount of retreat steps, roughly.
 	Int User_TurretDelay; //The delay, in tics, that the marine waits for before using a turret again, default is 8 seconds.
 	Int User_TauntChance; //How likely the marine is to taunt a powerful enemy they killed if safe to do so, twice as likely if beaten to death. Default is 64; 
+	Bool User_NoReload; //Marine does not use ammo when firing, essentially never needing to reload.
+	Bool User_AllyClip; //Marine can phase through NPCs and players friendly to them.
 	
 	States
 	{

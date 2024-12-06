@@ -1894,7 +1894,7 @@ Extend Class SM_Marine
 				Break;
 		}
 		A_SpawnItemEx ("SM_BulletCasing",0,-6,FireHeight,FRandom (0,-1),FRandom (-4,-8),FRandom(1,5));
-		AmmoCount--;
+		If (!User_NoReload) AmmoCount--;
 	}
 	
 	//End the marines' firing sequence. Used by both the Fire.End: state, and when the marine abruptly dies.
