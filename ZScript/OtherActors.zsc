@@ -149,6 +149,7 @@ Class SM_RestrictionToken : Inventory
 
 //$GZDB_SKIP
 //Custom group structure for marine NPCs.
+//BUG: Make it so if the player of a player led group dies, and another NPC is set as leader. The player will be leader again upon resurrecting.
 Class SM_MarineGroup : KAI_NPCGroup
 {
 	Bool NoSpecialPlayerTreatment; //When the leader dies or vanishes, and the group tries assigning a new one, players aren't automatically assumed to be stronger.
@@ -165,6 +166,7 @@ Class SM_MarineGroup : KAI_NPCGroup
 		Return GetStrongestMember (NoSpecialPlayerTreatment);
 	}
 	
+	
 	Override Void HandleGroupEvent (Int EventType, Actor Affected)
 	{
 		Bool EveryoneDied = GetNPCGroupFlags() & NPCGRP_EVERYONEDIED; //Need to grab this flag before the Super. call, which removes said flag.
@@ -173,7 +175,7 @@ Class SM_MarineGroup : KAI_NPCGroup
 		//Use "(Player name)'s Fireteam/Squad/Platoon/Whatever" naming scheme if led by a player.
 		If (EventType == GRPEVNT_NEWLEADER)
 		{
-			IsPlayerGroup = Affected.Player;
+			If (!IsPlayerGroup) IsPlayerGroup = Affected.Player; //If a player ever becomes leader, it's automatically a player group. 
 			If (Affected.Player)
 				GroupName = String.Format ("%s's %s",Affected.Player.GetUsername(),GetGroupSizeType());
 		}
@@ -181,6 +183,10 @@ Class SM_MarineGroup : KAI_NPCGroup
 		//One NPC was revived after everyone died already. They're now the new leader by virtue of actually being alive.
 		If (EventType == GRPEVNT_REVIVAL && Leader != Affected && EveryoneDied)
 			ChangeLeader(Affected);
+		
+		//A player-lead group had the player died, so another NPC will take the leader position, but if the player is revived, they'll assume control again.
+		If (EventType == GRPEVNT_REVIVAL && Leader != Affected && IsPlayerGroup && Affected.Player)
+			ChangeLeader (Affected);
 		
 		//Update group name to reflect the size of it. Only used if the groups' leader is a player.
 		If (Leader && Leader.Player && (EventType == GRPEVNT_JOIN || EventType == GRPEVNT_LEFT))

@@ -970,7 +970,7 @@ Class SM_Marine : KAI_Humanoid
 				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
-			MARI FFFFFFFF 3 //Look 20 degrees to your right.
+			MARI HHHHHHHH 3 //Look 20 degrees to your right.
 			{
 				Angle -= 20;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
@@ -978,7 +978,7 @@ Class SM_Marine : KAI_Humanoid
 				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
-			MARI GGGGGGGG 3 //Look 80 degrees to your right.
+			MARI FFFFFFFF 3 //Look 80 degrees to your right.
 			{
 				Angle -= 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
@@ -986,9 +986,25 @@ Class SM_Marine : KAI_Humanoid
 				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
-			MARI HHHHHHHH 3
+			MARI GGGGGGGG 3
 			{
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI FFFFFFFF 3 //Look 80 degrees to your right.
+			{
+				Angle -= 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 80;
+				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI HHHHHHHH 3 //Look 20 degrees to your right.
+			{
+				Angle -= 20;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 20;
+				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			Loop;
@@ -1033,7 +1049,7 @@ Class SM_Marine : KAI_Humanoid
 				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
-			MARI FFFFFFFF 3 //Look 20 degrees to your right.
+			MARI HHHHHHHH 3 //Look 20 degrees to your right.
 			{
 				Angle -= 20;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
@@ -1041,7 +1057,7 @@ Class SM_Marine : KAI_Humanoid
 				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
-			MARI GGGGGGGG 3 //Look 80 degrees to your right.
+			MARI FFFFFFFF 3 //Look 80 degrees to your right.
 			{
 				Angle -= 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
@@ -1049,9 +1065,25 @@ Class SM_Marine : KAI_Humanoid
 				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
-			MARI HHHHHHHH 3
+			MARI GGGGGGGG 3
 			{
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI FFFFFFFF 3 //Look 80 degrees to your right.
+			{
+				Angle -= 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 80;
+				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI HHHHHHHH 3 //Look 20 degrees to your right.
+			{
+				Angle -= 20;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 20;
+				If (Target) SetStateLabel ("See");
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			TNT1 A 0
@@ -1073,7 +1105,58 @@ Class SM_Marine : KAI_Humanoid
 				Return State (Null);
 			}
 			Loop;
-		//Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
+		Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
+			MARI MMMMMMMM 3
+			{
+				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI JJJJJJJJ 3 //Look 80 degrees to your right.
+			{
+				Angle -= 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 80;
+				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI KKKKKKKK 3 //Look 20 degrees to your right.
+			{
+				Angle -= 20;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 20;
+				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI LLLLLLLL 3 //Look 80 degrees to your left.
+			{
+				Angle += 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle -= 80;
+				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI KKKKKKKK 3 //Look 20 degrees to your right.
+			{
+				Angle -= 20;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 20;
+				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			MARI JJJJJJJJ 3 //Look 80 degrees to your right.
+			{
+				Angle -= 80;
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
+				Angle += 80;
+				If (Target) SetStateLabel ("See");
+				If (HazardToAvoid) SetStateLabel ("Idle");
+			}
+			TNT1 A 0
+			{
+				If (Random (0,255) < 48 && !IsPatrolling (Self)) Return FindState ("Idle",True);
+				Return State (Null);
+			}
+			Loop;
 		See:
 			TNT1 A 0 SM_SetMarineState (MARINE_CHASING,0,True,MARINE_INCOVER/*|MARINE_PATROLLING*/);
 			MARF JJKKLLMM 3
