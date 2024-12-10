@@ -5,6 +5,7 @@ Marine aiming rifle sprites made by TG5, including up and down and kneeling fire
 Alternate marine hip-firing sprites made by Sergeant_Mark_IV.
 Standing idle sprites made by Das M.
 Standing alert sprites made by Superdave938.
+Kneeling idle sprites made by inkoalawetrust, frankensprited from TG5s aiming sprites, Das M's idle stand sprites, and Superdaves' alert idle sprites.
 Grenade throwing sprites by Mryayayify.
 Twerking sprites by Craneo.
 Rifle reloading sprites made by TG5.

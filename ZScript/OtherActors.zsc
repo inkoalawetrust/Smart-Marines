@@ -149,7 +149,6 @@ Class SM_RestrictionToken : Inventory
 
 //$GZDB_SKIP
 //Custom group structure for marine NPCs.
-//BUG: Make it so if the player of a player led group dies, and another NPC is set as leader. The player will be leader again upon resurrecting.
 Class SM_MarineGroup : KAI_NPCGroup
 {
 	Bool NoSpecialPlayerTreatment; //When the leader dies or vanishes, and the group tries assigning a new one, players aren't automatically assumed to be stronger.
