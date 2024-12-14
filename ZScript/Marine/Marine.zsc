@@ -1030,7 +1030,7 @@ Class SM_Marine : KAI_Humanoid
 					HealTarget = Null;
 				
 				If (!Crouching && !HealTarget && !IsPatrolling (Self) && (CurrentOrder != ORDER_FOLLOW && (Master || bFriendly))) //Might stand around if not busy.
-					Return A_Jump (4,"Idle.Stay","Idle.Stay.Alert"/*,"Idle.Stay.Kneel"*/);
+					Return A_Jump (4,"Idle.Stay","Idle.Stay.Alert","Idle.Stay.Kneel");
 				
 				If (Random (0,255) < 8 && !Target && AmmoCount <= MAGAZINE_SIZE/2 && !Crouching && !HealTarget) //Go and pre-emptively reload.
 					Return FindState ("Reload",True);
@@ -1039,7 +1039,7 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Loop;
 		Idle.Decide: //Decide a random stay state to enter, for when patrolling and you reach a delayed point.
-			TNT1 A 0 A_Jump (127,"Idle.Stay.Alert");
+			TNT1 A 0 A_Jump (127,"Idle.Stay.Alert","Idle.Stay","Idle.Stay.Kneel");
 		Idle.Stay: //Staying around idle. Exactly like in the spawn state.
 			MARI EEEEEEEE 3 //Look 80 degrees to your left.
 			{
@@ -1105,7 +1105,7 @@ Class SM_Marine : KAI_Humanoid
 				Return State (Null);
 			}
 			Loop;
-		Idle.Stay.Kneel: //Standing around while kneeling down, can randomly pick this one. TG5 needs to make sprites for me to be able to add it though.
+		Idle.Stay.Kneel: //Standing around while kneeling down.
 			MARI MMMMMMMM 3
 			{
 				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
