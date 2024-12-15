@@ -51,6 +51,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 	Bool User_DontWarn; //Do not alert nearby friends of enemies.
 	Bool User_NoReloadRun; //Do not run away to reload.
 	Bool User_NoEmplacements; //Do not use emplacements.
+	Bool User_NoSmokescreens; //Do not throw smoke grenades before retreating to reload.
 	
 	//Other settings
 	Bool User_CheckSight; //In addition to only restricting marines in range, also only restrict them if they are in sight as well.
@@ -102,6 +103,7 @@ Class SM_ActionRestrictor : KAI_MixinActor
 			Restrictor.NoWarn		= User_DontWarn;
 			Restrictor.NoReloadRun	= User_NoReloadRun;
 			Restrictor.NoEmplacements=User_NoEmplacements;
+			Restrictor.NoSmokescreens=User_NoSmokescreens;
 			
 			Restrictor.CheckSight	= User_CheckSight;
 			Restrictor.MaxTargetRange = Args[ARG_RANGE];
@@ -120,7 +122,7 @@ Class SM_RestrictionToken : Inventory
 	}
 	
 	//The naughty list. Checked by SM_IsRestricted().
-	Bool NoCover, NoClimb, NoJump, NoCrouch, NoSwim, NoDodge, NoHeal, NoWarn, NoReloadRun, NoEmplacements;
+	Bool NoCover, NoClimb, NoJump, NoCrouch, NoSwim, NoDodge, NoHeal, NoWarn, NoReloadRun, NoEmplacements, NoSmokescreens;
 	
 	Bool CheckSight;
 	

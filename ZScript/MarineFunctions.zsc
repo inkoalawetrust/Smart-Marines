@@ -1938,6 +1938,7 @@ Extend Class SM_Marine
 		RESTRICT_WARNALLIES, //Marine warning nearby friendly marines.
 		RESTRICT_RELOADRUN, //Marine running away a bit before reloading.
 		RESTRICT_EMPLACEMENTS, //Marine using emplacements.
+		RESTRICT_SMOKESCREENS, //Marine throwing smoke before retreating.
 	}
 	
 	//Check if the following action is restricted by a token given from a restriction zone, or a user variable.
@@ -1967,6 +1968,8 @@ Extend Class SM_Marine
 		If (MarineAction == RESTRICT_RELOADRUN && (User_RetreatFactor <= 0 || Token && Token.NoReloadRun))
 			Return True;
 		If (MarineAction == RESTRICT_EMPLACEMENTS && (User_TurretDelay <= 0 || Token && Token.NoEmplacements))
+			Return True;
+		If (MarineAction == RESTRICT_SMOKESCREENS && Token && Token.NoSmokescreens)
 			Return True;
 		
 		Return False;

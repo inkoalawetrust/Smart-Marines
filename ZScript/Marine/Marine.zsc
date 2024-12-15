@@ -568,7 +568,6 @@ Class SM_Marine : KAI_Humanoid
 			If (DistCheck)
 				Return BasePos, Null;
 		}
-		console.printf ("returning vec %d %d %d, actor %p",vec,act);
 		Return Vec, Act;
 	}
 	
@@ -1485,7 +1484,7 @@ Class SM_Marine : KAI_Humanoid
 							RetreatLoops = AlterRetreatLoops(RetreatLoops);
 						}
 						
-						If (PrepareForSmokeThrow (SmokeChance))
+						If (!SM_IsRestricted(RESTRICT_SMOKESCREENS) && PrepareForSmokeThrow (SmokeChance))
 							Return FindState ("Grenade");
 						
 						If (RetreatLoops > 0) Return FindState ("Retreat"); //Run either far enough or out of sight, to reload.
