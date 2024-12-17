@@ -748,15 +748,25 @@ Class SM_SmokeGrenade : KAI_BaseProjectile
 			{
 				BounceSound = Default.BounceSound;
 				Roll += 20;
-				SpriteOffset.X = 0;
+				If (Self Is "SM_SmokeGrenade") SpriteOffset.X = 0;
 			}
 			Else
 			{
 				BounceSound = "";
 				Roll = -90; //Fall over when not in motion.
-				SpriteOffset.X = -4;
+				If (Self Is "SM_SmokeGrenade") SpriteOffset.X = -4;
 			}
 		}
+		
+		//"Water physics"
+		If (WaterLevel >= 1 && GetGravity() != 0)
+		{
+			BounceFactor = 1.0; //Don't bounce underwater.
+			A_ScaleVelocity (0.98);
+			A_ChangeVelocity (z:0.25,CVF_RELATIVE); //Float
+		}
+		Else
+			BounceFactor = Default.BounceFactor; //Can bounce again while not submerged.
 	}
 	
 	States
@@ -821,6 +831,110 @@ Class SM_SmokeGrenade : KAI_BaseProjectile
 				Return State (Null);
 			}
 			Wait;
+	}
+}
+
+Class SM_StunGrenade : SM_SmokeGrenade
+{
+	Default {-RollSprite;}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (!IsFrozen() && IsInState (Self,"Strobe"))
+			Time++;
+	}
+	
+	Int Time;
+	
+	States
+	{
+		Spawn:
+			SMGR GHIJ 3
+			{
+				//No rolling animation when still.
+				If (Vel.Length() < 2)
+					Frame = 10; //K
+				
+				//Time's out.
+				If (ReactionTime <= 0)
+				{
+					A_StopSound (CHAN_WEAPON);
+					A_StartSound ("Grenade/Tinnitus",CHAN_WEAPON,CHANF_LOOPING,attenuation:1,0.5);
+					
+					//Flash the screens of nearby players.
+					For (Int I = 0; I < MAXPLAYERS; I++)
+					{
+						If (!PlayerInGame[I] || Distance3D(Players[I].Mo) > 512) Continue;
+						
+						Players[I].Mo.A_SetBlend ("White",1.0,16*GameTicRate,"White",0.01);
+					}
+					
+					SetStateLabel ("Strobe");
+				}
+			}
+			Loop;
+		Strobe:
+			SMGR K 1;
+			SMGR L 2 Light ("SM_FlashbangLight") //This is where the magic happens.
+			{
+				//Multiple extra flashes to make it even brighter.
+				A_AttachLightdef ('Flash1','SM_FlashbangLight');
+				A_AttachLightdef ('Flash2','SM_FlashbangLight');
+				A_AttachLightdef ('Flash3','SM_FlashbangLight');
+				A_AttachLightdef ('Flash4','SM_FlashbangLight');
+				
+				//The closer the stun grenade is to stopping, the quieter it gets.
+				Double Volume = KAI_Math.LinearMap (Time,300,0,0.0,1.0);
+				A_SoundVolume (CHAN_WEAPON,Volume);
+				
+				//Ouch
+				BlockThingsIterator Search = BlockThingsIterator.Create(Self,512);
+				Actor Mo;
+				While (Search.Next())
+				{
+					Mo = Search.Thing;
+					//Don't hurt invulnerable actors.
+					If (IsIndestructible (Mo)) Continue;
+					
+					//Nor invulnerable players.
+					If (HasGodMode (Mo)) Continue;
+					
+					//Vehicles are just, immune lol.
+					If (Mo Is "KAI_BaseVehicle") Continue;
+					
+					//Don't painlock actors with a lot of health. Or who are already in pain, to avoid breaking states.
+					Int Check = Mo.bNoBlood ? 200 : 1000; //Non-bleeding (AKA likely inorganic) actors can only be stunned if way weaker than bleeding ones.
+					If (Mo.Health >= Check || Mo.InStateSequence(Mo.FindState ("Pain"),Mo.CurState)) Continue;
+					
+					//Ignore inanimate objects, dormant monsters, or actors that are just too far away.
+					If (IsInanimateObject(Mo) || Mo.bDormant || Target.Distance3DSquared (Mo) >= 512*512) Continue;
+					
+					If (!Mo.Player)
+						Mo.TriggerPainChance ('Flashbang', False);
+					Else If (Random (0,255) < 32) //Don't spam the pain sound and shit for players.
+						Mo.TriggerPainChance ('Flashbang', False);
+				}
+			}
+			TNT1 A 0
+			{
+				A_RemoveLight('Flash1');
+				A_RemoveLight('Flash2');
+				A_RemoveLight('Flash3');
+				A_RemoveLight('Flash4');
+				If (Time >= 300) //8.5 second cacophony
+				{
+					A_StopSound (CHAN_WEAPON);
+					Return FindState ("Discharged");
+				}
+				
+				Return State (Null);
+			}
+			Loop;
+		Discharged:
+			SMGR L -1;
+			Stop;
 	}
 }
 

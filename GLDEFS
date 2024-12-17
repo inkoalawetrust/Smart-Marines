@@ -28,3 +28,11 @@ PointLight SM_50CalFiringLight
 	Offset 0 32 0
 	Attenuate 1
 }
+
+PointLight SM_FlashbangLight
+{
+	Color 0.95 1.00 0.18
+	Size 384
+	Offset 0 8 0
+	//Attenuate 1
+}
