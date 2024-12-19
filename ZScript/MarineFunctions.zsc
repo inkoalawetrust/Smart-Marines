@@ -190,8 +190,14 @@ Extend Class SM_Marine
 					{
 						MovePos = HandleFollowingActor (MovePos); //Check if we should be following anyone.
 						//Nothing to follow? Try focusing on chasing your target. Especially if you were going to the last seen pos of them, and reached it.
+						//Also handle marking the marine as idling even if still in See:, if we're currently just following someone before going to Idle:
 						If (KAI_Math.IsEmptyVector3(MovePos) && Target)
+						{
 							MovePos = Target.Pos;
+							SM_SetMarineState (MARINE_CHASING,MARINE_IDLING);
+						}
+						Else
+							SM_SetMarineState (MARINE_IDLING,MARINE_CHASING);
 					}
 					
 					If (TargetTurret) //Jog towards turret.
@@ -206,6 +212,7 @@ Extend Class SM_Marine
 						Speed *= 1.25;
 					
 					GoingToEnemy = (Target && MovePos == Target.Pos);
+					
 					//Marines keep certain amounts of distance from powerful enough ranged attackers.
 					If (!(GoingToEnemy && Target.MissileState && Distance3DSquared(Target) <= SM_GetDistKept(Target,TargetThreatLevel)
 					//Check if we even have enough space to afford walking off like that.
@@ -1140,32 +1147,54 @@ Extend Class SM_Marine
 		}
 		
 		Bool ImmuneToBlasts = (Against.bNoRadiusDmg || Against.GetRadiusDamage (Against,256,256,128,False,True) <= 256/8); //The enemy is immune or HIGHLY resistant to blasts.
-		Bool UseHE, UseSmoke;
+		Bool UseHE, UseSmoke, UseStun;
 		
 		//Decide to throw the HE-FRAG grenade without the frag sleeve. Large blast radius and damage, good for strong enemies.
 		//Based on RNG, if the target is super powerful, and if it's not effectively immune to pure explosion damage.
 		If (!ImmuneToBlasts && (Random (0,255) < 96 || AssessThreatLevel (Against) >= ThreatLevelThreshold))
 		{
+			//Might throw a stun grenade
+			If (Random (0,255) < 32 && SM_StunGrenade.CanStun(Against))
+				UseStun = True;
 			//Randomly decide to throw smoke, as long as the enemy CAN be affected by the smokescreen.
-			If (Random (0,255) < 120 && (!Against.bSeeInvisible || Against.bShadowAim || Against.Player) && (Against.Player || Against.bDoShadowBlock))
+			Else If (Random (0,255) < 120 && (!Against.bSeeInvisible || Against.bShadowAim || Against.Player) && (Against.Player || Against.bDoShadowBlock))
 				UseSmoke = True;
 			Else
 				UseHE = True;
 		}
 		
+		//Lol, lmao, even.
+		If (Random (0,255) < 128 && (IsIndestructible(Against) || HasGodMode (Against) || HasBuddha (Against)))
+		{
+			If (!(!Against.Player && Against.bNoPain) || !Sm_StunGrenade.CanStun(Against))
+			{
+				UseStun = True;
+				UseHE = UseSmoke = False;
+			}
+		}
+		
 		//Now, let's check the chance of actually throwing a grenade.
 		Int BulletDamage = Against.ApplyDamageFactor ("SmallRifleBullet",100); //Return how much damage the actor would actually take if 10 bullets did maximum damage.
 		Int GrenChance = (Threshold > 0) ? Random (0,Threshold-24) : INT.MAX;
-		Int PreGrenChance = GrenChance; //The grenade chance before being incremented by AttackByQuantity.
-		Double BlastRadius = 192;
-		If (Threshold > 0)
+		//Set chance of throwing lethal grenade.
+		If (Threshold > 0 && !UseSmoke && !UseStun)
 		{
 			GrenChance += 100-BulletDamage; //Increase grenade chance based on how much bullet damage the enemy can absorb.
-			If (Target.Speed <= 6 || Random (0,255) < 64) //Our target is quite slow, lets see about throwing a smoke grenade.
-				GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True,ABQ_Infight|ABQ_Smokescreen);
-			Else
-				GrenChance += SM_AttackByQuantity (Target,!UseHE ? 192 : 256,True); //Grenade chance is also based on crowd size.
+			GrenChance += SM_AttackByQuantity (Against,!UseHE ? 192 : 256,True); //Grenade chance is also based on crowd size.
 		}
+		
+		//Throwing non-lethal grenade.
+		Else If (Threshold > 0)
+		{
+			If (Against.Speed <= 6) //Our target is quite slow, so more likely to throw a nonlethal grenade.
+				GrenChance += 32;
+			
+			If (UseStun)
+				GrenChance += SM_AttackByQuantity (Against,256,False,ABQ_Smokescreen);
+			Else If (UseSmoke)
+				GrenChance += SM_AttackByQuantity (Against,256,False,ABQ_Stunner);
+		}
+		
 		If (GrenChance >= Threshold) //Decide if you should throw an HE or frag grenade.
 		{
 			If (KAI_DebugPrintMessages) Console.Printf ("DecideGrenadeType(): Grenade chance is over the threshold, UseHE is %d, UseSmoke is %d",UseHE,UseSmoke);
@@ -1173,6 +1202,8 @@ Extend Class SM_Marine
 				Return GRENADE_HE;
 			Else If (UseSmoke)
 				Return GRENADE_SMOKE;
+			Else If (UseStun)
+				Return GRENADE_STUN;
 			Else
 				Return GRENADE_HEFRAG;
 		}
@@ -1204,6 +1235,7 @@ Extend Class SM_Marine
 	{
 		ABQ_Smokescreen = 1 << 0, //If on, ignore actors that can see through DOSHADOWBLOCK, unless they are players. 
 		ABQ_Infight		= 1 << 1, //Give bonus points for monsters that can infight. Based on how many other monsters that can infight are found in Range.
+		ABQ_Stunner		= 1 << 2, //Ignore NPCs that won't painlock from the flashbang, players still count tho since they actually get flashed.
 	}
 	
 	//Increase an integer value based on the amount of enemies and how powerful they are, to use for AOE attacks. Copied from the MVP !.
@@ -1238,11 +1270,16 @@ Extend Class SM_Marine
 			If (Flags & ABQ_Smokescreen && IsHostile && IsVisible && !(!Mobj.bSeeInvisible || Mobj.bShadowAim || Mobj.Player) && (Mobj.Player || Mobj.bDoShadowBlock))
 				Continue;
 			
+			//Actor is immune to painlocking from the stun grenade.
+			If (Flags & ABQ_Stunner && Mobj.bNoPain && !Mobj.Player)
+				Continue;
+			
 			If (IsHostile)
 				ViableEnemies++;
 			
 			If (Flags & ABQ_Infight && IsHostile && IsVisible && Mobj.OkayToSwitchTarget (Origin))
 				Chance += ViableEnemies; //Give an additional bonus if the monster can infight with the target, based on every additional monster in range.
+			
 			If (IsHostile && IsVisible && Mobj.Distance3DSquared (Origin) <= Range*Range)
 			{
 				Switch (AssessThreatLevel (Mobj))

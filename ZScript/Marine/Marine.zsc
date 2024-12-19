@@ -21,6 +21,7 @@ Class SM_Marine : KAI_Humanoid
 		FastSpeed 12;
 		MeleeRange 64;
 		PainChance 96;
+		PainChance "Flashbang", 72;
 		PainThreshold 5;
 		FriendlySeeBlocks 64;
 		MaxDropOffHeight 64;
@@ -1595,9 +1596,9 @@ Class SM_Marine : KAI_Humanoid
 					Case GRENADE_SMOKE:
 						GrenCls = "SM_SmokeGrenade";
 						Break;
-					/*Case GRENADE_STUN:
+					Case GRENADE_STUN:
 						GrenCls = "SM_StunGrenade";
-						Break;*/
+						Break;
 					Default:
 						GrenCls = "SM_FragGrenade";
 						Break;
@@ -1609,7 +1610,7 @@ Class SM_Marine : KAI_Humanoid
 					SM_AnnounceGrenadeThrow ();
 					Actor Grenade = SM_FireGrenade (Target,GrenCls,65,0.5,128);
 					//Faster proximity fuze for dangerous enemies.
-					If (Grenade && GrenadeType != GRENADE_SMOKE && AssessThreatLevel (Target,False) >= ThreatLevelThreshold) SM_FragGrenade(Grenade).Proximity = True;
+					If (Grenade && Grenade Is "SM_FragGrenade" && AssessThreatLevel (Target,False) >= ThreatLevelThreshold) SM_FragGrenade(Grenade).Proximity = True;
 				}
 				Else
 				{

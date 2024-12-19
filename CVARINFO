@@ -1,2 +1,3 @@
 Server Bool SM_Disable_DoShadowBlock = False; //Disable giving +DOSHADOWBLOCK to monsters that don't have it.
 Server Bool SM_DumbHitCheck = False; //The marines determine how well they can hit a target at a distance with only math.
+Server Bool SM_FlashbangSound = True; //Flashbangs make a ringing noise.
