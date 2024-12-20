@@ -1,5 +1,4 @@
 //IDEA:
-//Give them Flashbangs.
 //Make marines fire at dangerous objects near their target like explosive barrels.
 
 Class SM_Marine : KAI_Humanoid
@@ -2277,7 +2276,7 @@ Class SM_Marine_BlueArmor : SM_Marine
 //https://www.youtube.com/watch?v=18rZxvB5rDA
 Class SM_GigaMarine : SM_Marine
 {
-	Default {KAI_Actor.ThreatLevel THREAT_DANGEROUS; +ALWAYSFAST;}
+	Default {KAI_Actor.ThreatLevel THREAT_DANGEROUS; +ALWAYSFAST; KAI_Actor.Inaccuracy (0,0,0);}
 	Override Void PostBeginPlay ()
 	{
 		User_Color = "Blue";
