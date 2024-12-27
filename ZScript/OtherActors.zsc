@@ -891,7 +891,7 @@ Class SM_StunGrenade : SM_SmokeGrenade
 					//Flash the screens of nearby players.
 					For (Int I = 0; I < MAXPLAYERS; I++)
 					{
-						If (!PlayerInGame[I] || Distance3D(Players[I].Mo) > 512) Continue;
+						If (!PlayerInGame[I] || Distance3D(Players[I].Mo) > 512 || !CheckSight(Players[I].Mo,SF_IGNOREWATERBOUNDARY)) Continue;
 						
 						Players[I].Mo.A_SetBlend ("White",1.0,16*GameTicRate,"White",0.01);
 					}
