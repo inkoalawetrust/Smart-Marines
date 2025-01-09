@@ -231,6 +231,7 @@ Class SM_Bullet : KAI_BaseProjectile
 		DamageType "SmallRifleBullet";
 		Obituary "%o found out that rifle rounds are more dangerous than in the movies"; //Actually used by the marines' GetObituary().
 		BounceSound "VRifle/BulletRicochet";
+		+KAI_BaseProjectile.Deflectable;
 	}
 	Bool HitLiquid;
 	Actor Tracer;
@@ -276,50 +277,32 @@ Class SM_Bullet : KAI_BaseProjectile
 	
 	Override Int SpecialMissileHit (Actor Victim)
 	{
-		If (Super.SpecialMissileHit(Victim) == 1) Return 1;
+		If (Super.SpecialMissileHit(Victim) == MHIT_PASS) Return MHIT_PASS;
 		
-		String APC = "MVP_APC";
-		String APCProp = "MVP_APCProp";
+		//String APC = "MVP_APC";
+		//String APCProp = "MVP_APCProp";
 		
-		If (Victim == Target) Return -1; //Ignore the shooter, so players firing the rifle with god mode don't have bullets bounce off of THEM.
+		If (Victim == Target) Return MHIT_DEFAULT; //Ignore the shooter, so players firing the rifle with god mode don't have bullets bounce off of THEM.
 		
-		//Always bounce off players with god mode. Or player pawns and monsters with Invulnerable or NoDamage.
-		If ((HasGodMode(Victim) || IsIndestructible(Victim) && !IsInanimateObject(Victim)) && DeflectProjectile (Victim,0,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10),(10,-10))) Return 1;
-		//Be at least somewhat likely to bounce off if hitting an APC.
-		Else If ((Victim Is APC || Victim Is APCProp) && DeflectProjectile (Victim,192,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10),(10,-10))) Return 1;
-		//Almost always bounce off the main battle tank.
-		Else If (DeflectOffTank(Victim) && DeflectProjectile (Victim,254,FRandom(0.5,0.8),FRandom (1.,0.7),(20,-20),(20,-20))) Return 1;
-		//Be very likely to bounce off a non-bleeding actor with a lot of health.
-		Else If (Victim.bNoBlood && !IsIndestructible (Victim) && Victim.SpawnHealth() >= 2000 && DeflectProjectile (Victim,64,FRandom(0.5,0.7),FRandom (1.,0.8),(6,-6),(6,-6),attenuation:0.75)) Return 1;
+		//Always deflect off of actors with god mode.
+		If ((HasGodMode(Victim) || IsIndestructible(Victim) && !IsInanimateObject(Victim)))
+		{
+			DoDeflection (Victim,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10,10,-10));
+			If (Victim Is "KAI_Actor") KAI_Actor(Victim).OnProjectileDeflect(Self,Vel,Null,Null,Null,(0,0,0,0));
+			Else A_StartSound (BounceSound,flags:CHANF_OVERLAP,1,0.9);
+			Return MHIT_PASS;
+		}
 		
+		//Generic NPCs and players that don't bleed with over 2000 health are treat as vehicle-like.
+		If (!(Victim Is "KAI_Actor") && Victim.bNoBlood && !IsIndestructible (Victim) && Victim.SpawnHealth() >= 2000
+		&& Random(0,255) < 64)
+		{
+			DoDeflection (Victim,FRandom(0.5,0.7),FRandom (1.,0.8),(6,-6,6,-6));
+			A_StartSound (BounceSound,flags:CHANF_OVERLAP,1,0.9);
+			Return MHIT_PASS;
+		}
 		
-		Return -1;
-	}
-	
-	Bool DeflectOffTank (Actor Other)
-	{
-		//KLUDGE: Jesus Christ why does it fucking error out when you directly check for class strings for classes that may not exist.
-		Name MBT = "MVP_MBT";
-		Name MBTProp = "MVP_MBTProp";
-		Name MBTTurret = "MVP_MBTTurret";
-		Name MBTTurretProp = "MVP_MBTTurretProp";
-		Name MissileTurret = "MVP_MBTMissileTurret";
-		Name MissileTurretProp = "MVP_MBTMissileTurretProp";
-		Name BMPTTurret = "MVP_BMPTTurret";
-		Name BMPTTurretProp = "MVP_MBTTerminatorTurretProp";
-		Name SPAAGTurret = "MVP_SPAAGTurret";
-		Name SPAAGTurretProp = "MVP_MBTSPAAGTurretProp";
-		
-		//Bounce off MBT turrets.
-		If (Other Is MBTTurret || Other Is MBTTurretProp
-		/*|| Other Is MissileTurret*/ || Other Is MissileTurretProp
-		|| Other Is BMPTTurret || Other Is BMPTTurretProp
-		|| Other Is SPAAGTurret || Other Is SPAAGTurretProp)
-			Return True;
-		//Deflect off the tank hulls too of course.
-		Else If (Other Is MBT || Other Is MBTProp)
-			Return True;
-		Return False;
+		Return MHIT_DEFAULT;
 	}
 	
 	Mixin SM_SplashFunctions;

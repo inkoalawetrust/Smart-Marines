@@ -256,6 +256,7 @@ Class SM_Marine : KAI_Humanoid
 			
 			//Note: Lol, literally all of this is my own code.
 			//Handle increasing the marines' inaccuracy when attacking at shadow actors or through shadow blockers like smoke screens.
+			//MAYDO: Make shadows affect their aim WAY more to actually be noticeable.
 			If (IsInAttackState())
 			{
 				Bool Found; Actor Ghost; Double Penalty = 1.0;

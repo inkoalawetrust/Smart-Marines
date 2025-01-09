@@ -1104,6 +1104,7 @@ Class SM_50CalBullet : KAI_BaseProjectile
 		KAI_BaseProjectile.RipDepth 5;
 		+Ripper;
 		+KAI_BaseProjectile.RipOnce;
+		+KAI_BaseProjectile.Deflectable;
 	}
 	
 	Override Int SpecialMissileHit (Actor Victim)
@@ -1111,12 +1112,25 @@ Class SM_50CalBullet : KAI_BaseProjectile
 		If (Super.SpecialMissileHit(Victim) == 1) Return 1;
 		If (Victim.bSolid && !Victim.bShootable) Return 1; //Don't stop at decorations that normally block projectiles.
 		
-		//Always bounce off players with god mode. Or player pawns and monsters with Invulnerable or NoDamage.
-		If ((HasGodMode(Victim) || IsIndestructible(Victim) && !IsInanimateObject(Victim)) && DeflectProjectile (Victim,0,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10),(10,-10),attenuation:0.75)) {bRipper = False; Return 1;}
-		//Fairly likely to bounce off healthy enough actors that don't bleed (Which should suggest its' something inorganic like a robot or golem or something, where deflection would make sense).
-		Else If (Victim.bNoBlood && !IsIndestructible (Victim) && Victim.SpawnHealth() >= 2000 && DeflectProjectile (Victim,192,FRandom(0.5,0.7),FRandom (1.,0.85),(6,-6),(6,-6),attenuation:0.75)) {bRipper = False; Return 1;}
-		
 		bExtremeDeath = (Victim.SpawnHealth() <= 200); //Obliterate any weak enemy.
+		
+		//Always deflect off of actors with god mode.
+		If ((HasGodMode(Victim) || IsIndestructible(Victim) && !IsInanimateObject(Victim)))
+		{
+			DoDeflection (Victim,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10,10,-10));
+			If (Victim Is "KAI_Actor") KAI_Actor(Victim).OnProjectileDeflect(Self,Vel,Null,Null,Null,(0,0,0,0));
+			Else A_StartSound (BounceSound,flags:CHANF_OVERLAP,1,0.9);
+			Return MHIT_PASS;
+		}
+		
+		//Generic NPCs and players that don't bleed with over 2000 health are treat as vehicle-like.
+		If (!(Victim Is "KAI_Actor") && Victim.bNoBlood && !IsIndestructible (Victim) && Victim.SpawnHealth() >= 2000
+		&& Random(0,255) < 192)
+		{
+			DoDeflection (Victim,FRandom(0.5,0.7),FRandom (1.,0.85),(6,-6,6,-6));
+			A_StartSound (BounceSound,flags:CHANF_OVERLAP,1,0.9);
+			Return MHIT_PASS;
+		}
 		
 		//Stop penetrating if the target has a lot of health.
 		bRipper = (Victim.SpawnHealth() >= 500);
