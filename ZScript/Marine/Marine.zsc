@@ -1,5 +1,6 @@
 //IDEA:
 //Make marines fire at dangerous objects near their target like explosive barrels.
+//Make their aim affected by sector fog from them to the target. And also by sector light levels.
 
 Class SM_Marine : KAI_Humanoid
 {

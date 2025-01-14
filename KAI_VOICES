@@ -1,19 +1,10 @@
-Oh hey, don't worry, I didn't forget this here, I kept it intentionally, lol.
-
-#URGENT: I have no idea what I'm doing LMAO. But this is here as a reference for what the voice pack syntax
-#will probably look like, and hopefully I'll figure out how to parse it into usable data to put in a struct.
-#Then stuff that struct in an array in KAI_EventHandler. No idea where the parsing should even take place,
-#OnEngineInitialize() ? Probably not, since it shouldn't need to be re-parsed if reloading an existing save !
-
-#These sounds are stored in a struct stored on the NPC, and then you can pass a type like TYPE_SIGHT in a
-#SayVoiceLine() function available to KAI_Humanoid to play the voice pack sound you want.
-#That way the voice packs are handled automatically, but you and I decide how the sounds are used in our NPCs.
-NPCVoice HECU
+Voice HECU
 {
-	See "Voices/HECU/Sight"
-	Fear "Voices/HECU/Scared" //Could also cover situations like retreating.
-	Pain "Voices/HECU/Flinched"
-	Wounded "Voices/HECU/Injured" #The marines don't use this type, but someone else might.
-	VehicleDeath ""
-	EnemyVehicleDeath ""
+	See = "HECU/Sight1", "HECU/Sight2", "HECU/Sight3", "HECU/Sight4", "HECU/Sight5", "HECU/Sight6", "HECU/Sight7"
+	Idle = "HECU/Idle1", "HECU/Idle2", "HECU/Idle3", "HECU/Idle4", "HECU/Idle5", "HECU/Idle6", "HECU/Idle7"
+	AllyDeath = "HECU/DeadAlly1", "HECU/DeadAlly2", "HECU/DeadAlly3", "HECU/DeadAlly4", "HECU/DeadAlly5", "HECU/DeadAlly6", "HECU/DeadAlly7"
+	Fear = "HECU/Fear1", "HECU/Fear2", "HECU/Fear3", "HECU/Fear4"
+	Hazard = "HECU/Hazard1", "HECU/Hazard2", "HECU/Hazard3", "HECU/Hazard4"
+	OrderChange = "HECU/Order1", "HECU/Order2"
+	GroupJoin = "HECU/GroupIn1", "HECU/GroupIn2"
 }

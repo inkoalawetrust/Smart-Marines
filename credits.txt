@@ -38,6 +38,8 @@ Smoke sprites are from unknown source, ripped from Project Brutality and edited 
 Giant blast sprites made by inkoalawetrust.
 
 ======|Sounds|======
+Default HECU voice pack sounds are from Half-Life, obviously. Sentence mixed by me with this https://www.reddit.com/r/HalfLife/comments/fxc6yf/i_made_a_c_halflife_vox_sentence_generator/
+
 Taunt sound by unknown, apparently, despite how common that sound is.
 Reloading and rocket travelling sound is from Half-Life.
 Gun clicking sound made by knova https://freesound.org/people/knova/sounds/170272/

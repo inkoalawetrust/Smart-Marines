@@ -279,9 +279,6 @@ Class SM_Bullet : KAI_BaseProjectile
 	{
 		If (Super.SpecialMissileHit(Victim) == MHIT_PASS) Return MHIT_PASS;
 		
-		//String APC = "MVP_APC";
-		//String APCProp = "MVP_APCProp";
-		
 		If (Victim == Target) Return MHIT_DEFAULT; //Ignore the shooter, so players firing the rifle with god mode don't have bullets bounce off of THEM.
 		
 		//Always deflect off of actors with god mode.
