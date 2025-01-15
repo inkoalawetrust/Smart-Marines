@@ -27,7 +27,12 @@ Extend Class SM_Marine
 		//ZScript exports of different segments of GZDooms' native AI code. This is the stuff not needed for movement.
 		KAI_Chase_PreChecks(ChaseFlags);
 		KAI_Chase_FriendsAttackPlayerEnemies(ChaseFlags);
-		KAI_Chase_Retarget(ChaseFlags,True); //Friendly marines go idle with no target too.
+		If (KAI_Chase_Retarget(ChaseFlags,True)) //Friendly marines go idle with no target too.
+		{
+			//Might sometimes not say anything when seeing a target before going back to wandering and stuff.
+			If (Random (True,False) == True) SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+		}
+
 		//KAI_Chase_HandleActiveSound(ChaseFlags);
 		
 		Bool MovedAlready;
@@ -67,6 +72,7 @@ Extend Class SM_Marine
 					//And at last, check if the target is still visible.
 					If (CheckSight (Target, SF_IGNOREWATERBOUNDARY))
 					{
+						If (Random (0,255) < 192) SayVoiceLine(VOICE_FEAR,KAIHandler.GetNPCVoice(User_Voice),volume:0.45,0.85,CHAN_SPEECH);
 						If (!RetreatState)
 							KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
 						Else
@@ -264,7 +270,7 @@ Extend Class SM_Marine
 		}
 	}
 	
-	//Get the minimum distance that the marine general keeps from ranged enemies.
+	//Get the minimum distance that the marine generally keeps from ranged enemies.
 	Double SM_GetDistKept (Actor Who, Int Threat = -1)
 	{
 		If (!Who)
@@ -303,9 +309,10 @@ Extend Class SM_Marine
 		If (HazardToAvoid && ( !(Goal && bChaseGoal) || HazardToAvoid.Level >= HazardInfo.HAZARD_HUGE ) && SM_ShouldRunFromHazard(HazardToAvoid) == RUN_FAST)
 		{
 			//The amount of loops is the distance to the hazard divided by distance travelled by one retreat sequence + some change.
-			Double RetreatDist = Speed*12; //12 movement calls in one Retreat loop.
+			Double RetreatDist = Speed*8; //8 (Formerly 12, but I guess that's too little) movement calls in one Retreat loop.
 			RetreatPos = GetHazardOriginPos (HazardToAvoid);
 			RetreatLoops = Int(GetHazardDistance(HazardToAvoid) / RetreatDist);
+			console.printf ("calculated %d retreat loops to run, decimal is %.2f",retreatloops,(GetHazardDistance(HazardToAvoid) / RetreatDist));
 			
 			//Run a bit further for shrapnel.
 			Bool IsGrenade, HasShrapnel;
@@ -327,6 +334,18 @@ Extend Class SM_Marine
 				Console.Printf ("SM_RunFronHazards(): Breaking action to run %d times away from this hazard:",RetreatLoops);
 				HAZARDTOAVOID.PRINTHAZARDINFO();
 			}
+			
+			//Prevent marines from spamming their voice, since for some reason this function is called repeatedly.
+			If (!IsActorPlayingSound(CHAN_SPEECH))
+			{
+				//Say special grenade lines.
+				If (IsGrenade && Random (0,255) < 128)
+					SayVoiceLine(VOICE_NONE,KAIHandler.GetNPCVoice(User_Voice),"Grenade",0.50,0.85,CHAN_SPEECH);
+				//Or just the generic hazard ones sometimes.
+				Else
+					SayVoiceLine(VOICE_HAZARD,KAIHandler.GetNPCVoice(User_Voice),volume:0.50,0.85,CHAN_SPEECH);
+			}
+			
 			If (!NoJump) SetStateLabel ("Retreat");
 			Return True;
 		}
@@ -729,6 +748,29 @@ Extend Class SM_Marine
 		Crouching = False;
 		Height = Default.Height;
 		HipFalsePositive = False; //We're not crouching, turn off hack variable.
+	}
+	
+	//Play taunt noise, can either be a custom "Taunt" type voice line if the User_Voice has such a type, or will instead exclusively be the laugh sound.
+	Void SM_PlayTauntSound (Bool Loop = False)
+	{
+		//Do NOT play the stock taunt laugh on loop if you have taunt voicelines.
+		If (Loop)
+		{
+			If (User_Voice && KAIHandler.GetNPCVoice(User_Voice) && KAIHandler.GetNPCVoice(User_Voice).GetCustomType("Taunt"))
+				Return;
+			Else
+			{
+				A_StartSound ("Marine/Taunt",CHAN_VOICE);
+				Return;
+			}
+		}
+		
+		//Play taunt voice lines, if available
+		If (SayVoiceLine(VOICE_NONE,KAIHandler.GetNPCVoice(User_Voice),"Taunt",0.35,0.85,CHAN_SPEECH))
+			Return;
+		//If we have no taunt voice lines, then play the stock laugh.
+		Else
+			A_StartSound ("Marine/Taunt",CHAN_VOICE);
 	}
 	
 	//Increment the chase timer as long as the target is nonexistent, dead, or out of sight. And reset it if any of these conditions are false.

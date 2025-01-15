@@ -4,7 +4,12 @@ Voice HECU
 	Idle = "HECU/Idle1", "HECU/Idle2", "HECU/Idle3", "HECU/Idle4", "HECU/Idle5", "HECU/Idle6", "HECU/Idle7"
 	AllyDeath = "HECU/DeadAlly1", "HECU/DeadAlly2", "HECU/DeadAlly3", "HECU/DeadAlly4", "HECU/DeadAlly5", "HECU/DeadAlly6", "HECU/DeadAlly7"
 	Fear = "HECU/Fear1", "HECU/Fear2", "HECU/Fear3", "HECU/Fear4"
-	Hazard = "HECU/Hazard1", "HECU/Hazard2", "HECU/Hazard3", "HECU/Hazard4"
+	Hazard = "HECU/Hazard1", "HECU/Hazard2", "HECU/Hazard3", "HECU/Hazard4", "HECU/Hazard5"
 	OrderChange = "HECU/Order1", "HECU/Order2"
 	GroupJoin = "HECU/GroupIn1", "HECU/GroupIn2"
+	Custom HeavyAss = "HECU/Idle8", "HECU/Idle9"
+	Custom Taunt = "HECU/Taunt1", "HECU/Taunt2", "HECU/Taunt3"
+	Custom Grenade = "HECU/Grenade"
+	Custom TurretIn = "HECU/TurretIn"
+	Custom Heal = "HECU/Heal1", "HECU/Heal2"
 }

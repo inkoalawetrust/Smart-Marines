@@ -549,7 +549,7 @@ Class SM_Marine : KAI_Humanoid
 	//Marines have identical criteria for if an actor is hostile as my MVP vehicles do.
 	Override Bool IsActorHostile (Actor Other)
 	{
-		Return (Other && (IsHostile (Other) || IsTargetingAllies (Self, Other)));
+		Return (Other && (IsHostile (Other) || !IsDead(Other) && IsTargetingAllies (Self, Other)));
 	}
 	
 	Override Vector3, Actor HandleFollowingActor (Vector3 BasePos, Bool IgnoreDontFollowPlayers)
@@ -572,6 +572,8 @@ Class SM_Marine : KAI_Humanoid
 		}
 		Return Vec, Act;
 	}
+	
+	Protected Int IdleYapDelay;
 	
 	Override Bool OnWander()
 	{
@@ -702,6 +704,14 @@ Class SM_Marine : KAI_Humanoid
 			Return False;
 		}
 		
+		//Yap every around 10 seconds if we have a voice pack.
+		If (IdleYapDelay++ >= GameTicRate*5 && Random (0,255) < 16)
+		{
+			If (Random (0,255) < 252) SayVoiceLine(VOICE_IDLE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+			Else SayVoiceLine(VOICE_IDLE,KAIHandler.GetNPCVoice(User_Voice),"HeavyAss",0.35,0.85,CHAN_SPEECH);
+			IdleYapDelay = 0;
+		}
+		
 		Actor FollowTarget;
 		Vector3 FollowPos;
 		[FollowPos, FollowTarget] = HandleFollowingActor(FollowPos);
@@ -765,6 +775,7 @@ Class SM_Marine : KAI_Humanoid
 	
 	Override Void AfterOrderChange (NPCOrders OldOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS)
 	{
+		SayVoiceLine(VOICE_ORDERCHANGE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
 		//Have marine idle to follow whatever actor, or if they are in the spawn state and set to wander aimlessly.
 		If ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState (Self,"Spawn"))
 			SetStateLabel ("Idle");
@@ -787,6 +798,12 @@ Class SM_Marine : KAI_Humanoid
 				}
 			}
 		}
+	}
+	
+	Override Void OnEmplacementEnter()
+	{
+		Super.OnEmplacementEnter();
+		SayVoiceLine(VOICE_NONE,KAIHandler.GetNPCVoice(User_Voice),"TurretIn",0.35,0.85,CHAN_SPEECH);
 	}
 	
 	Override Void OnEmplacementExit()
@@ -932,6 +949,11 @@ Class SM_Marine : KAI_Humanoid
 	Vector3 PreOnePunchPos;
 	Actor DaDog;
 	
+	Enum CustomSoundChans
+	{
+		CHAN_SPEECH = 6969, //What is bro waffling about.
+	}
+	
 	Enum GrenadeTypes
 	{
 		GRENADE_NONE, //No grenade
@@ -955,7 +977,8 @@ Class SM_Marine : KAI_Humanoid
 	Int User_TauntChance; //How likely the marine is to taunt a powerful enemy they killed if safe to do so, twice as likely if beaten to death. Default is 64; 
 	Bool User_NoReload; //Marine does not use ammo when firing, essentially never needing to reload.
 	Bool User_AllyClip; //Marine can phase through NPCs and players friendly to them.
-	Double User_DodgeRange; //How close a projectile must be to the marine for them to consider dodging it. 
+	Double User_DodgeRange; //How close a projectile must be to the marine for them to consider dodging it.
+	String User_Voice; //The voice pack assigned to the marine.
 	
 	States
 	{
@@ -968,7 +991,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle += 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle -= 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI HHHHHHHH 3 //Look 20 degrees to your right.
@@ -976,7 +1003,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 20;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 20;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI FFFFFFFF 3 //Look 80 degrees to your right.
@@ -984,12 +1015,21 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI GGGGGGGG 3
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI FFFFFFFF 3 //Look 80 degrees to your right.
@@ -997,7 +1037,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI HHHHHHHH 3 //Look 20 degrees to your right.
@@ -1005,7 +1049,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 20;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 20;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			Loop;
@@ -1022,7 +1070,12 @@ Class SM_Marine : KAI_Humanoid
 				KAI_Wander(8,768,anglelimit:20); //See the OnWander() override.
 				Speed = NormalSpeed;
 				
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 			}
 			MARI D 0 
 			{
@@ -1047,7 +1100,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle += 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle -= 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI HHHHHHHH 3 //Look 20 degrees to your right.
@@ -1055,7 +1112,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 20;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 20;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI FFFFFFFF 3 //Look 80 degrees to your right.
@@ -1063,7 +1124,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI GGGGGGGG 3
@@ -1076,7 +1141,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI HHHHHHHH 3 //Look 20 degrees to your right.
@@ -1084,7 +1153,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 20;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 20;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			TNT1 A 0
@@ -1096,7 +1169,12 @@ Class SM_Marine : KAI_Humanoid
 		Idle.Stay.Alert: //Standing there, menacingly.
 			MARI IIIIIIIIIII 3
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET); //Roughly 1 second of staying still.
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET); //Roughly 1 second of staying still.
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			TNT1 A 0 A_SetAngle (Angle+RandomPick (40,30,20,10,0,0,-10,-20,-30,40));
@@ -1109,7 +1187,12 @@ Class SM_Marine : KAI_Humanoid
 		Idle.Stay.Kneel: //Standing around while kneeling down.
 			MARI MMMMMMMM 3
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV); //Just look straight.
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI JJJJJJJJ 3 //Look 80 degrees to your right.
@@ -1117,7 +1200,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI KKKKKKKK 3 //Look 20 degrees to your right.
@@ -1125,7 +1212,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 20;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 20;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI LLLLLLLL 3 //Look 80 degrees to your left.
@@ -1133,7 +1224,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle += 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle -= 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI KKKKKKKK 3 //Look 20 degrees to your right.
@@ -1141,7 +1236,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 20;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 20;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			MARI JJJJJJJJ 3 //Look 80 degrees to your right.
@@ -1149,7 +1248,11 @@ Class SM_Marine : KAI_Humanoid
 				Angle -= 80;
 				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV);
 				Angle += 80;
-				If (Target) SetStateLabel ("See");
+				If (Target)
+				{
+					SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+					SetStateLabel ("See");
+				}
 				If (HazardToAvoid) SetStateLabel ("Idle");
 			}
 			TNT1 A 0
@@ -1882,12 +1985,13 @@ Class SM_Marine : KAI_Humanoid
 					}
 					//HealTarget.GiveInventory ("SM_MarineStimpack",1);
 				}
-				Else
+				Else //Just give health to other NPCs.
 				{
 					HealTarget.GiveBody (10,HealTarget.SpawnHealth());
 					HealTarget.A_StartSound ("misc/i_pkup",34859,CHANF_OVERLAP,1.0,ATTN_STATIC);
 					Spawn ("SM_MarineHealAllyIcon",HealTarget.Pos.PlusZ(Height),ALLOW_REPLACE);
 				}
+				SayVoiceLine(VOICE_NONE,KAIHandler.GetNPCVoice(User_Voice),"Heal",0.35,0.85,CHAN_SPEECH);
 				HealTarget = Null;
 				HealDelay = User_HealCooldown*GameTicRate;
 			}
@@ -2070,7 +2174,11 @@ Class SM_Marine : KAI_Humanoid
 			}
 			Goto Jump;
 		MarineShaker: //SHIT, GRENADE! PRIVATE! THROW IT BACK!
-			TNT1 A 0 {ChaseTimer = Random (1,8)*(GameTicRate/2);}
+			TNT1 A 0
+			{
+				ChaseTimer = Random (1,8)*(GameTicRate/2);
+				If (Random(0,255) < 32) SayVoiceLine(VOICE_NONE,KAIHandler.GetNPCVoice(User_Voice),"HeavyAss",0.2,ATTN_STATIC,CHAN_SPEECH);
+			}
 			MARA KKLLMM 1 //The private in question:
 			{
 				PlayerInfo Client = Players[ConsolePlayer];
@@ -2079,6 +2187,7 @@ Class SM_Marine : KAI_Humanoid
 					ChaseTimer -= 3; //Decrement 3 times as fast when in sight.
 				If (ChaseTimer < 0/* || Distance3DSquared (Playa) <= 512*512*/ || Client.Cheats & CF_CHASECAM)
 				{
+					A_StopSound (CHAN_SPEECH);
 					ChaseTimer = 0;
 					If (MarineState & MARINE_IDLING)
 						Return FindState ("Idle",True);
@@ -2102,35 +2211,38 @@ Class SM_Marine : KAI_Humanoid
 			}
 			//TNT1 A 0 A_Jump(255,"Taunt.Twerk","Taunt.Wave1","Taunt.Wave2");
 		Taunt.Twerk:
-			TNT1 A 0 {ChaseTimer = Random(4,8); A_Face(TauntTarget);}
+			TNT1 A 0 {ChaseTimer = Random(4,8); If (Random(0,255) < 64) SayVoiceLine(VOICE_NONE,KAIHandler.GetNPCVoice(User_Voice),"HeavyAss",0.35,0.85,CHAN_SPEECH); A_Face(TauntTarget);}
 			MARA KLMKLMKLMKLM 2
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (Target) SetStateLabel ("Taunt.Finish.Alt");
 				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
 			}
 			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
 			Goto Taunt.Twerk+1;
 		//Wave twice
 		Taunt.Wave1:
-			TNT1 A 0 {ChaseTimer = Random(2,5); A_StartSound ("Marine/Taunt",CHAN_VOICE); A_Face(TauntTarget);}
+			TNT1 A 0 {ChaseTimer = Random(2,5); SM_PlayTauntSound(); A_Face(TauntTarget);}
 			MWAV ABCDEFGHGFEDCB 5
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (Target) SetStateLabel ("Taunt.Finish.Alt");
 				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
 			}
 			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
-			TNT1 A 0 A_StartSound ("Marine/Taunt",CHAN_VOICE);
+			TNT1 A 0 SM_PlayTauntSound(True);
 			Goto Taunt.Wave1+1;
 		//Ditto, but for a different wave.
 		Taunt.Wave2:
-			TNT1 A 0 {ChaseTimer = Random(2,5); A_StartSound ("Marine/Taunt",CHAN_VOICE); A_Face(TauntTarget);}
+			TNT1 A 0 {ChaseTimer = Random(2,5); SM_PlayTauntSound(); A_Face(TauntTarget);}
 			MWAV IJKLMNMLKJ 5
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (Target) SetStateLabel ("Taunt.Finish.Alt");
 				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
 			}
 			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
-			TNT1 A 0 A_StartSound ("Marine/Taunt",CHAN_VOICE);
+			TNT1 A 0 SM_PlayTauntSound(True);
 			Goto Taunt.Wave2+1;
 		/*Taunt.Jump:
 			TNT1 A 0 {ChaseTimer = Random(2,6);}
@@ -2143,7 +2255,8 @@ Class SM_Marine : KAI_Humanoid
 		Taunt.Teabag:
 			MARI AABBCCDD 3
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (Target) SetStateLabel ("Taunt.Finish.Alt");
 				If (HazardToAvoid)
 					Return FindState ("Taunt.Finish",True);
 				//Double RealSpeed = Speed;
@@ -2151,7 +2264,10 @@ Class SM_Marine : KAI_Humanoid
 				KAI_MoveTowards (TauntTarget.Pos, 0.5, 20, 0, 0);
 				//Speed = RealSpeed;
 				If (Distance3DSquared  (TauntTarget) <= 16*16)
+				{
+					SayVoiceLine(VOICE_NONE,KAIHandler.GetNPCVoice(User_Voice),"Taunt",0.35,0.85,CHAN_SPEECH);
 					Return FindState ("Taunt.Teabag.Loop");
+				}
 				If (!TauntTarget)
 					Return FindState ("Taunt.Finish",True);
 				Return State (Null);
@@ -2167,13 +2283,15 @@ Class SM_Marine : KAI_Humanoid
 			TNT1 A 0 {ChaseTimer = Random(5,15);}
 			MARI IIII 2
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (Target) SetStateLabel ("Taunt.Finish.Alt");
 				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
 			}
 			TNT1 A 0 A_StartSound ("Marine/Throw");
 			MARC AAAA 2
 			{
-				KAI_Look (0,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				KAI_Look (LOF_NOJUMP,0,MaxTargetRange,MARINE_HEARDIST,MARINE_FOV,extraflags:KAIL_CHASETARGET);
+				If (Target) SetStateLabel ("Taunt.Finish.Alt");
 				If (HazardToAvoid) SetStateLabel ("Taunt.Finish");
 			}
 			TNT1 A 0 A_JumpIf (--ChaseTimer <= 0,"Taunt.Finish");
@@ -2181,6 +2299,9 @@ Class SM_Marine : KAI_Humanoid
 		Taunt.Finish:
 			TNT1 A 0 {ChaseTimer = 0; TauntTarget = Null;}
 			Goto Idle;
+		Taunt.Finish.Alt:
+			TNT1 A 0 {SayVoiceLine(VOICE_SEE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);ChaseTimer = 0; TauntTarget = Null;}
+			Goto See;
 		AskDog: //What peculiar act is the domesticated canine performing.
 			TNT1 A 0
 			{

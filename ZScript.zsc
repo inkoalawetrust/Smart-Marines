@@ -41,6 +41,9 @@ Class SM_MarineHandler : EventHandler
 	{
 		If (E.Thing && E.Thing Is "MBFHelperDog")
 			SM_PissMarinesOff (E.Thing,E.Thing.Target,GameTicRate*20,height:GetDefaultByType("SM_Marine").Height);
+		
+		If (E.Thing && (E.Thing.Player || E.Thing.bIsMonster))
+			SM_CommentOnDeadAlly (E.Thing);
 	}
 	
 	Override Void PlayerDied (PlayerEvent E)
@@ -85,6 +88,80 @@ Class SM_MarineHandler : EventHandler
 				Token.DeadDog = Dog;
 				Token.DogKiller = Killer;
 				Token.AttachToOwner(Mar);
+			}
+		}
+	}
+	
+	Void SM_CommentOnDeadAlly (Actor DeadAlly, Double Radius = 512)
+	{
+		Let MarineSearch = BlockThingsIterator.Create (DeadAlly,Radius);
+		
+		SM_Marine Mar;
+		While (MarineSearch.Next())
+		{
+			Mar = SM_Marine(MarineSearch.Thing);
+			
+			If (!Mar) //This is only null if the actor found is not actually a marine.
+				Continue;
+			
+			If (Mar.IsDead(Mar) || DeadAlly == Mar)
+				Continue;
+			
+			//Marine has no voice pack.
+			If (!Mar.KAIHandler.GetNPCVoice(Mar.User_Voice))
+				{console.printf ("im mute");Continue;}
+			
+			If (Mar.IsActorHostile(DeadAlly)) //Clearly not a friend lol.
+				{console.printf ("this is an enemy lol");Continue;}
+			
+			If (DeadAlly.Distance3DSquared (Mar) > Radius*Radius || !Mar.CheckSight(DeadAlly,SF_IGNOREWATERBOUNDARY)) //Out of range or sight.
+				{console.printf ("outta sight outta mind");Continue;}
+			
+			//Chance of the marine commenting on the death, depends on the threat level of the dead ally, or if they're a dead player.
+			Bool StopSpeaking; //Stop what you were saying to comment on the dead NPC or player.
+			Int Chance = Random (32,48);
+			If (!DeadAlly.Player)
+			{
+				Switch (Mar.AssessThreatLevel(DeadAlly,checkdead:True))
+				{
+					Case Mar.THREAT_SUPERDANGER:
+						Chance += 255;
+						StopSpeaking = True;
+						Break;
+					Case Mar.THREAT_VERYDANGEROUS:
+						Chance += 192;
+						StopSpeaking = True;
+						Break;
+					Case Mar.THREAT_DANGEROUS:
+						Chance += 64;
+						StopSpeaking = True;
+						Break;
+					Case Mar.THREAT_ABOVENORMAL:
+						Chance += 32;
+						Break;
+					Case Mar.THREAT_NORMAL: 
+						Chance += 16;
+						Break;
+					Case Mar.THREAT_MILD:
+						Chance += 8;
+						Break;
+					Default:
+						Break;
+				}
+			}
+			Else
+			{
+				Chance = 255;
+				StopSpeaking = True;
+			}
+			If (DeadAlly Is "SM_Marine")
+				Chance += 64;
+			
+			console.printf ("will try commenting on dead ally %s with chance %d",deadally.getclassname(),chance);
+			If (Random (0,255) < Chance && (!Mar.IsActorPlayingSound(Mar.CHAN_SPEECH) || StopSpeaking))
+			{
+				If (StopSpeaking) Mar.A_StopSound(Mar.CHAN_SPEECH); //Shut up and comment on the dead friend.
+				Mar.SayVoiceLine(Mar.VOICE_ALLYDEATH,Mar.KAIHandler.GetNPCVoice(Mar.User_Voice),volume:0.45,0.85,Mar.CHAN_SPEECH);
 			}
 		}
 	}
