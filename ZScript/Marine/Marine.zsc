@@ -757,9 +757,9 @@ Class SM_Marine : KAI_Humanoid
 				{
 					If (KAI_DebugPrintMessages) Console.Printf ("OnOrderChange(): I was ordered by a player who already has their own group, so I'll join it.");
 					PlayerGroup = SM_MarineGroup(Group);
+					If (!Group.IsMember(Self)) SayOrderLines = False;
 					Group.AddNPCToGroup (Self);
 					HasPlayerGroup = True;
-					SayOrderLines = False;
 					Break;
 				}
 			}
