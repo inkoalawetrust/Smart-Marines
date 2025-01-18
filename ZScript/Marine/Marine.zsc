@@ -329,6 +329,7 @@ Class SM_Marine : KAI_Humanoid
 		bNoGravity = Default.bNoGravity;
 		RetreatPos = NearbyCoverPos = (Double.NaN, Double.NaN, Double.NaN);
 		TauntTarget = Null;
+		A_StopSound (CHAN_SPEECH); //Shut up bozo.
 	}
 	
 	Override Bool CanCollideWith (Actor Other, Bool Passive)
@@ -812,7 +813,32 @@ Class SM_Marine : KAI_Humanoid
 		TargetTurret = Null;
 		If (!RetreatedFromTurret) TurretDelay = User_TurretDelay; //Don't constantly enter turrets. Unless we left because of a threat
 		Else RetreatedFromTurret = False;
-		If (MarineState & MARINE_RELOAD) SetStateLabel ("Reload"); //We needed to reload before getting on, in case we got to a turret in place of reloading.
+		If (MarineState & MARINE_RELOAD) SetStateLabel ("Reload"); //We needed to reload before getting on, in case we got to a turret in lieu of reloading.
+	}
+	
+	Override Void HandleNPCGroupEvent (Int EventType, Actor Affected, KAI_NPCGroup WhatGroup)
+	{
+		Super.HandleNPCGroupEvent(EventType, Affected, WhatGroup); //Aborts if invalid.
+		
+		//Comment on dead or resurrected allies regardless of distance.
+		If (!IsInanimateObject(Affected) && !IsActorHostile(Affected) && (EventType == WhatGroup.GRPEVNT_DEATH || 
+		//Deleted allies too, but only if they didn't already die prior
+		EventType == WhatGroup.GRPEVNT_ERASED && !IsDead(Affected)))
+		{
+			Int Chance; Bool StopSound;
+			[Chance, StopSound] = SM_GetDeadAllyCommentChance(Affected);
+			
+			If (Random (0,255) < Chance && (!IsActorPlayingSound(CHAN_SPEECH) || StopSound))
+			{
+				If (StopSound) A_StopSound(CHAN_SPEECH); //Shut up and comment on the dead friend.
+				SayVoiceLine(VOICE_ALLYDEATH,KAIHandler.GetNPCVoice(User_Voice),volume:0.45,0.85,CHAN_SPEECH);
+			}
+		}
+		
+		//Also comment on revived allies.
+		If (Affected != Self && EventType == WhatGroup.GRPEVNT_REVIVAL && !IsInanimateObject(Affected) && !IsActorHostile(Affected))
+			SayVoiceLine(VOICE_ALLYREVIVE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+		
 	}
 	
 	Override Bool Used (Actor User)

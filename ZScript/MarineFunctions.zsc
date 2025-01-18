@@ -773,6 +773,52 @@ Extend Class SM_Marine
 			A_StartSound ("Marine/Taunt",CHAN_VOICE);
 	}
 	
+	//Get the chance of commenting on a dead ally.
+	Int, Bool SM_GetDeadAllyCommentChance (Actor DeadAlly)
+	{
+		//Chance of the marine commenting on the death, depends on the threat level of the dead ally, or if they're a dead player.
+		Bool StopSpeaking; //Stop what you were saying to comment on the dead NPC or player.
+		Int Chance = Random (32,48);
+		If (!DeadAlly.Player)
+		{
+			Switch (AssessThreatLevel(DeadAlly,checkdead:True))
+			{
+				Case THREAT_SUPERDANGER:
+					Chance += 255;
+					StopSpeaking = True;
+					Break;
+				Case THREAT_VERYDANGEROUS:
+					Chance += 192;
+					StopSpeaking = True;
+					Break;
+				Case THREAT_DANGEROUS:
+					Chance += 64;
+					StopSpeaking = True;
+					Break;
+				Case THREAT_ABOVENORMAL:
+					Chance += 32;
+					Break;
+				Case THREAT_NORMAL: 
+					Chance += 16;
+					Break;
+				Case THREAT_MILD:
+					Chance += 8;
+					Break;
+				Default:
+					Break;
+			}
+		}
+		Else
+		{
+			Chance = 255;
+			StopSpeaking = True;
+		}
+		If (DeadAlly Is "SM_Marine")
+			Chance += 64;
+		
+		Return Chance, StopSpeaking;
+	}
+	
 	//Increment the chase timer as long as the target is nonexistent, dead, or out of sight. And reset it if any of these conditions are false.
 	//Also handles updating LastSeenPos.
 	Void SM_UpdateChaseTimer()
