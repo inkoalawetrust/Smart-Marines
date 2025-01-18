@@ -72,7 +72,7 @@ Extend Class SM_Marine
 					//And at last, check if the target is still visible.
 					If (CheckSight (Target, SF_IGNOREWATERBOUNDARY))
 					{
-						If (Random (0,255) < 192) SayVoiceLine(VOICE_FEAR,KAIHandler.GetNPCVoice(User_Voice),volume:0.45,0.85,CHAN_SPEECH);
+						If (Random (0,255) < 192 && !IsActorPlayingSound(CHAN_SPEECH)) SayVoiceLine(VOICE_FEAR,KAIHandler.GetNPCVoice(User_Voice),volume:0.45,0.85,CHAN_SPEECH);
 						If (!RetreatState)
 							KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
 						Else

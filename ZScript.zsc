@@ -115,8 +115,9 @@ Class SM_MarineHandler : EventHandler
 			If (Mar.IsDead(Mar) || Ally == Mar)
 				Continue;
 			
-			//Marine has no voice pack.
-			If (!Mar.KAIHandler.GetNPCVoice(Mar.User_Voice))
+			
+			KAI_Voice Voice = Mar.KAIHandler.GetNPCVoice(Mar.User_Voice);
+			If (!Voice) //Marine has no voice pack.
 				Continue;
 			
 			//HACK: If you kill an ally and they revive, they play their revive sequence still targeting you, so use the hostile check without IsTargettingAllies().
@@ -133,6 +134,9 @@ Class SM_MarineHandler : EventHandler
 			
 			Int Chance = 255; Bool StopSound;
 			If (SpeechType == Mar.VOICE_ALLYDEATH) [Chance, StopSound] = Mar.SM_GetDeadAllyCommentChance(Ally);
+			
+			//Use dead player lines if we got em.
+			If (SpeechType == Mar.VOICE_ALLYDEATH && Ally.Player && Voice.AllyPlayerDeath.Size()) SpeechType = Mar.VOICE_ALLYPLAYERDEATH;
 			
 			If (Random (0,255) < Chance && (!Mar.IsActorPlayingSound(Mar.CHAN_SPEECH) || StopSound))
 			{

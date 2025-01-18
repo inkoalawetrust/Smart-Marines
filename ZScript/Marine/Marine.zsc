@@ -744,6 +744,7 @@ Class SM_Marine : KAI_Humanoid
 	
 	Override Bool OnOrderChange (NPCOrders NewOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS)
 	{
+		Bool SayOrderLines = True; //So we say the group joining lines only when ordered to join one.
 		//We are being commanded by a player, so join their NPC group if you aren't in already, if the player doesn't have a group yet, make one for them.
 		If (Commander && Commander.Player)
 		{
@@ -758,6 +759,7 @@ Class SM_Marine : KAI_Humanoid
 					PlayerGroup = SM_MarineGroup(Group);
 					Group.AddNPCToGroup (Self);
 					HasPlayerGroup = True;
+					SayOrderLines = False;
 					Break;
 				}
 			}
@@ -769,14 +771,15 @@ Class SM_Marine : KAI_Humanoid
 				String TheName = Commander.Player.GetUsername ();
 				TheName.AppendFormat ("'s fireteam"); //Default group name is "(Player names)'s fireteam", the fireteam string updates based on group size.
 				KAI_NPCGroup.CreateGroup (TheName,Members,Commander,0,"SM_MarineGroup");
+				SayOrderLines = False;
 			}
 		}
+		If (SayOrderLines) SayVoiceLine(VOICE_ORDERCHANGE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
 		Return True;
 	}
 	
 	Override Void AfterOrderChange (NPCOrders OldOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS)
 	{
-		SayVoiceLine(VOICE_ORDERCHANGE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
 		//Have marine idle to follow whatever actor, or if they are in the spawn state and set to wander aimlessly.
 		If ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState (Self,"Spawn"))
 			SetStateLabel ("Idle");
@@ -820,6 +823,10 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.HandleNPCGroupEvent(EventType, Affected, WhatGroup); //Aborts if invalid.
 		
+		KAI_Voice Voice = KAIHandler.GetNPCVoice(User_Voice);
+		If (!Voice)
+			Return;
+		
 		//Comment on dead or resurrected allies regardless of distance.
 		If (!IsInanimateObject(Affected) && !IsActorHostile(Affected) && (EventType == WhatGroup.GRPEVNT_DEATH || 
 		//Deleted allies too, but only if they didn't already die prior
@@ -830,15 +837,51 @@ Class SM_Marine : KAI_Humanoid
 			
 			If (Random (0,255) < Chance && (!IsActorPlayingSound(CHAN_SPEECH) || StopSound))
 			{
+				VoiceTypes Type = VOICE_ALLYDEATH;
+				//Use dead player lines if we got em.
+				If (Affected.Player && Voice.AllyPlayerDeath.Size()) Type = VOICE_ALLYPLAYERDEATH;
+				
 				If (StopSound) A_StopSound(CHAN_SPEECH); //Shut up and comment on the dead friend.
-				SayVoiceLine(VOICE_ALLYDEATH,KAIHandler.GetNPCVoice(User_Voice),volume:0.45,0.85,CHAN_SPEECH);
+				SayVoiceLine(Type,Voice,volume:0.45,0.85,CHAN_SPEECH);
 			}
 		}
 		
 		//Also comment on revived allies.
 		If (Affected != Self && EventType == WhatGroup.GRPEVNT_REVIVAL && !IsInanimateObject(Affected) && !IsActorHostile(Affected))
-			SayVoiceLine(VOICE_ALLYREVIVE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
+			SayVoiceLine(VOICE_ALLYREVIVE,Voice,volume:0.35,0.85,CHAN_SPEECH);
 		
+		If (Affected == Self)
+		{
+			If (EventType == WhatGroup.GRPEVNT_JOIN)
+				SayVoiceLine(VOICE_GROUPJOIN,Voice,volume:0.35,0.85,CHAN_SPEECH);
+			Else If (EventType == WhatGroup.GRPEVNT_LEFT)
+				SayVoiceLine(VOICE_GROUPLEAVE,Voice,volume:0.35,0.85,CHAN_SPEECH);
+		}
+		
+	}
+	
+	//Slightly custom voice line logic.
+	Override Bool SayVoiceLine (VoiceTypes Type, KAI_Voice Voice, String CustomType, Double Volume, Double Attenuation, Int Channel)
+	{
+		If (!Voice)
+			Return False; //🤐
+		
+		//If we're uttering our sight voice line, but the target is a player. Use VOICE_PLAYERSEE instead, IF the pack has that voice set.
+		If (Type == VOICE_SEE && Target && Target.Player && Voice.PlayerSee.Size())
+			Type = VOICE_PLAYERSEE;
+		//Ditto, but for fear.
+		If (Type == VOICE_FEAR && Target && Target.Player && Voice.PlayerFear.Size())
+			Type = VOICE_PLAYERFEAR;
+		
+		//By default, we just care about playing a random sound of that particular type.
+		Array <Sound> Yapping;
+		KAIHandler.GetNPCVoiceList (Yapping, Type, Voice, CustomType);
+		If (!Yapping.Size()) //Don't have any sounds to use.
+			Return False;
+		Int RNG = Random(0,Yapping.Size()-1);
+		Sound Snd = Yapping[RNG];
+		A_StartSound (Snd,Channel,CHANF_OVERLAP,Volume,Attenuation);
+		Return IsActorPlayingSound (Channel,Yapping[RNG]);
 	}
 	
 	Override Bool Used (Actor User)
