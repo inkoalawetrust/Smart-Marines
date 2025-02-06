@@ -112,7 +112,7 @@ Class SM_MarineHandler : EventHandler
 			If (!Mar) //This is only null if the actor found is not actually a marine.
 				Continue;
 			
-			If (Mar.IsDead(Mar) || Ally == Mar)
+			If (Mar.IsDead(Mar) || Mar.IsDead(Ally) || Ally == Mar)
 				Continue;
 			
 			
