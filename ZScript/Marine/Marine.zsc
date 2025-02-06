@@ -44,6 +44,7 @@ Class SM_Marine : KAI_Humanoid
 		KAI_Actor.InaccuracyFrequency 0.8;
 		Monster;
 		//+JumpDown;
+		+StayOnLift
 		+MissileMore;
 		+MissileEvenMore;
 		+Telestomp;
@@ -561,6 +562,7 @@ Class SM_Marine : KAI_Humanoid
 		If (FollowDist && Act && CurrentOrder == ORDER_FOLLOW && bFriendly && !Master)
 		{
 			Bool DistCheck = Distance3DSquared (Act) <= FollowDist*FollowDist;
+			If (CheckSpaceSize(96,Height,4) != -1) DistCheck = False; //Unless it's crammed!
 			If (Act.Player) 
 				bDontFollowPlayers = DistCheck;
 			Else
@@ -719,15 +721,15 @@ Class SM_Marine : KAI_Humanoid
 		//Marine is set to follow. Following the friendplayer is already handled by KAI_Wander() itself, so we just need to handle following the followtarget.
 		If (CurrentOrder == ORDER_FOLLOW && FollowTarget)
 		{
-			//Only follow if you aren't too close to the FollowTarget already, to avoid crowding... unless you're supposed to be HEALING them!
-			If (HealTarget != FollowTarget && Distance3DSquared(FollowTarget) >= FollowDist*FollowDist)
+			//Only follow if you aren't too close to the FollowTarget already, to avoid crowding... unless you're supposed to be HEALING them! Or it's too crammed.
+			If (HealTarget != FollowTarget && (Distance3DSquared(FollowTarget) >= FollowDist*FollowDist || CheckSpaceSize(96,Height,4) != -1))
 			{
 				If (!bFriendly || bFriendly && bDontFollowPlayers)
 				{
 					If (IsDead (FollowTarget))
 					{
 						FollowTarget = Null;
-						If (!bFriendly) SetNPCOrder (ORDER_WANDER);
+						If (!bFriendly || FollowTarget.Player) SetNPCOrder (ORDER_WANDER);
 						Else SetNPCOrder (ORDER_FOLLOW); //Friendly marines just begin following their player.
 					}
 					If (FollowTarget)
@@ -823,7 +825,10 @@ Class SM_Marine : KAI_Humanoid
 	{
 		Super.HandleNPCGroupEvent(EventType, Affected, WhatGroup); //Aborts if invalid.
 		
-		KAI_Voice Voice = KAIHandler.GetNPCVoice(User_Voice);
+		KAI_Voice Voice;
+		//NOTE: GZDoom is profoundly retarded and will sometimes, *not VM about*, but create a fatal error if KAIHandler is null.
+		If (KAIHandler)
+			Voice = KAIHandler.GetNPCVoice(User_Voice);
 		If (!Voice)
 			Return;
 		
