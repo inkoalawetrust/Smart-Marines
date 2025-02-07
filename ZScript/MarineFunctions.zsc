@@ -1867,7 +1867,7 @@ Extend Class SM_Marine
 		
 		bNoGravity = Default.bNoGravity; //We're checking for a landing? Then we shouldn't be floating.
 		If (!SM_IsRestricted (RESTRICT_CLIMBING)) KAI_HandleClimbing(ClimbPos,Null,"Climb",Null,1.1,1.75);
-		If (bOnMobj || Pos.Z <= GetZAt ()) //The eagle has landed.
+		If (bOnMobj || Pos.Z <= GetZAt () || Pos.Z <= FloorZ) //The eagle has landed.
 		{
 			bNoFriction = Default.bNoFriction;
 			A_Stop(); //Stop moving.
