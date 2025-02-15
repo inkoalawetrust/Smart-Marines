@@ -832,7 +832,7 @@ Mixin Class SharedTurretMorphLogic
 	{
 		Int Dmg = Super.TakeSpecialDamage (Inflictor, Source, Damage, DamageType);
 		
-		If (AbsAngle (Angle,AngleTo(Inflictor)) <= 45)
+		If (Inflictor && AbsAngle (Angle,AngleTo(Inflictor)) <= 45)
 		{
 			bNoBlood = True;
 			Dmg /= 0.8;

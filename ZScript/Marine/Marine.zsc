@@ -776,6 +776,8 @@ Class SM_Marine : KAI_Humanoid
 				SayOrderLines = False;
 			}
 		}
+		If (!KAIHandler) //HACK: Sometimes KAIHandler can magically become null. So we need to find it again.
+			KAIHandler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler"));
 		If (SayOrderLines) SayVoiceLine(VOICE_ORDERCHANGE,KAIHandler.GetNPCVoice(User_Voice),volume:0.35,0.85,CHAN_SPEECH);
 		Return True;
 	}
