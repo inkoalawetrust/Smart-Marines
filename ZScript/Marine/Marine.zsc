@@ -1619,6 +1619,7 @@ Class SM_Marine : KAI_Humanoid
 				If (AmmoCount <= 0) //Out of ammo.
 				{
 					RetreatLoops = 0; //RESET THE AMOUNT OF RETREATS, DO NOT FUCKING STACK THEM.
+					Int ThreatLevel = AssessThreatLevel (Target);
 					//Target is alive and in sight and you are not in cover, if you are, then don't run.
 					If (!(MarineState & MARINE_INCOVER) && !IsDead (Target) && CheckSight (Target,SF_IGNOREWATERBOUNDARY))
 					{
@@ -1626,7 +1627,7 @@ Class SM_Marine : KAI_Humanoid
 						If (!NoRetreat)
 						{
 							//Determine how much to run away based on how dangerous your enemy is.
-							Switch (AssessThreatLevel (Target))
+							Switch (ThreatLevel)
 							{
 								Case THREAT_UNSTOPPABLE:
 								Case THREAT_SUPERDANGER:
@@ -1655,7 +1656,7 @@ Class SM_Marine : KAI_Humanoid
 						If (!NoRetreat && Random (0,255) < 4) A_StartSound ("Marine/Boolet",CHAN_VOICE,CHANF_OVERLAP);
 						
 						//Might instead quickly throw a smoke grenade before backing off, especially after firing full auto.
-						Int SmokeChance = Random (0,128)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);
+						Int SmokeChance = Random (0,64)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);
 						If (NoRetreat) SmokeChance -= 32; //Less likely to throw smoke if set to never retreat.
 						
 						RetreatLoops *= User_RetreatFactor;
@@ -2337,6 +2338,8 @@ Class SM_Marine : KAI_Humanoid
 					Return FindState ("Taunt.Finish",True);
 				//Double RealSpeed = Speed;
 				//Speed *= 2;
+				If (!TauntTarget)
+					Return FindState ("Taunt.Finish",True);
 				KAI_MoveTowards (TauntTarget.Pos, 0.5, 20, 0, 0);
 				//Speed = RealSpeed;
 				If (Distance3DSquared  (TauntTarget) <= 16*16)
@@ -2344,8 +2347,6 @@ Class SM_Marine : KAI_Humanoid
 					SayVoiceLine(VOICE_NONE,KAIHandler.GetNPCVoice(User_Voice),"Taunt",0.35,0.85,CHAN_SPEECH);
 					Return FindState ("Taunt.Teabag.Loop");
 				}
-				If (!TauntTarget)
-					Return FindState ("Taunt.Finish",True);
 				Return State (Null);
 			}
 			TNT1 A 0

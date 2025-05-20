@@ -1,7 +1,7 @@
 //Restrict what actions the marine can perform when in range of this special zone.
 //Useful for turning off certain features in specific parts of the map. Like restricting climbing in interiors to avoid having marines get stuck.
 //The limited custom arguments are used for the moves the marine can perform. User variables are for more minor actions like healing allies and dodging.
-Class SM_ActionRestrictor : KAI_MixinActor
+Class SM_ActionRestrictor : SpecialSpot
 {
 	Default
 	{
@@ -74,6 +74,13 @@ Class SM_ActionRestrictor : KAI_MixinActor
 		
 		While (MarineSearch.Next())
 			RunRestrictor (MarineSearch.Thing);
+	}
+	
+	//HACK: Epic copy and paste!
+	Bool IsDead (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (Other.Player ? Other.Player.PlayerState == PST_DEAD : Other.Health <= 0);
 	}
 	
 	Void RunRestrictor (Actor Marine)

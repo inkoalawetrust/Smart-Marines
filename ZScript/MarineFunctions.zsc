@@ -119,10 +119,12 @@ Extend Class SM_Marine
 				/*If there is no danger in sight, the marine will wait for lines he used like doors and platforms to move. Instead of moving around like a
 				normal monster. However, if there IS danger nearby, the marine will keep moving after using the line like normal.*/
 				Int NoStockUse;
-				If (!IsDangerNearby())
+				FLineTraceData LineCheck;
+				LineTrace (Angle,48,0,TRF_BLOCKUSE,Height/2,data:LineCheck);
+				If (LineCheck.HitLine && LineCheck.HitLine.Special && !IsDangerNearby())
 				{
 					NoStockUse = KMT_NOLINEUSE;
-					UsedLine = SM_MarineUseLine(faceline:!(Flags & SMC_NOUSESTATE)); //Check if there's a line in front of us to use.
+					UsedLine = SM_MarineUseLine(faceline:!(Flags & SMC_NOUSESTATE),tracedata:LineCheck); //Check if there's a line in front of us to use.
 				}
 				
 				//Crouching comes first.
@@ -846,7 +848,7 @@ Extend Class SM_Marine
 	//IDEA: Make the marine detect doors or platforms in front of him, then if it's switch activated, search for nearby switches he can go up to and use. Dynamically.
 	//IDEA: Make this account for polyobject doors and stuff?
 	Sector UseSec;
-	Bool SM_MarineUseLine (Double UseRange = 48, Bool FaceLine = False)
+	Bool SM_MarineUseLine (Double UseRange = 48, Bool FaceLine = False, FLineTraceData TraceData = Null)
 	{
 		InteractWaits = 0; //Reset it here just in case.
 		
@@ -859,15 +861,17 @@ Extend Class SM_Marine
 		}
 		
 		If (!bCanUseWalls) Return False;
-		FLineTraceData Usage;
 		
-		LineTrace (Angle,UseRange,0,TRF_BLOCKUSE,Height/2,data:Usage);
+		FLineTraceData Usage;
+		//No precalculated trace data passed, do it ourselves.
+		If (!TraceData)
+			LineTrace (Angle,UseRange,0,TRF_BLOCKUSE,Height/2,data:Usage);
 		
 		//FSpawnParticleParams P; P.Color1 = "Pink"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
 		//KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(Height/2),Usage.HitLocation,Usage.Distance,4,p);
 		
 		//Used a line in front of us.
-		Line UseLine = Usage.HitLine;
+		Line UseLine = TraceData ? TraceData.HitLine : Usage.HitLine;
 		If (UseLine && UseLine.Special && UseLine.Activate (Self,Usage.LineSide,SPAC_Use))
 		{
 		//spawn ("kai_debugpoint",(GetLinePos(UseLine),0));
@@ -880,6 +884,8 @@ Extend Class SM_Marine
 		Return False;
 	}
 	
+	
+	//TODO: Replace this fucking shit with just accessing the sector thinker data that I exposed to ZScript in GZDoom 4.14.
 	//Gets the lift or door sector from the built in sector specials, instead of assuming the back sector is the door or lift, just in case.
 	Sector GetLiftOrDoorSector (Line TheLine)
 	{
@@ -1239,7 +1245,7 @@ Extend Class SM_Marine
 		
 		//Decide to throw the HE-FRAG grenade without the frag sleeve. Large blast radius and damage, good for strong enemies.
 		//Based on RNG, if the target is super powerful, and if it's not effectively immune to pure explosion damage.
-		If (!ImmuneToBlasts && (Random (0,255) < 96 || AssessThreatLevel (Against) >= ThreatLevelThreshold))
+		If (!ImmuneToBlasts && (Random (0,255) < 96 || AssessThreatLevel (Against,False) >= ThreatLevelThreshold))
 		{
 			//Might throw a stun grenade
 			If (Random (0,255) < 32 && SM_StunGrenade.CanStun(Against))
@@ -1254,7 +1260,7 @@ Extend Class SM_Marine
 		//Lol, lmao, even.
 		If (Random (0,255) < 128 && (IsIndestructible(Against) || HasGodMode (Against) || HasBuddha (Against)))
 		{
-			If (!(!Against.Player && Against.bNoPain) || !Sm_StunGrenade.CanStun(Against))
+			If (!(!Against.Player && Against.bNoPain) || !SM_StunGrenade.CanStun(Against))
 			{
 				UseStun = True;
 				UseHE = UseSmoke = False;
@@ -1305,7 +1311,7 @@ Extend Class SM_Marine
 		If (Target && Distance3DSquared (Target) <= 256*256) //If the target is too close, don't bother. Like if running away from a melee enemy.
 			Return False;
 		
-		Chance += SM_AttackByQuantity (Target,flags:ABQ_Smokescreen); //Increase chance the more danger there is around.
+		Chance += SM_AttackByQuantity (Target,flags:ABQ_Smokescreen); //Increase chance the more danger there is around the target.
 		
 		If (Health <= SpawnHealth()/3) //Extra chance if low on health.
 			Chance += 30;
@@ -1370,7 +1376,8 @@ Extend Class SM_Marine
 			
 			If (IsHostile && IsVisible && Mobj.Distance3DSquared (Origin) <= Range*Range)
 			{
-				Switch (AssessThreatLevel (Mobj))
+				//Don't inherently consider players are more dangerous, mainly for grenade spam reasons.
+				Switch (AssessThreatLevel (Mobj,False))
 				{
 					Case THREAT_UNSTOPPABLE:
 						Chance += 500;
