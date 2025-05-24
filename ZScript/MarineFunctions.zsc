@@ -272,6 +272,15 @@ Extend Class SM_Marine
 		}
 	}
 	
+	//Return if the marine should stop standing by while in an idle state. Due to their follow target being beyond the followdist again.
+	Bool SM_EndStandby()
+	{
+		Vector3 Crap; Actor Targ;
+		[Crap, Targ] = HandleFollowingActor(Crap);
+		
+		Return (StandBy && !Targ || StandBy && Distance3DSquared (Targ) > FollowDist*FollowDist);
+	}
+	
 	//Get the minimum distance that the marine generally keeps from ranged enemies.
 	Double SM_GetDistKept (Actor Who, Int Threat = -1)
 	{
@@ -889,57 +898,56 @@ Extend Class SM_Marine
 	//Gets the lift or door sector from the built in sector specials, instead of assuming the back sector is the door or lift, just in case.
 	Sector GetLiftOrDoorSector (Line TheLine)
 	{
-		Sector Result;
-		//Generally, it seems that args[0] is the tag of the affected sector. So this is what we assume.
-		Switch (TheLine.Special)
-		{
-			Case 11: //Door_Open
-			Case 12: //Door_Raise
-			Case 21: //Floor_LowerToNearest
-			Case 202: //Door_Generic
-			Case 105: //Door_WaitRase
-			Case 203: //Generic_Lift
-			{
-				Let TagIter = Level.CreateSectorTagIterator (TheLine.Args[0],TheLine);
-				Result = Level.Sectors[TagIter.Next()];
-				Break;
-			}
-			Default: //No relevant special on the line lol.
-				Return Null;
-		}
-		
-		//Line has no sector tag it moves with the door or platform specials, so it only affects the sector behind the line.
-		If (TheLine.Args[0] == 0)
-			Return TheLine.BackSector;
-		
-		Return Result;
+		Sector Back = TheLine.BackSector;
+		Sector Front = TheLine.FrontSector;
+		//Back sector has lift or elevator on the floor plane.
+		If (Back && Back.FloorData && (Back.FloorData Is "Elevator" || Back.FloorData Is "Plat"))
+			Return Back;
+		//Ditto, but front.
+		If (Front && Front.FloorData && (Front.FloorData Is "Elevator" || Front.FloorData Is "Plat"))
+			Return Front;
+		//Back sector has door or elevator on the floor plane.
+		If (Back && Back.CeilingData && (Back.CeilingData Is "Elevator" || Back.CeilingData Is "Door"))
+			Return Back;
+		//Ditto but front.
+		If (Front && Front.CeilingData && (Front.CeilingData Is "Elevator" || Front.CeilingData Is "Door"))
+			Return Front;
+		Return Null;
 	}	
-	//HACK: We ASSUME this is some for of door or platform in the sector, so wait for it to have moved enough for the marine to go through.
-	Bool SM_DoorOrLiftFinished()
-	{
-		If (!UseSec || !UseSec.PlaneMoving(Sector.Floor) && !UseSec.PlaneMoving(Sector.Ceiling)) Return True; //No sector we used apparently, or there's not plane thinkers at all attached.
-		
-		/*Check if we can walk through the UseSec. AND there is a visible line of sight, because IsPosReachable() can be fucking stupid, and then cause a stack
-		overflow in the Interact: state.*/
-		//NOTE: The sectors' centerspot can be out of bounds if it's a weird shape, that's probably a problem.
-		Vector3 CheckPos = Vec3Angle (64+8,Angle);
-		Actor Temp = Spawn("KAI_TempPoint",CheckPos);
-		If (UseSec && CheckSight (Temp,SF_IGNOREWATERBOUNDARY)/* && SM_IsPosReachable (CheckPos,ignoreactors:True,dontclimb:True)*/)
-		{
-			If (Temp) Temp.Destroy();
-			Return True;
-		}
-		If (Temp) Temp.Destroy();
-		Return False;
-	}
 	
-	//Get the middle point of a line to face it.
-	Vector2 GetLinePos (Line TheLine)
+	//TODO: Add handling for polyobjects once my PR exposing that data is merged.
+	Bool SM_SectorThinkerFinished()
 	{
-		If (!TheLine)
-			Return (Double.NaN, Double.NaN);
+		//No sector we used apparently, or there's no plane thinkers at all attached, definitely stopped.
+		If (!UseSec || !UseSec.PlaneMoving(Sector.Floor) && !UseSec.PlaneMoving(Sector.Ceiling)) Return True;
 		
-		Return ((TheLine.V2.P - TheLine.V1.P) * 0.5 + TheLine.V1.P); 
+		SectorEffect FloorD = UseSec.FloorData;
+		SectorEffect CeilingD = UseSec.CeilingData;
+		//Sector has now inert elevator. So it seems finished enough.
+		//NOTE: DElevator is actually stored i̶n̶ t̶h̶e̶ b̶a̶l̶l̶s̶ on both floor and ceilingdata. So we just check the floor for it.
+		If (FloorD Is "Elevator" && Elevator(FloorD).m_Direction == Ceiling.DirWait)
+			Return True;
+		
+		//Sector has now stationary platform.
+		If (FloorD Is "Plat" && (Plat(FloorD).m_Status == Plat.Waiting || Plat(FloorD).m_Status == Plat.In_Stasis))
+			Return True;
+		
+		//Sector has a door that is either waiting to close again, or closing. So count that as finished.
+		If (CeilingD Is "Door" && Door(CeilingD).m_Direction != Door.DirUp)
+			Return True;
+		
+		//HACK: We can't run this check because GZDoom confuses the Floor thinker with the synonymous math builtin.
+		//I tried making an engine side getter that does the pointer casting in C++ but ZCC doesn't like that either!
+		//Let TheFloor = (Floor)(FloorD); //HACK: GZDoom confuses floor() the math function with Floor the SectorEffect.
+		//Sector has a stationary generic floor mover.
+		//If (FloorD Is "Floor" && TheFloor.m_Direction == Ceiling.DirWait)
+		//	Return True;
+		
+		//Ditto but ceiling.
+		If (CeilingD Is "Ceiling" && Ceiling(CeilingD).GetDirection() == Ceiling.DirWait)
+			Return True;
+		
+		Return False;
 	}
 	
 	//KAI_MoveAway wrapper, handles running behind cover, as well as parkouring when retreating.

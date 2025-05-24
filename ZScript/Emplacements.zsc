@@ -238,6 +238,7 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		MaxDropOffHeight 64;
 		MaxTargetRange 8192;
 		MinMissileChance 100;
+		MissileChanceMult 0.625;
 		ShadowAimFactor 0.7; //Marines can somewhat see through shadows.
 		Tag "Machine Gun Turret (Marine)";
 		Species "Military";
@@ -248,8 +249,6 @@ Class SM_MGTurretMarine : KAI_EmplacementNPC
 		KAI_Actor.Inaccuracy (10,10,10);
 		KAI_Actor.InaccuracyFrequency 0.5;
 		Monster;
-		+MissileMore;
-		+MissileEvenMore;
 		+NoInfightSpecies;
 		+FloorClip;
 		+SeeFriendlyMonsters; //No more ZScript code hacks.
