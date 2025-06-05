@@ -100,7 +100,7 @@ Class SM_MGTurret : KAI_Emplacement
 		//$Arg2Enum falsetrue
 		
 		Tag "Machine Gun Turret";
-		KAI_Emplacement.NPCFallback "SM_MGTurretNPC"; //Not implemented yet.
+		KAI_Emplacement.NPCFallback "SM_MGTurretNPC";
 		KAI_Emplacement.PlayerMorph "SM_MGTurretPlayer";
 		KAI_Emplacement.EnterSound "Turret/Ready";
 	}
@@ -124,6 +124,14 @@ Class SM_MGTurret : KAI_Emplacement
 		Super.PostBeginPlay();
 		
 		AddNPCMorph ("SM_Marine","SM_MGTurretMarine");
+		AddNPCMorph ("SMGR_Marine","SM_MGTurretMarine"); //Gameplay mod addon marine.
+		
+		//Marine aliases.
+		AddNPCMorph ("SM_Marine_Berserk","SM_MGTurretMarine");
+		AddNPCMorph ("SM_Marine_Infrared","SM_MGTurretMarine");
+		AddNPCMorph ("SM_Marine_Unarmored","SM_MGTurretMarine");
+		AddNPCMorph ("SM_Marine_BlueArmor","SM_MGTurretMarine");
+		AddNPCMorph ("SM_GigaMarine","SM_MGTurretMarine");
 		
 		If (!IsMapCreated)
 		{
@@ -680,61 +688,6 @@ Class SM_MGTurretNPC : SM_MGTurretMarine
 			SetTag (String.Format("Machine Gun Turret (%s)",Emplacement.Operator.GetTag(Emplacement.Operator.GetClassName()))); //"Machine Gun Turret (NPC tag or class name)"
 			Emplacement.CreateFakeOperator ((-32,0,0));
 		}
-	}
-}
-
-class debugimp : kai_humanoid
-{
-	Default
-	{
-		Health 60;
-		Radius 20;
-		Height 56;
-		Mass 100;
-		Speed 8;
-		PainChance 200;
-		Monster;
-		+FLOORCLIP
-		SeeSound "imp/sight";
-		PainSound "imp/pain";
-		DeathSound "imp/death";
-		ActiveSound "imp/active";
-		HitObituary "$OB_IMPHIT";
-		Obituary "$OB_IMP";
-		Tag "big dumb doo doo head";
-	}
-	sTATES
-	{
-		Spawn:
-			TROO AB 10
-			{
-				Let TurretSearch = BlockThingsIterator.Create (Self,512);
-				
-				While (TurretSearch.Next())
-				{
-					If (TurretSearch.Thing && TurretSearch.Thing Is "KAI_Emplacement" && !KAI_Emplacement(TurretSearch.Thing).Operator && Distance3D(tURRETsEarch.thing) <= 512)
-					{
-						target = turretsearch.thing;
-						setstatelabel ("see");
-					}
-				}
-			}
-			lOOP;
-		see:
-		Whenyouwalkin:
-			TROO AABBCCDD 3
-			{
-				If (target) //go to emplacement
-				{
-					kai_movetowards(target.pos);
-					if (distance3d(target) <= meleerange)
-						kai_emplacement(target).enteremplacement(self);
-				}
-			}
-			lOOP;
-		Wandering:
-			TROO AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD 3 kai_wander(); //get away from the turret before searching again.
-			goto spawn;
 	}
 }
 
