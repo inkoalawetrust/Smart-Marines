@@ -292,13 +292,13 @@ Class SM_Bullet : KAI_BaseProjectile
 		If ((HasGodMode(Victim) || IsIndestructible(Victim) && !IsInanimateObject(Victim)))
 		{
 			DoDeflection (Victim,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10,10,-10));
-			If (Victim Is "KAI_Actor") KAI_Actor(Victim).OnProjectileDeflect(Self,Null,Null,Null,(0,0,0,0));
+			If (Self && Victim && Victim Is "KAI_Actor") KAI_Actor(Victim).OnProjectileDeflect(Self,Null,Null,Null,(0,0,0,0));
 			Else A_StartSound (BounceSound,flags:CHANF_OVERLAP,1,0.9);
 			Return MHIT_PASS;
 		}
 		
 		//Generic NPCs and players that don't bleed with over 2000 health are treat as vehicle-like.
-		If (!(Victim Is "KAI_Actor") && Victim.bNoBlood && !IsIndestructible (Victim) && Victim.SpawnHealth() >= 2000
+		If (Self && !(Victim Is "KAI_Actor") && Victim.bNoBlood && !IsIndestructible (Victim) && Victim.SpawnHealth() >= 2000
 		&& Random(0,255) < 64)
 		{
 			DoDeflection (Victim,FRandom(0.5,0.7),FRandom (1.,0.8),(6,-6,6,-6));
@@ -413,6 +413,7 @@ Class SM_BulletSplash : Actor
 	}
 }
 
+//TODO: Increase hazard zone range, the hitscan shrapnel even just on the frag grenade comes out to a range of 512MU, not 256.
 Class SM_FragGrenade : KAI_BaseProjectile
 {
 	Default
@@ -431,7 +432,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		DamageType "Explosive";
 		ExplosionRadius 256;
 		ExplosionDamage 192;
-		+KAI_BaseProjectile.NoFriendlyFire; //Go through allies, but that DOESN'T mean the explosions harmless to them.
+		+KAI_BaseProjectile.NoFriendlyFire; //Go through allies, but that DOESN'T mean the explosion's harmless to them.
 		//Projectile;
 		-NoGravity;
 		+RollSprite;
@@ -616,6 +617,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 				}
 				Roll = 0;
 				If (Pos.Z >= FloorZ+88) Return ResolveState ("Death.Air"); //If the explosion happened above 88 map units from the ground, trigger the air explosion.
+				Else SetZ (FloorZ);
 				
 				Light = DynamicLight(Spawn ("PointLight",Vec3Offset (0,0,Height/2)));
 				If (Light)

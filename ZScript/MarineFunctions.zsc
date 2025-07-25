@@ -97,10 +97,10 @@ Extend Class SM_Marine
 		If (!(ChaseFlags & CHF_DONTMOVE))
 		{
 			//Only update the nearest enemy to run from when not focused on a route.
-			If (bAvoidMelee && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //IDEA: Unhardcode the retreat range.
+			If ((bAvoidMelee || Level.Info.Flags3 & LEVEL3_AVOIDMELEE) && !(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (128); //IDEA: Unhardcode the retreat range.
 			
 			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby. Get away.
-			If (!TooCrammed && bAvoidMelee && NearestEnemy)
+			If (!TooCrammed && (bAvoidMelee || Level.Info.Flags3 & LEVEL3_AVOIDMELEE) && NearestEnemy)
 			{
 				If (!RetreatState)
 					KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
@@ -142,6 +142,7 @@ Extend Class SM_Marine
 				If (!Crouching && !SM_IsRestricted (RESTRICT_CLIMBING) && SM_HandleClimbDown(Height*1.75)) //Handle jumping down any ledges that you can still climb up to if you want.
 					MovedAlready = True;
 				
+				//TODO: Optimize the jump checking to not run at all when crouched, literally just move the crouch check to jump restrict if statement.
 				Vector2 JumpPosition = (Double.NaN,Double.NaN);
 				If (!SM_IsRestricted (RESTRICT_JUMPING)) JumpPosition = KAI_GetJumpPosition (MARINE_JUMPLENGTH,Angle);
 				If (JumpPosition == JumpPosition && !Crouching && !(MarineState & MARINE_INCOVER)) //We have a valid position we must jump to, AKA the returned vector isn't null.
@@ -170,7 +171,7 @@ Extend Class SM_Marine
 					Vector3 MovePos = (Double.NaN,Double.NaN,Double.NaN);
 					Double RealSpeed = Speed;
 					//Go to a nearby turret when in combat if you aren't weak and the target is particularly strong.
-					If (!TurretDelay && !TargetTurret && Target && !(TargetThreatLevel >= ThreatLevelThreshold && Health <= 30))
+					If (!TurretDelay && !TargetTurret && Target && !(TargetThreatLevel >= ThreatLevelThreshold && Health >= 30))
 						TargetTurret = KAI_Emplacement(FindEmplacements());
 					
 					//Sprint to turret, very likely to do so.
@@ -229,6 +230,7 @@ Extend Class SM_Marine
 						SM_RevertSpriteRotation();
 						KAI_MoveTowards (MovePos, 0.5, TurnRadius, ChaseFlags, KMT_CHASEGOAL|DoZigZag|NoStockUse);
 					}
+					//TODO: MAKE THIS NOT BE SO BROKEN, LIKE SPIRALLING OFF WHILE BACKING AWAY, REUSE THE DRONE CODE FOR THAT.
 					Else //Back off if too close to the ranged target.
 					{
 						KAI_MoveAway (Target,detourfactor:0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL|KMT_ZIGZAG);
@@ -323,6 +325,7 @@ Extend Class SM_Marine
 			Double RetreatDist = Speed*8; //8 (Formerly 12, but I guess that's too little) movement calls in one Retreat loop.
 			RetreatPos = GetHazardOriginPos (HazardToAvoid);
 			RetreatLoops = Int(GetHazardDistance(HazardToAvoid) / RetreatDist);
+			RetreatLoops = Clamp (RetreatLoops,0,32); //Prevent ridiculously high values.
 			console.printf ("calculated %d retreat loops to run, decimal is %.2f",retreatloops,(GetHazardDistance(HazardToAvoid) / RetreatDist));
 			
 			//Run a bit further for shrapnel.
@@ -435,28 +438,38 @@ Extend Class SM_Marine
 		For (Int DistDiv = Distance/Spacing; DistDiv < Distance; DistDiv += Spacing)
 		{
 			SetXYZ (Vec3Angle (DistDiv,AngleTo(Other)+90)); //Check left.
+			SetZ(GetZAt());
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			[GotLeftCover, LeftCover] = SM_UpdateCover (Other,False,Distance);
 			//actor point = spawn ("kai_debugpoint",leftcover);
 			If (GotLeftCover) LeftCover.Z = GetZAt();
 			SetXYZ (RealPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS);
-			If (!GotLeftCover) LeftCover = (Double.NaN, Double.NaN, Double.NaN);
-			Else If (GotLeftCover && IsPosReachable (LeftCover,Radius*1.1))
+			If (!GotLeftCover || !IsPosReachable (LeftCover))
+			{
+				GotLeftCover = False;
+				LeftCover = (Double.NaN, Double.NaN, Double.NaN);
+			}
+			Else If (GotLeftCover)
 				Break; //Found a spot to hide behind on the left.
 		}
 		
 		For (Int DistDiv = Distance/Spacing; DistDiv < Distance; DistDiv += Spacing)
 		{
 			SetXYZ (Vec3Angle (DistDiv,AngleTo(Other)-90)); //Check Right.
+			SetZ(GetZAt());
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			[GotRightCover, RightCover] = SM_UpdateCover (Other,False,Distance);
 			//actor point = spawn ("kai_debugpoint",rightcover);
 			If (GotRightCover) RightCover.Z = GetZAt();
 			SetXYZ (RealPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS);
-			If (!GotRightCover) RightCover = (Double.NaN, Double.NaN, Double.NaN);
-			Else If (GotRightCover && IsPosReachable (RightCover))
+			If (!GotRightCover || !IsPosReachable (RightCover))
+			{
+				GotRightCover = False;
+				RightCover = (Double.NaN, Double.NaN, Double.NaN);
+			}
+			Else If (GotRightCover)
 				Break; //Found a spot to hide behind on the right.
 		}
 		
@@ -1129,6 +1142,8 @@ Extend Class SM_Marine
 			Return FindState (AbortState);
 		
 		AimPos = GetFAFAimPos (Target);
+		If (Target && Target.Height <= 16) //Actor is too short to aim at it properly, like the little tracked drones.
+			AimPos = FAF_BOTTOM;
 			
 		If (Random2[pr_monsterrefire]() < Chance)
 			Return State (Null);
@@ -1156,6 +1171,8 @@ Extend Class SM_Marine
 		Let Check = New ("KAI_ProjectileLOFCheck");
 		
 		AimPos = GetFAFAimPos (Target);
+		If (Target && Target.Height <= 16) //Actor is too short to aim at it properly, like the little tracked drones.
+			AimPos = FAF_BOTTOM;
 		
 		Vector3 Direction;
 		If (AimingAt)
@@ -1474,51 +1491,6 @@ Extend Class SM_Marine
 			Else
 				A_StartSound ("Marine/AlertAllies",CHAN_VOICE,attenuation:0.75);
 		}
-	}
-	
-	HazardInfo GetNearestHazard (Array<HazardInfo> HazardList)
-	{
-		Double ClosestDist = INT.MAX;
-		HazardInfo Closest;
-		
-		ForEach (CurHaz : HazardList)
-		{
-			If (CurHaz)
-			{
-				If (CurHaz.Flags & HazardInfo.HAZ_SECTOR) //The first hazard found in the same sector as you is the closest.
-					Return CurHaz;
-				
-				Double Dist = GetHazardDistance (CurHaz);
-				If (Dist < ClosestDist)
-				{
-					ClosestDist = Dist;
-					Closest = CurHaz;
-				}
-			}
-		}
-		
-		Return Closest;
-	}
-	
-	HazardInfo GetStrongestHazard (Array<HazardInfo> HazardList)
-	{
-		Int StrongestHaz = HazardInfo.HAZARD_HARMLESS;
-		HazardInfo Strongest;
-		
-		ForEach (CurHaz : HazardList)
-		{
-			If (CurHaz)
-			{
-				Int Strength = CurHaz.Level;
-				If (Strength > StrongestHaz)
-				{
-					StrongestHaz = Strength;
-					Strongest = CurHaz;
-				}
-			}
-		}
-		
-		Return Strongest;
 	}
 	
 	Enum RunAwayTypes
