@@ -1276,7 +1276,7 @@ Extend Class SM_Marine
 			If (Random (0,255) < 32 && SM_StunGrenade.CanStun(Against))
 				UseStun = True;
 			//Randomly decide to throw smoke, as long as the enemy CAN be affected by the smokescreen.
-			Else If (Random (0,255) < 120 && (!Against.bSeeInvisible || Against.bShadowAim || Against.Player) && (Against.Player || Against.bDoShadowBlock))
+			Else If (Random (0,255) < 32 && (!Against.bSeeInvisible || Against.bShadowAim || Against.Player) && (Against.Player || Against.bDoShadowBlock))
 				UseSmoke = True;
 			Else
 				UseHE = True;

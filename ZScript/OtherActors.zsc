@@ -292,7 +292,11 @@ Class SM_Bullet : KAI_BaseProjectile
 		If ((HasGodMode(Victim) || IsIndestructible(Victim) && !IsInanimateObject(Victim)))
 		{
 			DoDeflection (Victim,FRandom(0.4,0.6),FRandom (1.,0.7),(10,-10,10,-10));
-			If (Self && Victim && Victim Is "KAI_Actor") KAI_Actor(Victim).OnProjectileDeflect(Self,Null,Null,Null,(0,0,0,0));
+			If (Self && Victim && Victim Is "KAI_Actor")
+			{
+				Double Crud; Int Durc;//HACK: Trying to stop a VM abort.
+				KAI_Actor(Victim).OnProjectileDeflect(Self,Durc,Crud,Crud,(0,0,0,0));
+			}
 			Else A_StartSound (BounceSound,flags:CHANF_OVERLAP,1,0.9);
 			Return MHIT_PASS;
 		}

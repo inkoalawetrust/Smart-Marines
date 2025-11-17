@@ -1,6 +1,7 @@
 //IDEA:
 //Make marines fire at dangerous objects near their target like explosive barrels.
 //Make their aim affected by sector fog from them to the target. And also by sector light levels.
+//Make family guy death animation.
 
 Class SM_Marine : KAI_Humanoid
 {
@@ -1671,7 +1672,7 @@ Class SM_Marine : KAI_Humanoid
 						If (!NoRetreat && Random (0,255) < 4) A_StartSound ("Marine/Boolet",CHAN_VOICE,CHANF_OVERLAP);
 						
 						//Might instead quickly throw a smoke grenade before backing off, especially after firing full auto.
-						Int SmokeChance = Random (0,64)+((AttackType == FIRE_FULLAUTO) ? 32 : 0);
+						Int SmokeChance = Random (0,24)+((AttackType == FIRE_FULLAUTO) ? 24 : 0);
 						If (NoRetreat) SmokeChance -= 32; //Less likely to throw smoke if set to never retreat.
 						
 						RetreatLoops *= User_RetreatFactor;
@@ -2413,7 +2414,9 @@ Class SM_Marine : KAI_Humanoid
 					Sprite = GetSpriteIndex ("MARC");
 					Frame = 5;
 				}
-				A_Pain();
+				
+				If (Random (0,1024) < 987) A_Pain();
+				Else A_StartSound ("Marine/Wilhelm");
 			}
 			MARA E 0
 			{
