@@ -2415,7 +2415,7 @@ Class SM_Marine : KAI_Humanoid
 					Frame = 5;
 				}
 				
-				If (Random (0,1024) < 987) A_Pain();
+				If (Random (0,1024) < 1010) A_Pain();
 				Else A_StartSound ("Marine/Wilhelm");
 			}
 			MARA E 0

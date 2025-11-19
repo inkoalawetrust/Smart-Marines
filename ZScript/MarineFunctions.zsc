@@ -2073,7 +2073,7 @@ Extend Class SM_Marine
 			Return True;
 		If (MarineAction == RESTRICT_DODGING && Token && Token.NoDodge)
 			Return True;
-		If (MarineAction == RESTRICT_HEALING && (User_HealCooldown == 0 || Token && Token.NoHeal))
+		If (MarineAction == RESTRICT_HEALING && (User_HealCooldown <= 0 || Token && Token.NoHeal))
 			Return True;
 		If (MarineAction == RESTRICT_WARNALLIES && Token && Token.NoWarn)
 			Return True;
