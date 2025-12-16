@@ -238,6 +238,7 @@ Class SM_Bullet : KAI_BaseProjectile
 		DamageType "SmallRifleBullet";
 		Obituary "%o found out that rifle rounds are more dangerous than in the movies"; //Actually used by the marines' GetObituary().
 		BounceSound "VRifle/BulletRicochet";
+		KAI_BaseProjectile.Iterations 3;
 		+KAI_BaseProjectile.Deflectable;
 	}
 	Bool HitLiquid;
@@ -436,6 +437,7 @@ Class SM_FragGrenade : KAI_BaseProjectile
 		DamageType "Explosive";
 		ExplosionRadius 256;
 		ExplosionDamage 192;
+		KAI_BaseProjectile.Iterations 1;
 		+KAI_BaseProjectile.NoFriendlyFire; //Go through allies, but that DOESN'T mean the explosion's harmless to them.
 		//Projectile;
 		-NoGravity;
@@ -702,6 +704,7 @@ Class SM_SmokeGrenade : KAI_BaseProjectile
 		ReactionTime 35*4; //Used as the fuse timer, similar to how A_Countdown uses it.
 		BounceType "Hexen";
 		BounceSound "Grenade/Bounce";
+		KAI_BaseProjectile.Iterations 1;
 		//DamageType "Grenade";
 		-NoGravity;
 		+RollSprite;
